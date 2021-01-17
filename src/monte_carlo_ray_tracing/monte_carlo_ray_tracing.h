@@ -56,7 +56,7 @@ private:
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
 
-    // Image used to store ray traced image
+    // Images used to store ray traced image
     struct {
         VulkanTexture2D color;
         VulkanTexture2D depthMap;

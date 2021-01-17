@@ -782,11 +782,11 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             2,
             &m_storageImage.firstSample.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet4
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet5
         = { resultImageWrite, resultDepthMapWrite, resultFirstSampleWrite };
     vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet4.size()),
-        writeDescriptorSet4.data(),
+        static_cast<uint32_t>(writeDescriptorSet5.size()),
+        writeDescriptorSet5.data(),
         0,
         VK_NULL_HANDLE);
 

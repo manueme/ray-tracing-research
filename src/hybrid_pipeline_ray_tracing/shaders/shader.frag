@@ -5,6 +5,8 @@
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 
+layout(binding = 0, set = 3, rgba32f) uniform image2D outputNormals;
+
 layout(binding = 0, set = 1) uniform sampler2D textures[];
 layout(binding = 1, set = 1) buffer _Materials { MaterialProperties m[]; }
 materials;

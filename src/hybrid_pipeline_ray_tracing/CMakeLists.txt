@@ -2,6 +2,12 @@ set(SUB_PROJECT_NAME hybrid_pipeline_ray_tracing)
 message(STATUS "Generating project file for ${SUB_PROJECT_NAME}")
 
 set(SHADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/closesthit.rchit.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/raygen.rgen.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/miss.rmiss.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rmiss.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/anyhit.rahit.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rahit.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/frag.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/vert.spv
         )

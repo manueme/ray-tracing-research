@@ -20,11 +20,11 @@ private:
     const uint32_t vertex_buffer_bind_id = 0;
 
     struct {
-        VkPipeline rayTracing; // TODO: init
+        VkPipeline rayTracing;
         VkPipeline raster;
     } m_pipelines;
     struct {
-        VkPipelineLayout rayTracing; // TODO: init
+        VkPipelineLayout rayTracing;
         VkPipelineLayout raster;
     } m_pipelineLayouts;
 
@@ -32,14 +32,41 @@ private:
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1Materials;
         VkDescriptorSet set2Lights;
+        VkDescriptorSet set3StorageImage;
     } m_rasterDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1Materials;
         VkDescriptorSetLayout set2Lights;
+        VkDescriptorSetLayout set3StorageImage;
     } m_rasterDescriptorSetLayouts;
+    struct {
+        VkDescriptorSet set0AccelerationStructure;
+        std::vector<VkDescriptorSet> set1Scene;
+        VkDescriptorSet set2Geometry;
+        VkDescriptorSet set3Materials;
+        VkDescriptorSet set4Lights;
+        VkDescriptorSet set5StorageImage;
+    } m_rtDescriptorSets;
+    struct {
+        VkDescriptorSetLayout set0AccelerationStructure;
+        VkDescriptorSetLayout set1Scene;
+        VkDescriptorSetLayout set2Geometry;
+        VkDescriptorSetLayout set3Materials;
+        VkDescriptorSetLayout set4Lights;
+        VkDescriptorSetLayout set5StorageImage;
+    } m_rtDescriptorSetLayouts;
+    Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
+
+    // Images used to store ray traced image
+    struct {
+        VulkanTexture2D rtInputColor;
+        VulkanTexture2D rtInputNormals;
+        VulkanTexture2D rtInputDepth;
+        VulkanTexture2D resultImage;
+    } m_storageImage;
 
     struct {
         glm::mat4 projection;
@@ -61,15 +88,28 @@ private:
 
     Buffer m_shaderBindingTable;
 
+    const int m_ray_tracer_depth = 8;
+    const int m_ray_tracer_samples = 1;
+    // Push constant sent to the path tracer
+    struct PathTracerParameters {
+        int maxDepth; // Max depth
+        int samples; // samples per frame
+    } m_pathTracerParams;
+
     void render() override;
     void prepare() override;
     void updateUniformBuffers(uint32_t t_currentImage) override;
+    void onSwapChainRecreation() override;
     void buildCommandBuffers() override;
+    void createStorageImages();
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
     void createDescriptorPool();
     void createDescriptorSets();
+    void updateResultImageDescriptorSets();
     void createDescriptorSetLayout();
+    void assignPushConstants();
     void createUniformBuffers();
+    void createRTPipeline();
     void createRasterPipeline();
     void createShaderRTBindingTable();
     void getEnabledFeatures() override;
