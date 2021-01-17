@@ -18,6 +18,8 @@ layout(binding = 0) uniform SceneProperties
     mat4 model;
     mat4 view;
     mat4 viewInverse;
+    mat4 projInverse;
+    vec4 overrideSunDirection;
 }
 scene;
 
@@ -55,11 +57,12 @@ void main()
     }
 
     // ####  Compute surface albedo ####
-    vec3 surfaceAlbedo;
+    vec4 surfaceAlbedo;
     if (diffuseMapIndex >= 0) {
-        surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], inUV).rgb;
+        surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], inUV).rgba;
+        surfaceAlbedo.a *= material.opacity;
     } else {
-        surfaceAlbedo = material.diffuse.rgb;
+        surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
     }
     // ####  End compute surface albedo ####
 
@@ -83,7 +86,8 @@ void main()
         vec3 lightIntensity = vec3(0.0f);
 
         if (light.lightType == 1) { // Directional light (SUN)
-            lightDir = (scene.viewInverse * vec4(light.direction.xyz, 1.0)).xyz;
+            lightDir = (transpose(mat3(scene.viewInverse)) * light.direction.xyz).xyz
+                + vec3(scene.overrideSunDirection);
             lightIntensity = light.diffuse.rgb * SUN_POWER;
             lightDir = normalize(lightDir);
         } else {
@@ -103,5 +107,5 @@ void main()
             }
         }
     }
-    outFragColor = vec4((diffuse + specular) * surfaceAlbedo / M_PIf, 1.0 - material.opacity);
+    outFragColor = vec4(emissive + (diffuse + specular) * surfaceAlbedo.rgb, surfaceAlbedo.a);
 }

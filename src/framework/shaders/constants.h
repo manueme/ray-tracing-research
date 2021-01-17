@@ -16,21 +16,47 @@
 #define RT_PAYLOAD_SHADOW 0
 #define RT_PAYLOAD_BRDF 1
 
-#define SBT_BRDF_RAY_GEN_INDEX 0
-#define SBT_BRDF_RAY_GEN_GROUP SBT_BRDF_RAY_GEN_INDEX
-#define SBT_BRDF_MISS_INDEX 1
-#define SBT_BRDF_MISS_GROUP SBT_BRDF_MISS_INDEX
-#define SBT_SHADOW_MISS_INDEX 2
-#define SBT_SHADOW_MISS_GROUP SBT_SHADOW_MISS_INDEX
+// MonteCarlo app shader table groups
+// Main Ray Generation Group
+#define SBT_MC_RAY_GEN_GROUP 0
+#define SBT_MC_RAY_GEN_INDEX 0
+// Ray Miss Group
+#define SBT_MC_MISS_GROUP 1
+#define SBT_MC_MISS_INDEX 1
+// Shadow Ray Miss Group
+#define SBT_MC_SHADOW_MISS_GROUP 2
+#define SBT_MC_SHADOW_MISS_INDEX 2
+// Ray Hit Group
+#define SBT_MC_HIT_GROUP 3
+#define SBT_MC_ANY_HIT_INDEX 3
+#define SBT_MC_CLOSEST_HIT_INDEX 4
+// Shadow Ray Hit Group
+#define SBT_MC_SHADOW_HIT_GROUP 4
+#define SBT_MC_SHADOW_ANY_HIT_INDEX 5
+// Group count
+#define SBT_MC_NUM_SHADER_GROUPS 5
+// ----
 
-#define SBT_BRDF_HIT_GROUP 3
-#define SBT_BRDF_ANY_HIT_INDEX 3
-#define SBT_BRDF_CLOSEST_HIT_INDEX 4
-
-#define SBT_SHADOW_HIT_GROUP 4
-#define SBT_SHADOW_ANY_HIT_INDEX 5
-
-#define NUM_SHADER_GROUPS 5
+// Hybrid Pipeline app shader table groups
+// Main Ray Generation Group
+#define SBT_HP_RAY_GEN_GROUP 0
+#define SBT_HP_RAY_GEN_INDEX 0
+// Ray Miss Group
+#define SBT_HP_MISS_GROUP 1
+#define SBT_HP_MISS_INDEX 1
+// Shadow Ray Miss Group
+#define SBT_HP_SHADOW_MISS_GROUP 2
+#define SBT_HP_SHADOW_MISS_INDEX 2
+// Ray Hit Group
+#define SBT_HP_HIT_GROUP 3
+#define SBT_HP_ANY_HIT_INDEX 3
+#define SBT_HP_CLOSEST_HIT_INDEX 4
+// Shadow Ray Hit Group
+#define SBT_HP_SHADOW_HIT_GROUP 4
+#define SBT_HP_SHADOW_ANY_HIT_INDEX 5
+// Group count
+#define SBT_HP_NUM_SHADER_GROUPS 5
+// ----
 
 #define SRGB_ALPHA 0.055
 

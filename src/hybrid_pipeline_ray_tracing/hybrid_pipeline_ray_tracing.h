@@ -43,7 +43,9 @@ private:
         glm::mat4 projection;
         glm::mat4 model;
         glm::mat4 view;
-        glm::mat4 viewInverse;
+        glm::mat4 viewInverse { glm::mat4(1.0) };
+        glm::mat4 projInverse { glm::mat4(1.0) };
+        glm::vec4 overrideSunDirection { glm::vec4(0.0) };
     } m_sceneUniformData;
     // one for each swap chain image, the scene can change on every frame
     std::vector<Buffer> m_sceneBuffers;
@@ -59,6 +61,7 @@ private:
     void prepare() override;
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void buildCommandBuffers() override;
+    void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
     void createDescriptorPool();
     void createDescriptorSets();
     void createDescriptorSetLayout();

@@ -424,12 +424,27 @@ HybridPipelineRT::~HybridPipelineRT()
     m_scene->destroy();
 }
 
+void HybridPipelineRT::onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods)
+{
+    switch (t_key) {
+    case GLFW_KEY_J:
+        m_sceneUniformData.overrideSunDirection.x += 0.05;
+        viewChanged();
+        break;
+    case GLFW_KEY_K:
+        m_sceneUniformData.overrideSunDirection.x -= 0.05;
+        viewChanged();
+        break;
+    default:
+        break;
+    }
+}
+
 void HybridPipelineRT::viewChanged()
 {
     auto camera = m_scene->getCamera();
     m_sceneUniformData.projection = camera->matrices.perspective;
     m_sceneUniformData.view = camera->matrices.view;
     m_sceneUniformData.model = glm::mat4(1.0f);
-    m_sceneUniformData.viewInverse
-        = glm::inverseTranspose(m_sceneUniformData.view * m_sceneUniformData.model);
+    m_sceneUniformData.viewInverse = glm::inverse(camera->matrices.view);
 }

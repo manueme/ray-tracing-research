@@ -11,6 +11,8 @@ layout(binding = 0) uniform SceneProperties
     mat4 model;
     mat4 view;
     mat4 viewInverse;
+    mat4 projInverse;
+    vec4 overrideSunDirection;
 }
 scene;
 
@@ -24,7 +26,7 @@ void main()
 {
     // Normal in world space
     const mat3 worldNormal = transpose(inverse(mat3(scene.model)));
-    const mat3 viewNormal = mat3(scene.viewInverse);
+    const mat3 viewNormal = transpose(mat3(scene.viewInverse));
 
     const vec3 hitNormal = inNormal;
     outNormal = normalize(viewNormal * hitNormal);
