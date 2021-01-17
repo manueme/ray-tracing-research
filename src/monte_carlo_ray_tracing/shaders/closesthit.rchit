@@ -6,8 +6,8 @@
 
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
+#include "../../framework/shaders/vertex.glsl"
 #include "brdf.glsl"
-#include "vertex.glsl"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_BRDF) rayPayloadInEXT RayPayload rayPayload;

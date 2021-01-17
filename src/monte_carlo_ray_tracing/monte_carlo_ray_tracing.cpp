@@ -5,6 +5,8 @@
 
 #include "monte_carlo_ray_tracing.h"
 
+#include "shaders/constants.h"
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
@@ -906,7 +908,7 @@ void MonteCarloRTApp::createConvolutionKernels()
     alloc.destroy(kernel);
 }
 
-void MonteCarloRTApp::createShaderBindingTable()
+void MonteCarloRTApp::createShaderRTBindingTable()
 {
     // Create buffer for the shader binding table
     const uint32_t sbtSize
@@ -947,7 +949,7 @@ void MonteCarloRTApp::prepare()
     assignPushConstants();
     createRasterPipeline();
     createRTPipeline();
-    createShaderBindingTable();
+    createShaderRTBindingTable();
     createDescriptorPool();
     createDescriptorSets();
     buildCommandBuffers();

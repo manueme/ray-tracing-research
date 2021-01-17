@@ -6,7 +6,7 @@
 
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
-#include "vertex.glsl"
+#include "../../framework/shaders/vertex.glsl"
 
 hitAttributeEXT vec3 attribs;
 

@@ -64,18 +64,18 @@ void HybridPipelineRT::buildCommandBuffers()
         VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
         vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
 
-        std::vector<VkDescriptorSet> descriptorSets = { m_descriptorSets.set0Scene[i],
-            m_descriptorSets.set1Materials,
-            m_descriptorSets.set2Lights };
+        std::vector<VkDescriptorSet> descriptorSets = { m_rasterDescriptorSets.set0Scene[i],
+            m_rasterDescriptorSets.set1Materials,
+            m_rasterDescriptorSets.set2Lights };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            m_pipelineLayout,
+            m_pipelineLayouts.raster,
             0,
             descriptorSets.size(),
             descriptorSets.data(),
             0,
             nullptr);
-        m_scene->draw(m_drawCmdBuffers[i], m_pipelineLayout, vertex_buffer_bind_id);
+        m_scene->draw(m_drawCmdBuffers[i], m_pipelineLayouts.raster, vertex_buffer_bind_id);
 
         vkCmdEndRenderPass(m_drawCmdBuffers[i]);
 
@@ -169,8 +169,10 @@ void HybridPipelineRT::createDescriptorSetLayout()
         = initializers::pushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(uint32_t), 0);
     pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
     pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-    VKM_CHECK_RESULT(
-        vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_pipelineLayout));
+    VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
+        &pipelineLayoutCreateInfo,
+        nullptr,
+        &m_pipelineLayouts.raster));
 }
 
 void HybridPipelineRT::createDescriptorSets()
@@ -182,13 +184,13 @@ void HybridPipelineRT::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             layouts.data(),
             m_swapChain.imageCount);
-    m_descriptorSets.set0Scene.resize(m_swapChain.imageCount);
+    m_rasterDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &allocInfo, m_descriptorSets.set0Scene.data()));
+        vkAllocateDescriptorSets(m_device, &allocInfo, m_rasterDescriptorSets.set0Scene.data()));
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
         std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
             // Binding 0 : Vertex shader uniform buffer
-            initializers::writeDescriptorSet(m_descriptorSets.set0Scene[i],
+            initializers::writeDescriptorSet(m_rasterDescriptorSets.set0Scene[i],
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 0,
                 &m_sceneBuffers[i].descriptor),
@@ -207,7 +209,7 @@ void HybridPipelineRT::createDescriptorSets()
             &m_rasterDescriptorSetLayouts.set1Materials,
             1);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &textureAllocInfo, &m_descriptorSets.set1Materials));
+        vkAllocateDescriptorSets(m_device, &textureAllocInfo, &m_rasterDescriptorSets.set1Materials));
 
     std::vector<VkDescriptorImageInfo> textureDescriptors;
     for (auto& texture : m_scene->textures) {
@@ -215,13 +217,13 @@ void HybridPipelineRT::createDescriptorSets()
     }
 
     VkWriteDescriptorSet writeTextureDescriptorSet
-        = initializers::writeDescriptorSet(m_descriptorSets.set1Materials,
+        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1Materials,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
             textureDescriptors.data(),
             textureDescriptors.size());
     VkWriteDescriptorSet writeMaterialsDescriptorSet
-        = initializers::writeDescriptorSet(m_descriptorSets.set1Materials,
+        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1Materials,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             1,
             &m_materialsBuffer.descriptor);
@@ -242,9 +244,9 @@ void HybridPipelineRT::createDescriptorSets()
             &m_rasterDescriptorSetLayouts.set2Lights,
             1);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_descriptorSets.set2Lights));
+        vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rasterDescriptorSets.set2Lights));
     VkWriteDescriptorSet writeLightsDescriptorSet
-        = initializers::writeDescriptorSet(m_descriptorSets.set2Lights,
+        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set2Lights,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             0,
             &m_lightsBuffer.descriptor);
@@ -327,7 +329,7 @@ void HybridPipelineRT::createRasterPipeline()
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo
-        = initializers::pipelineCreateInfo(m_pipelineLayout, m_renderPass, 0);
+        = initializers::pipelineCreateInfo(m_pipelineLayouts.raster, m_renderPass, 0);
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -406,11 +408,9 @@ void HybridPipelineRT::prepare()
 
 HybridPipelineRT::~HybridPipelineRT()
 {
-    // Clean up used Vulkan resources
-    // Note : Inherited destructor cleans up resources stored in base class
     vkDestroyPipeline(m_device, m_pipelines.raster, nullptr);
 
-    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.raster, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set1Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set2Lights, nullptr);

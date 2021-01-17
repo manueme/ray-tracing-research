@@ -22,13 +22,15 @@ private:
     struct {
         VkPipeline raster;
     } m_pipelines;
-    VkPipelineLayout m_pipelineLayout;
+    struct {
+        VkPipelineLayout raster;
+    } m_pipelineLayouts;
 
     struct {
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1Materials;
         VkDescriptorSet set2Lights;
-    } m_descriptorSets;
+    } m_rasterDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1Materials;

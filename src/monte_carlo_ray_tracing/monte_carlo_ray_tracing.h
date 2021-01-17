@@ -114,7 +114,7 @@ private:
     void createUniformBuffers();
     void createRTPipeline();
     void createRasterPipeline();
-    void createShaderBindingTable();
+    void createShaderRTBindingTable();
 
     void getEnabledFeatures() override;
 };
