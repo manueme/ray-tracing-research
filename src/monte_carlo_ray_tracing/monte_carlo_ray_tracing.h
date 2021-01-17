@@ -7,10 +7,7 @@
 #define MANUEME_MONTE_CARLO_RAY_TRACING_H
 
 #include "base_rt_project.h"
-#include "core/acceleration_structure.h"
 #include "core/texture.h"
-#include "scene/scene.h"
-#include "shaders/constants.h"
 
 class MonteCarloRTApp : public BaseRTProject {
 public:
@@ -97,9 +94,6 @@ private:
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
 
-    std::vector<AccelerationStructure> m_bottomLevelAS;
-    AccelerationStructure m_topLevelAS;
-
     Buffer m_shaderBindingTable;
 
     void render() override;
@@ -110,8 +104,7 @@ private:
     void onSwapChainRecreation() override;
     void buildCommandBuffers() override;
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
-    void createScene();
-    void createStorageImage();
+    void createStorageImages();
     void createConvolutionKernels();
     void createDescriptorPool();
     void createDescriptorSetsLayout();
@@ -124,11 +117,6 @@ private:
     void createShaderBindingTable();
 
     void getEnabledFeatures() override;
-    // Aux functions
-    VkDeviceSize copyShaderIdentifier(
-        uint8_t* t_data, const uint8_t* t_shaderHandleStorage, uint32_t t_groupIndex) const;
-    void createBottomLevelAccelerationStructure(const std::vector<BlasCreateInfo>& t_blases);
-    void createTopLevelAccelerationStructure(TlasCreateInfo t_tlasCreateInfo);
 };
 
 #endif // MANUEME_MONTE_CARLO_RAY_TRACING_H

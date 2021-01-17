@@ -5,8 +5,6 @@
 
 #include "hybrid_pipeline_ray_tracing.h"
 
-#include "scene/scene.h"
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
@@ -20,23 +18,7 @@ HybridPipelineRT::HybridPipelineRT()
     m_settings.vsync = true;
 }
 
-void HybridPipelineRT::getEnabledFeatures()
-{
-    m_enabledDeviceExtensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
-    m_enabledDeviceExtensions.emplace_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
-
-    m_bufferDeviceAddressFeatures.sType
-        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-    m_bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
-
-    m_indexFeature.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-    m_indexFeature.runtimeDescriptorArray = VK_TRUE;
-    m_indexFeature.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-    m_indexFeature.pNext = &m_bufferDeviceAddressFeatures;
-    m_deviceCreatedNextChain = &m_indexFeature;
-    m_enabledFeatures.geometryShader = VK_TRUE;
-    m_enabledFeatures.fragmentStoresAndAtomics = VK_TRUE;
-}
+void HybridPipelineRT::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }
 
 void HybridPipelineRT::render()
 {
@@ -45,26 +27,6 @@ void HybridPipelineRT::render()
     }
     BaseRTProject::renderFrame();
     std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
-}
-
-void HybridPipelineRT::loadAssets()
-{
-    // Models
-    SceneCreateInfo modelCreateInfo(glm::vec3(1.0f), glm::vec3(1.0f), glm::vec3(0.0f));
-    m_scene = new Scene();
-    m_scene->loadFromFile("assets/pool/Pool.fbx",
-        m_vertexLayout,
-        &modelCreateInfo,
-        m_vulkanDevice,
-        m_queue,
-        &m_pipelines.m_models);
-    auto camera = m_scene->getCamera();
-    camera->setMovementSpeed(500.0f);
-    camera->setRotationSpeed(0.5f);
-    camera->setPerspective(60.0f,
-        static_cast<float>(m_width) / static_cast<float>(m_height),
-        0.1f,
-        5000.0f);
 }
 
 void HybridPipelineRT::buildCommandBuffers()
@@ -159,7 +121,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_descriptorSetLayouts.set0Scene));
+        &m_rasterDescriptorSetLayouts.set0Scene));
 
     // Set 1: Material data
     setLayoutBindings.clear();
@@ -179,7 +141,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_descriptorSetLayouts.set1Materials));
+        &m_rasterDescriptorSetLayouts.set1Materials));
 
     // Set 2: Lighting data
     setLayoutBindings.clear();
@@ -194,11 +156,11 @@ void HybridPipelineRT::createDescriptorSetLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_descriptorSetLayouts.set2Lights));
+        &m_rasterDescriptorSetLayouts.set2Lights));
 
-    std::array<VkDescriptorSetLayout, 3> setLayouts = { m_descriptorSetLayouts.set0Scene,
-        m_descriptorSetLayouts.set1Materials,
-        m_descriptorSetLayouts.set2Lights };
+    std::array<VkDescriptorSetLayout, 3> setLayouts = { m_rasterDescriptorSetLayouts.set0Scene,
+        m_rasterDescriptorSetLayouts.set1Materials,
+        m_rasterDescriptorSetLayouts.set2Lights };
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo
         = initializers::pipelineLayoutCreateInfo(setLayouts.data(), setLayouts.size());
 
@@ -211,11 +173,11 @@ void HybridPipelineRT::createDescriptorSetLayout()
         vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_pipelineLayout));
 }
 
-void HybridPipelineRT::createDescriptorSet()
+void HybridPipelineRT::createDescriptorSets()
 {
     // Set 0: Scene descriptor
     std::vector<VkDescriptorSetLayout> layouts(m_swapChain.imageCount,
-        m_descriptorSetLayouts.set0Scene);
+        m_rasterDescriptorSetLayouts.set0Scene);
     VkDescriptorSetAllocateInfo allocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             layouts.data(),
@@ -242,7 +204,7 @@ void HybridPipelineRT::createDescriptorSet()
     // Materials and Textures descriptor sets
     VkDescriptorSetAllocateInfo textureAllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_descriptorSetLayouts.set1Materials,
+            &m_rasterDescriptorSetLayouts.set1Materials,
             1);
     VKM_CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &textureAllocInfo, &m_descriptorSets.set1Materials));
@@ -277,7 +239,7 @@ void HybridPipelineRT::createDescriptorSet()
     // Set 2: Lighting descriptor
     VkDescriptorSetAllocateInfo set2AllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_descriptorSetLayouts.set2Lights,
+            &m_rasterDescriptorSetLayouts.set2Lights,
             1);
     VKM_CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_descriptorSets.set2Lights));
@@ -330,11 +292,10 @@ void HybridPipelineRT::createUniformBuffers()
         m_scene->getLightsShaderData().data());
 }
 
-void HybridPipelineRT::createPipelines()
+void HybridPipelineRT::createRasterPipeline()
 {
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState
-        = initializers::pipelineInputAssemblyStateCreateInfo(
-            VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        = initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             0,
             VK_FALSE);
     VkPipelineRasterizationStateCreateInfo rasterizationState
@@ -426,19 +387,19 @@ void HybridPipelineRT::createPipelines()
         1,
         &pipelineCreateInfo,
         nullptr,
-        &m_pipelines.m_models));
+        &m_pipelines.raster));
 }
 
 void HybridPipelineRT::prepare()
 {
     BaseRTProject::prepare();
+    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout, &m_pipelines.raster);
 
-    loadAssets();
     createUniformBuffers();
     createDescriptorSetLayout();
-    createPipelines();
+    createRasterPipeline();
     createDescriptorPool();
-    createDescriptorSet();
+    createDescriptorSets();
     buildCommandBuffers();
     m_prepared = true;
 }
@@ -447,12 +408,12 @@ HybridPipelineRT::~HybridPipelineRT()
 {
     // Clean up used Vulkan resources
     // Note : Inherited destructor cleans up resources stored in base class
-    vkDestroyPipeline(m_device, m_pipelines.m_models, nullptr);
+    vkDestroyPipeline(m_device, m_pipelines.raster, nullptr);
 
     vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayouts.set0Scene, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayouts.set1Materials, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayouts.set2Lights, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set0Scene, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set1Materials, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set2Lights, nullptr);
 
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
         m_sceneBuffers[i].destroy();
@@ -466,9 +427,9 @@ HybridPipelineRT::~HybridPipelineRT()
 void HybridPipelineRT::viewChanged()
 {
     auto camera = m_scene->getCamera();
-    m_sceneUniformData.m_projection = camera->matrices.perspective;
-    m_sceneUniformData.m_view = camera->matrices.view;
-    m_sceneUniformData.m_model = glm::mat4(1.0f);
-    m_sceneUniformData.m_viewInverse
-        = glm::inverseTranspose(m_sceneUniformData.m_view * m_sceneUniformData.m_model);
+    m_sceneUniformData.projection = camera->matrices.perspective;
+    m_sceneUniformData.view = camera->matrices.view;
+    m_sceneUniformData.model = glm::mat4(1.0f);
+    m_sceneUniformData.viewInverse
+        = glm::inverseTranspose(m_sceneUniformData.view * m_sceneUniformData.model);
 }

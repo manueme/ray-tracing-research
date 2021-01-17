@@ -7,7 +7,6 @@
 #define MANUEME_HYBRID_PIPELINE_RAY_TRACING_H
 
 #include "base_rt_project.h"
-#include "scene/scene.h"
 
 class HybridPipelineRT : public BaseRTProject {
 public:
@@ -20,12 +19,8 @@ private:
 
     const uint32_t vertex_buffer_bind_id = 0;
 
-    // Device extra features
-    VkPhysicalDeviceDescriptorIndexingFeaturesEXT m_indexFeature {};
-    VkPhysicalDeviceBufferDeviceAddressFeatures m_bufferDeviceAddressFeatures {};
-
     struct {
-        VkPipeline m_models;
+        VkPipeline raster;
     } m_pipelines;
     VkPipelineLayout m_pipelineLayout;
 
@@ -38,15 +33,15 @@ private:
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1Materials;
         VkDescriptorSetLayout set2Lights;
-    } m_descriptorSetLayouts;
+    } m_rasterDescriptorSetLayouts;
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
 
     struct {
-        glm::mat4 m_projection;
-        glm::mat4 m_model;
-        glm::mat4 m_view;
-        glm::mat4 m_viewInverse;
+        glm::mat4 projection;
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 viewInverse;
     } m_sceneUniformData;
     // one for each swap chain image, the scene can change on every frame
     std::vector<Buffer> m_sceneBuffers;
@@ -60,14 +55,13 @@ private:
 
     void render() override;
     void prepare() override;
-    void loadAssets();
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void buildCommandBuffers() override;
     void createDescriptorPool();
-    void createDescriptorSet();
+    void createDescriptorSets();
     void createDescriptorSetLayout();
     void createUniformBuffers();
-    void createPipelines();
+    void createRasterPipeline();
 
     void getEnabledFeatures() override;
 };

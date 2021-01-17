@@ -7,6 +7,8 @@
 #define MANUEME_BASE_RT_PROJECT_H
 
 #include "base_project.h"
+#include "scene/scene.h"
+#include "core/acceleration_structure.h"
 
 class BaseRTProject : public BaseProject {
 public:
@@ -38,6 +40,16 @@ public:
 protected:
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rayTracingPipelineProperties {};
 
+    // Bottom level acceleration structure
+    std::vector<AccelerationStructure> m_bottomLevelAS;
+    // Top level acceleration structure
+    AccelerationStructure m_topLevelAS;
+
+    VkDeviceSize copyRTShaderIdentifier(
+        uint8_t* t_data, const uint8_t* t_shaderHandleStorage, uint32_t t_groupIndex) const;
+    void createBottomLevelAccelerationStructure(const std::vector<BlasCreateInfo>& t_blases);
+    void createTopLevelAccelerationStructure(TlasCreateInfo t_tlasCreateInfo);
+
     // Device extra features
     VkPhysicalDeviceBufferDeviceAddressFeatures m_bufferDeviceAddressFeatures {};
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR m_rayTracingPipelineFeatures {};
@@ -45,8 +57,10 @@ protected:
     VkPhysicalDeviceDescriptorIndexingFeaturesEXT m_descriptorIndexingFeatures {};
     void getDeviceRayTracingProperties();
 
+
     void getEnabledFeatures() override;
     void prepare() override;
+    void createRTScene(const std::string& t_modelPath, SceneVertexLayout t_vertexLayout, VkPipeline* t_pipeline = nullptr);
 };
 
 #endif // MANUEME_BASE_RT_PROJECT_H
