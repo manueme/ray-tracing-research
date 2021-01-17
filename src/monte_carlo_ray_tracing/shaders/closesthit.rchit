@@ -25,10 +25,10 @@ layout(binding = 0, set = 1) uniform _SceneProperties
     bool frameChanged;
 }
 scene;
-layout(binding = 0, set = 2) uniform sampler2D textures[];
-layout(binding = 1, set = 2) buffer _Materials { MaterialProperties m[]; }
+layout(binding = 0, set = 3) uniform sampler2D textures[];
+layout(binding = 1, set = 3) buffer _Materials { MaterialProperties m[]; }
 materials;
-layout(binding = 0, set = 3) buffer _Lights { LightProperties l[]; }
+layout(binding = 0, set = 4) buffer _Lights { LightProperties l[]; }
 lighting;
 
 layout(push_constant) uniform Constants

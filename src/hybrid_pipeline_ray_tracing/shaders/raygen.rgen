@@ -10,13 +10,13 @@
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
 
-layout(binding = 0, set = 3) buffer _Lights { LightProperties l[]; }
+layout(binding = 0, set = 4) buffer _Lights { LightProperties l[]; }
 lighting;
 
-layout(binding = 0, set = 4, rgba32f) uniform image2D inputColor;
-layout(binding = 1, set = 4, rgba32f) uniform image2D inputNormals;
-layout(binding = 2, set = 4, r32f) uniform image2D inputDepth;
-layout(binding = 3, set = 4, rgba32f) uniform image2D resultImage;
+layout(binding = 0, set = 5, rgba32f) uniform image2D inputColor;
+layout(binding = 1, set = 5, rgba32f) uniform image2D inputNormals;
+layout(binding = 2, set = 5, r32f) uniform image2D inputDepth;
+layout(binding = 3, set = 5, rgba32f) uniform image2D resultImage;
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {

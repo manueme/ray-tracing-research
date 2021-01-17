@@ -20,9 +20,11 @@ private:
     const uint32_t vertex_buffer_bind_id = 0;
 
     struct {
+        VkPipeline rayTracing; // TODO: init
         VkPipeline raster;
     } m_pipelines;
     struct {
+        VkPipelineLayout rayTracing; // TODO: init
         VkPipelineLayout raster;
     } m_pipelineLayouts;
 
@@ -57,6 +59,8 @@ private:
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
 
+    Buffer m_shaderBindingTable;
+
     void render() override;
     void prepare() override;
     void updateUniformBuffers(uint32_t t_currentImage) override;
@@ -67,7 +71,7 @@ private:
     void createDescriptorSetLayout();
     void createUniformBuffers();
     void createRasterPipeline();
-
+    void createShaderRTBindingTable();
     void getEnabledFeatures() override;
 };
 

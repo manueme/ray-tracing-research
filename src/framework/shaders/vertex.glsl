@@ -1,10 +1,10 @@
 // #define FLAT_SHADING
 
-layout(binding = 1, set = 1) buffer Vertices { vec4 v[]; }
+layout(binding = 0, set = 2) buffer Vertices { vec4 v[]; }
 vertices;
-layout(binding = 2, set = 1) buffer _Indices { uint i[]; }
+layout(binding = 1, set = 2) buffer _Indices { uint i[]; }
 indices;
-layout(binding = 3, set = 1) readonly buffer _Instances { ShaderMeshInstance i[]; }
+layout(binding = 2, set = 2) readonly buffer _Instances { ShaderMeshInstance i[]; }
 instanceInfo;
 
 struct Vertex {

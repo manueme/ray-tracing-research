@@ -15,11 +15,11 @@ layout(location = RT_PAYLOAD_BRDF) rayPayloadEXT RayPayload rayPayloadBRDF;
 #define DEPTH_OF_FIELD
 #define USE_DEPTH_MAP
 
-layout(binding = 0, set = 4, rgba32f) uniform image2D imageColor;
+layout(binding = 0, set = 5, rgba32f) uniform image2D imageColor;
 #ifdef USE_DEPTH_MAP
-layout(binding = 1, set = 4, r32f) uniform image2D imageDepth;
+layout(binding = 1, set = 5, r32f) uniform image2D imageDepth;
 #endif
-layout(binding = 2, set = 4, rgba8) uniform image2D imageFirstSample;
+layout(binding = 2, set = 5, rgba8) uniform image2D imageFirstSample;
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {

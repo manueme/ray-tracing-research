@@ -54,11 +54,12 @@ void MonteCarloRTApp::buildCommandBuffers()
             m_pipelines.rayTracing);
         std::vector<VkDescriptorSet> rtDescriptorSets
             = { m_rtDescriptorSets.set0AccelerationStructure,
-                  m_rtDescriptorSets.set1Scene,
-                  m_rtDescriptorSets.set2Materials,
-                  m_rtDescriptorSets.set3Lights,
-                  m_rtDescriptorSets.set4ResultImage,
-                  m_rtDescriptorSets.set5AuxImage };
+                  m_rtDescriptorSets.set1Scene[i],
+                  m_rtDescriptorSets.set2Geometry,
+                  m_rtDescriptorSets.set3Materials,
+                  m_rtDescriptorSets.set4Lights,
+                  m_rtDescriptorSets.set5ResultImage,
+                  m_rtDescriptorSets.set6AuxImage };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
             m_pipelineLayouts.rayTracing,
@@ -110,7 +111,7 @@ void MonteCarloRTApp::buildCommandBuffers()
         vkCmdSetViewport(m_drawCmdBuffers[i], 0, 1, &viewport);
         VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
         vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
-        std::vector<VkDescriptorSet> rasterDescriptorSets = { m_rasterDescriptorSets.set0Scene,
+        std::vector<VkDescriptorSet> rasterDescriptorSets = { m_rasterDescriptorSets.set0Scene[i],
             m_rasterDescriptorSets.set1InputImage,
             m_rasterDescriptorSets.set2ConvolutionKernels };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
@@ -142,9 +143,9 @@ void MonteCarloRTApp::createDescriptorPool()
 {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
-        // Camera position
+        // Scene description
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-        // Vertex, Index and Material Index
+        // Vertex, Index and Material Indexes
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
         // Textures
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
@@ -196,18 +197,6 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
                 | VK_SHADER_STAGE_MISS_BIT_KHR,
             0),
-        // Binding 1 : Vertex uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            1),
-        // Binding 2 : Vertex Index uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            2),
-        // Binding 3 : Instance Information uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            3),
     };
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
@@ -216,7 +205,30 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
         nullptr,
         &m_rtDescriptorSetLayouts.set1Scene));
 
-    // Set 2: Textures data
+    // Set 2: Geometry data
+    setLayoutBindings.clear();
+    setLayoutBindings = {
+        // Binding 0 : Vertex uniform buffer
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+            0),
+        // Binding 1 : Vertex Index uniform buffer
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+            1),
+        // Binding 2 : Instance Information uniform buffer
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+            2),
+    };
+    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+        setLayoutBindings.size());
+    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        &descriptorLayout,
+        nullptr,
+        &m_rtDescriptorSetLayouts.set2Geometry));
+
+    // Set 3: Textures data
     setLayoutBindings.clear();
     // Texture list binding 0
     setLayoutBindings.push_back(
@@ -234,9 +246,9 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rtDescriptorSetLayouts.set2Materials));
+        &m_rtDescriptorSetLayouts.set3Materials));
 
-    // Set 3: Lighting data
+    // Set 4: Lighting data
     setLayoutBindings.clear();
     // Light list binding 0
     setLayoutBindings.push_back(
@@ -249,9 +261,9 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rtDescriptorSetLayouts.set3Lights));
+        &m_rtDescriptorSetLayouts.set4Lights));
 
-    // Set 4: Result Image
+    // Set 5: Result Image
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
         // Binding 0 : Result Image Color
@@ -274,9 +286,9 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rtDescriptorSetLayouts.set4ResultImage));
+        &m_rtDescriptorSetLayouts.set5ResultImage));
 
-    // Set 5: Aux Images
+    // Set 6: Aux Images
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
         // Binding 0 : RBG Noise Image
@@ -288,7 +300,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rtDescriptorSetLayouts.set5AuxImage));
+        &m_rtDescriptorSetLayouts.set6AuxImage));
 
     // Ray Tracing Pipeline Layout
     // Push constant to pass path tracer parameters
@@ -297,13 +309,14 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
                 | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
             sizeof(PathTracerParameters),
             0);
-    std::array<VkDescriptorSetLayout, 6> rayTracingSetLayouts
+    std::array<VkDescriptorSetLayout, 7> rayTracingSetLayouts
         = { m_rtDescriptorSetLayouts.set0AccelerationStructure,
               m_rtDescriptorSetLayouts.set1Scene,
-              m_rtDescriptorSetLayouts.set2Materials,
-              m_rtDescriptorSetLayouts.set3Lights,
-              m_rtDescriptorSetLayouts.set4ResultImage,
-              m_rtDescriptorSetLayouts.set5AuxImage };
+              m_rtDescriptorSetLayouts.set2Geometry,
+              m_rtDescriptorSetLayouts.set3Materials,
+              m_rtDescriptorSetLayouts.set4Lights,
+              m_rtDescriptorSetLayouts.set5ResultImage,
+              m_rtDescriptorSetLayouts.set6AuxImage };
 
     VkPipelineLayoutCreateInfo rayTracingPipelineLayoutCreateInfo
         = initializers::pipelineLayoutCreateInfo(rayTracingSetLayouts.data(),
@@ -553,12 +566,36 @@ void MonteCarloRTApp::createDescriptorSets()
         VK_NULL_HANDLE);
 
     // Set 1: Scene descriptor
+    std::vector<VkDescriptorSetLayout> set1Layouts(m_swapChain.imageCount,
+        m_rtDescriptorSetLayouts.set1Scene);
     VkDescriptorSetAllocateInfo set1AllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set1Scene,
+            set1Layouts.data(),
+            m_swapChain.imageCount);
+    m_rtDescriptorSets.set1Scene.resize(m_swapChain.imageCount);
+    VKM_CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_rtDescriptorSets.set1Scene.data()));
+    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        VkWriteDescriptorSet uniformBufferWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene[i],
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                0,
+                &m_sceneBuffers[i].descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet1.size()),
+            writeDescriptorSet1.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
+
+    // Set 2: Geometry descriptor
+    VkDescriptorSetAllocateInfo set2AllocInfo
+        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+            &m_rtDescriptorSetLayouts.set2Geometry,
             1);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set1AllocInfo, &m_rtDescriptorSets.set1Scene));
+        vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry));
 
     VkDescriptorBufferInfo vertexBufferDescriptor {};
     vertexBufferDescriptor.buffer = m_scene->vertices.buffer;
@@ -568,41 +605,36 @@ void MonteCarloRTApp::createDescriptorSets()
     indexBufferDescriptor.buffer = m_scene->indices.buffer;
     indexBufferDescriptor.range = VK_WHOLE_SIZE;
 
-    VkWriteDescriptorSet uniformBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            0,
-            &m_sceneBuffer.descriptor);
     VkWriteDescriptorSet vertexBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            1,
+            0,
             &vertexBufferDescriptor);
     VkWriteDescriptorSet indexBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            2,
+            1,
             &indexBufferDescriptor);
     VkWriteDescriptorSet materialIndexBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            3,
+            2,
             &m_instancesBuffer.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet1
-        = { uniformBufferWrite, vertexBufferWrite, indexBufferWrite, materialIndexBufferWrite };
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet2
+        = { vertexBufferWrite, indexBufferWrite, materialIndexBufferWrite };
     vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet1.size()),
-        writeDescriptorSet1.data(),
+        static_cast<uint32_t>(writeDescriptorSet2.size()),
+        writeDescriptorSet2.data(),
         0,
         VK_NULL_HANDLE);
 
-    // Set 2: Materials and Textures descriptor
-    VkDescriptorSetAllocateInfo set2AllocInfo
+    // Set 3: Materials and Textures descriptor
+    VkDescriptorSetAllocateInfo set3AllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set2Materials,
+            &m_rtDescriptorSetLayouts.set3Materials,
             1);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Materials));
+        vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials));
 
     std::vector<VkDescriptorImageInfo> textureDescriptors;
     for (auto& texture : m_scene->textures) {
@@ -610,91 +642,96 @@ void MonteCarloRTApp::createDescriptorSets()
     }
 
     VkWriteDescriptorSet writeTextureDescriptorSet
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Materials,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
             textureDescriptors.data(),
             textureDescriptors.size());
     VkWriteDescriptorSet writeMaterialsDescriptorSet
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Materials,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             1,
             &m_materialsBuffer.descriptor);
 
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet2
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet3
         = { writeTextureDescriptorSet, writeMaterialsDescriptorSet };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet2.size()),
-        writeDescriptorSet2.data(),
-        0,
-        nullptr);
-
-    // Set 3: Lighting descriptor
-    VkDescriptorSetAllocateInfo set3AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set3Lights,
-            1);
-    VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Lights));
-    VkWriteDescriptorSet writeLightsDescriptorSet
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Lights,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            0,
-            &m_lightsBuffer.descriptor);
-
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = { writeLightsDescriptorSet };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet3.size()),
         writeDescriptorSet3.data(),
         0,
         nullptr);
 
-    // Set 4: Result image descriptor
+    // Set 4: Lighting descriptor
     VkDescriptorSetAllocateInfo set4AllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set4ResultImage,
+            &m_rtDescriptorSetLayouts.set4Lights,
             1);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4ResultImage));
+        vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights));
+    VkWriteDescriptorSet writeLightsDescriptorSet
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set4Lights,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            0,
+            &m_lightsBuffer.descriptor);
 
-    // Set 5: Aux image descriptor
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet4 = { writeLightsDescriptorSet };
+    vkUpdateDescriptorSets(m_device,
+        static_cast<uint32_t>(writeDescriptorSet4.size()),
+        writeDescriptorSet4.data(),
+        0,
+        nullptr);
+
+    // Set 5: Result image descriptor
     VkDescriptorSetAllocateInfo set5AllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set5AuxImage,
+            &m_rtDescriptorSetLayouts.set5ResultImage,
             1);
     VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_rtDescriptorSets.set5AuxImage));
+        vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_rtDescriptorSets.set5ResultImage));
+
+    // Set 6: Aux image descriptor
+    VkDescriptorSetAllocateInfo set6AllocInfo
+        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+            &m_rtDescriptorSetLayouts.set6AuxImage,
+            1);
+    VKM_CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &set6AllocInfo, &m_rtDescriptorSets.set6AuxImage));
     VkWriteDescriptorSet auxImagesRGBNoiseWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5AuxImage,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set6AuxImage,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
             &m_auxImages.rgbNoise.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet5 = { auxImagesRGBNoiseWrite };
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet6 = { auxImagesRGBNoiseWrite };
     vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet5.size()),
-        writeDescriptorSet5.data(),
+        static_cast<uint32_t>(writeDescriptorSet6.size()),
+        writeDescriptorSet6.data(),
         0,
         VK_NULL_HANDLE);
 
     // Raster input scene descriptor set, set 0
-    VkDescriptorSetAllocateInfo rasterSceneInformationAllocateInfo
+    std::vector<VkDescriptorSetLayout> rasterSet0Layouts(m_swapChain.imageCount,
+        m_rasterDescriptorSetLayouts.set0Scene);
+    VkDescriptorSetAllocateInfo allocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rasterDescriptorSetLayouts.set0Scene,
-            1);
-    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-        &rasterSceneInformationAllocateInfo,
-        &m_rasterDescriptorSets.set0Scene));
-    VkWriteDescriptorSet rasterUniformBufferWrite
-        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set0Scene,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            rasterSet0Layouts.data(),
+            m_swapChain.imageCount);
+    m_rasterDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
+    VKM_CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &allocInfo, m_rasterDescriptorSets.set0Scene.data()));
+    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
+            // Binding 0 : Vertex shader uniform buffer
+            initializers::writeDescriptorSet(m_rasterDescriptorSets.set0Scene[i],
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                0,
+                &m_sceneBuffers[i].descriptor),
+        };
+        vkUpdateDescriptorSets(m_device,
+            writeDescriptorSet0.size(),
+            writeDescriptorSet0.data(),
             0,
-            &m_sceneBuffer.descriptor);
-    std::vector<VkWriteDescriptorSet> rasterWriteDescriptorSet0 = { rasterUniformBufferWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(rasterWriteDescriptorSet0.size()),
-        rasterWriteDescriptorSet0.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
+    }
 
     // Raster input image descriptor set, set 1
     VkDescriptorSetAllocateInfo inputImageAllocateInfo
@@ -731,17 +768,17 @@ void MonteCarloRTApp::createDescriptorSets()
 void MonteCarloRTApp::updateResultImageDescriptorSets()
 {
     VkWriteDescriptorSet resultImageWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set4ResultImage,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             0,
             &m_storageImage.color.descriptor);
     VkWriteDescriptorSet resultDepthMapWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set4ResultImage,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             1,
             &m_storageImage.depthMap.descriptor);
     VkWriteDescriptorSet resultFirstSampleWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set4ResultImage,
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             2,
             &m_storageImage.firstSample.descriptor);
@@ -779,7 +816,7 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
 
 void MonteCarloRTApp::updateUniformBuffers(uint32_t t_currentImage)
 {
-    memcpy(m_sceneBuffer.mapped, &m_sceneUniformData, sizeof(UniformData));
+    memcpy(m_sceneBuffers[t_currentImage].mapped, &m_sceneUniformData, sizeof(UniformData));
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
@@ -787,11 +824,14 @@ void MonteCarloRTApp::createUniformBuffers()
 {
     // Scene uniform
     VkDeviceSize bufferSize = sizeof(UniformData);
-    m_sceneBuffer.create(m_vulkanDevice,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        bufferSize);
-    VKM_CHECK_RESULT(m_sceneBuffer.map());
+    m_sceneBuffers.resize(m_swapChain.imageCount);
+    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        m_sceneBuffers[i].create(m_vulkanDevice,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            bufferSize);
+        VKM_CHECK_RESULT(m_sceneBuffers[i].map());
+    }
     // Instances Information uniform
     bufferSize = sizeof(ShaderMeshInstance) * m_scene->getInstancesCount();
     m_instancesBuffer.create(m_vulkanDevice,
@@ -928,12 +968,15 @@ void MonteCarloRTApp::createShaderRTBindingTable()
         shaderHandleStorage));
     auto* data = static_cast<uint8_t*>(m_shaderBindingTable.mapped);
     // Copy the shader identifiers to the shader binding table
-    data
-        += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_RAY_GEN_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_RAY_GEN_GROUP);
     data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_MISS_GROUP);
-    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_SHADOW_MISS_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data,
+        shaderHandleStorage,
+        SBT_MC_SHADOW_MISS_GROUP);
     data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_HIT_GROUP);
-    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_SHADOW_HIT_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data,
+        shaderHandleStorage,
+        SBT_MC_SHADOW_HIT_GROUP);
     m_shaderBindingTable.unmap();
 }
 
@@ -983,10 +1026,11 @@ MonteCarloRTApp::~MonteCarloRTApp()
         m_rtDescriptorSetLayouts.set0AccelerationStructure,
         nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set1Scene, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set2Materials, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Lights, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4ResultImage, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5AuxImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set2Geometry, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5ResultImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set6AuxImage, nullptr);
     m_storageImage.color.destroy();
     m_storageImage.depthMap.destroy();
     m_storageImage.firstSample.destroy();
@@ -994,7 +1038,9 @@ MonteCarloRTApp::~MonteCarloRTApp()
     m_convolutionKernels.layer1.destroy();
 
     m_shaderBindingTable.destroy();
-    m_sceneBuffer.destroy();
+    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        m_sceneBuffers[i].destroy();
+    }
     m_materialsBuffer.destroy();
     m_instancesBuffer.destroy();
     m_lightsBuffer.destroy();

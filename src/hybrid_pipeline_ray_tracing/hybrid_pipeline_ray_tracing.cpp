@@ -4,6 +4,7 @@
  */
 
 #include "hybrid_pipeline_ray_tracing.h"
+#include "shaders/constants.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -199,7 +200,7 @@ void HybridPipelineRT::createDescriptorSets()
             writeDescriptorSet0.size(),
             writeDescriptorSet0.data(),
             0,
-            nullptr);
+            VK_NULL_HANDLE);
     }
 
     // Set 1: Material descriptor
@@ -208,8 +209,9 @@ void HybridPipelineRT::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_rasterDescriptorSetLayouts.set1Materials,
             1);
-    VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &textureAllocInfo, &m_rasterDescriptorSets.set1Materials));
+    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+        &textureAllocInfo,
+        &m_rasterDescriptorSets.set1Materials));
 
     std::vector<VkDescriptorImageInfo> textureDescriptors;
     for (auto& texture : m_scene->textures) {
@@ -392,6 +394,38 @@ void HybridPipelineRT::createRasterPipeline()
         &m_pipelines.raster));
 }
 
+void HybridPipelineRT::createShaderRTBindingTable()
+{
+    // Create buffer for the shader binding table
+    const uint32_t sbtSize
+        = m_rayTracingPipelineProperties.shaderGroupHandleSize * SBT_HP_NUM_SHADER_GROUPS;
+    m_shaderBindingTable.create(m_vulkanDevice,
+        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        sbtSize);
+    m_shaderBindingTable.map();
+    auto shaderHandleStorage = new uint8_t[sbtSize];
+    // Get shader identifiers
+    VKM_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(m_device,
+        m_pipelines.rayTracing,
+        0,
+        SBT_HP_NUM_SHADER_GROUPS,
+        sbtSize,
+        shaderHandleStorage));
+    auto* data = static_cast<uint8_t*>(m_shaderBindingTable.mapped);
+    // Copy the shader identifiers to the shader binding table
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_HP_RAY_GEN_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_HP_MISS_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data,
+        shaderHandleStorage,
+        SBT_HP_SHADOW_MISS_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_HP_HIT_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data,
+        shaderHandleStorage,
+        SBT_HP_SHADOW_HIT_GROUP);
+    m_shaderBindingTable.unmap();
+}
+
 void HybridPipelineRT::prepare()
 {
     BaseRTProject::prepare();
@@ -447,4 +481,5 @@ void HybridPipelineRT::viewChanged()
     m_sceneUniformData.view = camera->matrices.view;
     m_sceneUniformData.model = glm::mat4(1.0f);
     m_sceneUniformData.viewInverse = glm::inverse(camera->matrices.view);
+    m_sceneUniformData.projInverse = glm::inverse(camera->matrices.perspective);
 }

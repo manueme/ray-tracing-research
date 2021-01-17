@@ -26,22 +26,24 @@ private:
 
     struct {
         VkDescriptorSet set0AccelerationStructure;
-        VkDescriptorSet set1Scene;
-        VkDescriptorSet set2Materials;
-        VkDescriptorSet set3Lights;
-        VkDescriptorSet set4ResultImage;
-        VkDescriptorSet set5AuxImage;
+        std::vector<VkDescriptorSet> set1Scene;
+        VkDescriptorSet set2Geometry;
+        VkDescriptorSet set3Materials;
+        VkDescriptorSet set4Lights;
+        VkDescriptorSet set5ResultImage;
+        VkDescriptorSet set6AuxImage;
     } m_rtDescriptorSets;
     struct {
         VkDescriptorSetLayout set0AccelerationStructure;
         VkDescriptorSetLayout set1Scene;
-        VkDescriptorSetLayout set2Materials;
-        VkDescriptorSetLayout set3Lights;
-        VkDescriptorSetLayout set4ResultImage;
-        VkDescriptorSetLayout set5AuxImage;
+        VkDescriptorSetLayout set2Geometry;
+        VkDescriptorSetLayout set3Materials;
+        VkDescriptorSetLayout set4Lights;
+        VkDescriptorSetLayout set5ResultImage;
+        VkDescriptorSetLayout set6AuxImage;
     } m_rtDescriptorSetLayouts;
     struct {
-        VkDescriptorSet set0Scene;
+        std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1InputImage;
         VkDescriptorSet set2ConvolutionKernels;
     } m_rasterDescriptorSets;
@@ -78,7 +80,7 @@ private:
         int frame { 0 }; // Current frame
         int frameChanged { 1 }; // Current frame changed size
     } m_sceneUniformData;
-    Buffer m_sceneBuffer;
+    std::vector<Buffer> m_sceneBuffers;
 
     const int m_ray_tracer_depth = 8;
     const int m_ray_tracer_samples = 1;

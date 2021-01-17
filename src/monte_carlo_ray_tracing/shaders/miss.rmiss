@@ -5,8 +5,8 @@
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 
-// layout(binding = 0, set = 5) uniform sampler2D rgbNoise;
-// layout(binding = 1, set = 5) uniform sampler2D volumeNoise;
+// layout(binding = 0, set = 6) uniform sampler2D rgbNoise;
+// layout(binding = 1, set = 6) uniform sampler2D volumeNoise;
 
 layout(location = RT_PAYLOAD_BRDF) rayPayloadInEXT RayPayload rayPayloadBRDF;
 

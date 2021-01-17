@@ -10,8 +10,8 @@
 
 hitAttributeEXT vec3 attribs;
 
-layout(binding = 0, set = 2) uniform sampler2D textures[];
-layout(binding = 1, set = 2) buffer _Materials { MaterialProperties m[]; }
+layout(binding = 0, set = 3) uniform sampler2D textures[];
+layout(binding = 1, set = 3) buffer _Materials { MaterialProperties m[]; }
 materials;
 
 void main()
