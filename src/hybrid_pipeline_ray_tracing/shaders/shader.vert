@@ -38,5 +38,5 @@ void main()
     mat4 modelView = scene.view * scene.model;
     vec4 pos = modelView * vec4(inPos, 1.0);
     gl_Position = scene.projection * pos;
-    outEyePos = vec3(modelView * pos);
+    outEyePos = pos.xyz;
 }

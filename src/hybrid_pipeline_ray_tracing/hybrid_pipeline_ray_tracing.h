@@ -6,10 +6,10 @@
 #ifndef MANUEME_HYBRID_PIPELINE_RAY_TRACING_H
 #define MANUEME_HYBRID_PIPELINE_RAY_TRACING_H
 
-#include "base_project.h"
+#include "base_rt_project.h"
 #include "scene/scene.h"
 
-class HybridPipelineRT : public BaseProject {
+class HybridPipelineRT : public BaseRTProject {
 public:
     HybridPipelineRT();
     ~HybridPipelineRT();

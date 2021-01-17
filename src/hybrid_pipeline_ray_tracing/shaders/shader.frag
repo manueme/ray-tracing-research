@@ -12,6 +12,15 @@ materials;
 layout(binding = 0, set = 2) buffer _Lights { LightProperties l[]; }
 lighting;
 
+layout(binding = 0) uniform SceneProperties
+{
+    mat4 projection;
+    mat4 model;
+    mat4 view;
+    mat4 viewInverse;
+}
+scene;
+
 layout(push_constant) uniform Index { int i; }
 materialIndex;
 
@@ -29,7 +38,7 @@ void main()
     vec3 B = inBitangent;
     vec3 T = inTangent;
     mat3 TBN = mat3(T, B, N);
-    vec3 eyeVector = normalize(inEyePos);
+    vec3 eyeVector = normalize(-inEyePos);
 
     MaterialProperties material = materials.m[materialIndex.i];
     const int diffuseMapIndex = material.diffuseMapIndex;
@@ -74,14 +83,14 @@ void main()
         vec3 lightIntensity = vec3(0.0f);
 
         if (light.lightType == 1) { // Directional light (SUN)
-            lightDir = light.direction.xyz;
+            lightDir = (scene.viewInverse * vec4(light.direction.xyz, 1.0)).xyz;
             lightIntensity = light.diffuse.rgb * SUN_POWER;
             lightDir = normalize(lightDir);
         } else {
             continue;
         }
 
-        const float cosThetaLight = abs(dot(shadingNormal, lightDir));
+        const float cosThetaLight = dot(shadingNormal, -lightDir);
         if (cosThetaLight > 0) {
             const float visibility = 1.0; // TODO: shadow map (?)
             if (visibility > 0) {

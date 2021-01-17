@@ -15,7 +15,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 HybridPipelineRT::HybridPipelineRT()
-    : BaseProject("Hybrid Pipeline Ray Tracing", "Hybrid Pipeline Ray Tracing", true)
+    : BaseRTProject("Hybrid Pipeline Ray Tracing", "Hybrid Pipeline Ray Tracing", true)
 {
     m_settings.vsync = true;
 }
@@ -43,7 +43,7 @@ void HybridPipelineRT::render()
     if (!m_prepared) {
         return;
     }
-    BaseProject::renderFrame();
+    BaseRTProject::renderFrame();
     std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
 }
 
@@ -150,7 +150,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings
         = { // Binding 0 : Vertex shader uniform buffer
               initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                  VK_SHADER_STAGE_VERTEX_BIT,
+                  VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                   0)
           };
     VkDescriptorSetLayoutCreateInfo descriptorLayout
@@ -431,7 +431,7 @@ void HybridPipelineRT::createPipelines()
 
 void HybridPipelineRT::prepare()
 {
-    BaseProject::prepare();
+    BaseRTProject::prepare();
 
     loadAssets();
     createUniformBuffers();
