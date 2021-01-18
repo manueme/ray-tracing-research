@@ -14,8 +14,8 @@ Material::Material(const ShaderMaterial& t_material)
 {
 }
 
-Material::Material(Device* t_device, VkQueue t_copyQueue, Scene* t_parent,
-    const aiScene* t_scene, aiMaterial* t_aiMaterial)
+Material::Material(Device* t_device, VkQueue t_copyQueue, Scene* t_parent, const aiScene* t_scene,
+    aiMaterial* t_aiMaterial)
 {
     ShaderMaterial material;
 
@@ -58,6 +58,8 @@ Material::Material(Device* t_device, VkQueue t_copyQueue, Scene* t_parent,
     }
     if (name == aiString("water")) {
         material.refractIdx = 1.333f;
+    } else if (name == aiString("glass")) {
+        material.refractIdx = 1.517f;
     }
     if (AI_SUCCESS == t_aiMaterial->Get(AI_MATKEY_SHININESS_STRENGTH, value)) {
         material.shininessStrength = value;

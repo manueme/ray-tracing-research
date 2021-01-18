@@ -106,14 +106,14 @@ public:
 
     size_t getTexturesCount();
 
-
     void createMeshInstance(uint32_t t_blasIdx, uint32_t t_meshIdx);
     std::vector<ShaderMeshInstance> getInstancesShaderData();
     size_t getInstancesCount();
 
 private:
     static const int defaultFlags = aiProcess_FlipWindingOrder | aiProcess_PreTransformVertices
-        | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals;
+        | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals
+        | aiProcess_EmbedTextures;
 
     Device* m_device = nullptr;
     VkPipeline* m_pipeline = nullptr;
