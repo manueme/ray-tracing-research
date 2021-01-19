@@ -146,7 +146,7 @@ void MonteCarloRTApp::createDescriptorPool()
         // Scene description
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
         // Vertex, Index and Material Indexes
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Textures
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
         // Material array
@@ -160,9 +160,7 @@ void MonteCarloRTApp::createDescriptorPool()
         // Convolution Kernel
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
     };
-    uint32_t maxSetsForPool
-        = std::max(std::max(m_scene->getMaterialCount(), m_scene->getLightCount()),
-            m_scene->getTexturesCount());
+    uint32_t maxSetsForPool = 14; // 13 + 1 push constant
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo
         = initializers::descriptorPoolCreateInfo(poolSizes.size(),
             poolSizes.data(),
