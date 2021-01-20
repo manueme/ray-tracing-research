@@ -43,8 +43,7 @@ SceneCreateInfo::SceneCreateInfo()
 
 SceneCreateInfo::~SceneCreateInfo() = default;
 
-SceneCreateInfo::SceneCreateInfo(
-    glm::vec3 t_scale, glm::vec2 t_uvScale, glm::vec3 t_center)
+SceneCreateInfo::SceneCreateInfo(glm::vec3 t_scale, glm::vec2 t_uvScale, glm::vec3 t_center)
 {
     this->center = t_center;
     this->scale = t_scale;
@@ -105,8 +104,7 @@ void Scene::draw(VkCommandBuffer t_commandBuffer, VkPipelineLayout t_pipelineLay
 }
 
 bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout& t_layout,
-    SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue,
-    VkPipeline* t_pipeline)
+    SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue, VkPipeline* t_pipeline)
 {
     this->m_device = t_device;
     this->m_pipeline = t_pipeline;
@@ -175,9 +173,15 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
                         vertexBuffer.push_back(pTexCoord->y * uvscale.t);
                         break;
                     case VERTEX_COMPONENT_TANGENT:
-                        vertexBuffer.push_back(pTangent->x);
-                        vertexBuffer.push_back(pTangent->y);
-                        vertexBuffer.push_back(pTangent->z);
+                        if (isnan(pTangent->x) || isnan(pTangent->y) || isnan(pTangent->z)) {
+                            vertexBuffer.push_back(1.f);
+                            vertexBuffer.push_back(1.f);
+                            vertexBuffer.push_back(1.f);
+                        } else {
+                            vertexBuffer.push_back(pTangent->x);
+                            vertexBuffer.push_back(pTangent->y);
+                            vertexBuffer.push_back(pTangent->z);
+                        }
                         break;
                     case VERTEX_COMPONENT_BITANGENT:
                         vertexBuffer.push_back(pBiTangent->x);

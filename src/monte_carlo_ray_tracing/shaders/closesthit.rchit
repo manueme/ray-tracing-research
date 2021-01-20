@@ -4,7 +4,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "../../framework/shaders/brdf.glsl"
+#include "../../framework/shaders/common.glsl"
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 #include "../../framework/shaders/vertex.glsl"
