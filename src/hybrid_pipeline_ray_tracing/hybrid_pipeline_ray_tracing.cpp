@@ -94,7 +94,7 @@ void HybridPipelineRT::createDescriptorPool()
         // Scene uniform buffer
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
         // Vertex, Index and Material Indexes
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Textures
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
         // Material array
@@ -104,9 +104,7 @@ void HybridPipelineRT::createDescriptorPool()
         // Storage images
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
     };
-    uint32_t maxSetsForPool
-        = std::max(std::max(m_scene->getMaterialCount(), m_scene->getLightCount()),
-            m_scene->getTexturesCount());
+    uint32_t maxSetsForPool = 13; // RT pipeline contains 12 sets and 1 push constant
     VkDescriptorPoolCreateInfo descriptorPoolInfo
         = initializers::descriptorPoolCreateInfo(poolSizes.size(),
             poolSizes.data(),
