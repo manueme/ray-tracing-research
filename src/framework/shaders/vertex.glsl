@@ -1,3 +1,8 @@
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
 // #define FLAT_SHADING
 
 layout(binding = 0, set = 2) buffer Vertices { vec4 v[]; }

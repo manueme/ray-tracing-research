@@ -1,3 +1,8 @@
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_ray_tracing : require
@@ -163,7 +168,7 @@ void main()
                 sampleResult += rayPayloadBRDF.surfaceEmissive
                     + rayPayloadBRDF.surfaceRadiance * transportFactor;
                 transportFactor *= rayPayloadBRDF.surfaceAttenuation;
-                // Note: The PDF division is implicit here because por cosine sample
+                // Note: The PDF division is implicit here because for cosine sample
                 // "PDF = cosTheta / PI":
                 // => cosTheta is cancelled in "(Li * cosTheta * brdf) / PDF"
                 // => (1 / PI) is cancelled in the division by PI.

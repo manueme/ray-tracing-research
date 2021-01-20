@@ -1,3 +1,8 @@
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
 #version 460
 
 layout(location = 0) in vec3 inPos;

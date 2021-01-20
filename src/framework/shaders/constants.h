@@ -1,3 +1,8 @@
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
 #ifndef PATH_TRACER_CONSTANTS
 
 #define PATH_TRACER_CONSTANTS 1

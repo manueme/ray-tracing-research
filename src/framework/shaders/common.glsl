@@ -1,3 +1,9 @@
+
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
 #include "../../framework/shaders/constants.h" // to get M_PIf
 
 bool is_nan(vec3 c) { return isnan(c.x) || isnan(c.y) || isnan(c.z); }
