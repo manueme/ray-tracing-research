@@ -14,6 +14,7 @@ layout(location = RT_PAYLOAD_BRDF) rayPayloadEXT RayPayload rayPayloadBRDF;
 // #define SAMPLE_PRIMARY
 #define DEPTH_OF_FIELD
 #define USE_DEPTH_MAP
+#define SHOW_NANS
 
 layout(binding = 0, set = 5, rgba32f) uniform image2D imageColor;
 #ifdef USE_DEPTH_MAP
@@ -88,14 +89,17 @@ void main()
     const int n = 0;
     {
 #endif
-        // Initialize payload
+        // Initialize aux variables for iteration
+        vec3 transportFactor = vec3(1.0f);
+        vec3 sampleResult = vec3(0.0f);
         rayPayloadBRDF.seed
             = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, scene.frame + n);
         rayPayloadBRDF.done = 0;
         rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);
         rayPayloadBRDF.surfaceRadiance = vec3(0.0f);
         rayPayloadBRDF.surfaceEmissive = vec3(0.0f);
-        rayPayloadBRDF.rayType = RAY_TYPE_DIFFUSE;
+        rayPayloadBRDF.rayType = RAY_TYPE_UNDEFINED;
+        // ---
 
         // Antialiasing.
         const float r1 = rnd(rayPayloadBRDF.seed);
@@ -106,12 +110,12 @@ void main()
         const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
         const vec2 thetaOut = inUV * 2.0f - 1.0f;
         const vec4 target = scene.projInverse * vec4(thetaOut.x, thetaOut.y, 1.0f, 1.0f);
+        // ---
 
-        // Initialize aux variables for iteration
-        vec3 transportFactor = vec3(1.0f);
         // Initial Origin and Direction
         vec3 origin = (scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
         vec3 direction = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;
+        // ---
 
 #ifdef DEPTH_OF_FIELD
         //	randomize the ray on the surface of the lense, going through the focal point
@@ -126,15 +130,23 @@ void main()
 #endif
 
         // Direct Illum
-        trace_ray(origin, direction, AS_FLAG_EVERYTHING);
-        if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE) {
-            result += rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance;
-            transportFactor = rayPayloadBRDF.surfaceAttenuation;
-        } else if (rayPayloadBRDF.rayType == RAY_TYPE_MISS) {
-            result += rayPayloadBRDF.surfaceRadiance;
+        int depth = 0;
+        for (depth; depth < maxDepth; depth++) {
+            trace_ray(origin, direction, AS_FLAG_EVERYTHING);
+            origin = rayPayloadBRDF.nextRayOrigin;
+            direction = rayPayloadBRDF.nextRayDirection;
+            if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE) {
+                sampleResult
+                    = rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance / M_PIf;
+                transportFactor = rayPayloadBRDF.surfaceAttenuation;
+                break;
+            } else if (rayPayloadBRDF.rayType == RAY_TYPE_MISS) {
+                sampleResult = rayPayloadBRDF.surfaceRadiance;
+                // Not necessary because rayPayloadBRDF.done is 1 :
+                //      transportFactor = rayPayloadBRDF.surfaceAttenuation;
+                break;
+            }
         }
-        origin = rayPayloadBRDF.nextRayOrigin;
-        direction = rayPayloadBRDF.nextRayDirection;
         // End Direct Illum ---
 
 #ifdef USE_DEPTH_MAP
@@ -142,25 +154,30 @@ void main()
 #endif
 
         // Indirect Illum
-        for (int depth = 1; depth < maxDepth; depth++) {
+        for (depth; depth < maxDepth; depth++) {
             if (rayPayloadBRDF.done == 1) {
                 break;
             }
             trace_ray(origin, direction, AS_FLAG_EVERYTHING);
             if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE) {
-                result += (rayPayloadBRDF.surfaceEmissive
-                    + rayPayloadBRDF.surfaceRadiance * transportFactor);
+                sampleResult += rayPayloadBRDF.surfaceEmissive
+                    + rayPayloadBRDF.surfaceRadiance * transportFactor;
                 transportFactor *= rayPayloadBRDF.surfaceAttenuation;
-                // For cosine sample PDF = cosTheta / PI
-                // * cosTheta is cancelled in "(Li * cosTheta * brdf) / PDF"
-                // * (1 / PI) is cancelled in the division by PI.
+                // Note: The PDF division is implicit here because por cosine sample
+                // "PDF = cosTheta / PI":
+                // => cosTheta is cancelled in "(Li * cosTheta * brdf) / PDF"
+                // => (1 / PI) is cancelled in the division by PI.
+                // As a result only the direct ilumination is divided by PI
             } else if (rayPayloadBRDF.rayType == RAY_TYPE_MISS) {
-                result += rayPayloadBRDF.surfaceRadiance * transportFactor;
+                sampleResult += rayPayloadBRDF.surfaceRadiance * transportFactor;
             }
             origin = rayPayloadBRDF.nextRayOrigin;
             direction = rayPayloadBRDF.nextRayDirection;
         }
-        // Fin Indirect Illum ---
+        // End Indirect Illum ---
+        // Clamp result
+        result += min(sampleResult, vec3(1.0f));
+        // ---
     }
 #ifdef SAMPLE_PRIMARY
     result /= float(samples);
@@ -168,13 +185,13 @@ void main()
     hitDistance /= float(samples);
 #endif
 #endif
-    // Calculation error handling
-    // Clamp result
-    /*if (is_nan(result)) {
-        result = vec3(1.0, 0.0, 0.0);
-    }*/
-    result = min(result, vec3(1.0));
-    // ---
+
+#ifdef SHOW_NANS
+    // Error "handling"
+    if (is_nan(result)) {
+        result = vec3(1.0f, 0.0f, 0.0f);
+    }
+#endif
 
     // Do accumulation (imageColor should be rgba32f to avoid losing precision)
     if (scene.frameIteration > 0) {
