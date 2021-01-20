@@ -195,13 +195,13 @@ void main()
             float distSqr = dot(lightDir, lightDir);
             float dist = sqrt(distSqr);
             lightDir = normalize(lightDir);
-            float area = get_surface_area(areaSurface);
+            float area
+                = get_surface_area(areaSurface) * light.areaPrimitiveCount; // estimate full area
             float cosThetaAreaLight = abs(dot(lightNormal, lightDir));
             if (area == 0.0f || cosThetaAreaLight == 0.0f) {
                 continue;
             }
-            const float epsilon = 0.01f;
-            float lightPDF = distSqr / max(epsilon, cosThetaAreaLight * area);
+            float lightPDF = distSqr / (cosThetaAreaLight * area);
             if (areaMaterial.emissiveMapIndex >= 0) {
                 vec2 lightUV = get_surface_uv(areaSurface);
                 lightIntensity
@@ -210,7 +210,7 @@ void main()
                 lightIntensity = areaMaterial.emissive.rgb;
             }
             lightIntensity /= lightPDF;
-            maxHitDistance = max(0.0f, dist - epsilon);
+            maxHitDistance = max(0.0f, dist - 0.001f);
         } else {
             continue;
         }
@@ -230,7 +230,7 @@ void main()
         }
     }
     rayPayload.surfaceEmissive = emissive;
-    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo / M_PIf * material.opacity;
+    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo / M_PIf;
     // ####  End Compute direct ligthing ####
 
     // Russian roulette termination
