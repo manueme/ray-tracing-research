@@ -62,11 +62,13 @@ private:
 
     // Images used to store ray traced image
     struct {
-        VulkanTexture2D rtInputColor;
-        VulkanTexture2D rtInputNormals;
-        VulkanTexture2D rtInputDepth;
-        VulkanTexture2D resultImage;
+        VulkanTexture2D offscreenColor;
+        VulkanTexture2D offscreenNormals;
+        VulkanTexture2D offscreenDepth;
+        VulkanTexture2D rtResultImage;
     } m_storageImage;
+    VkRenderPass offscreenRenderPass;
+
 
     struct {
         glm::mat4 projection;
@@ -98,10 +100,10 @@ private:
 
     void render() override;
     void prepare() override;
+    void createStorageImages();
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void onSwapChainRecreation() override;
     void buildCommandBuffers() override;
-    void createStorageImages();
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
     void createDescriptorPool();
     void createDescriptorSets();

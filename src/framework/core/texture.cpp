@@ -47,17 +47,26 @@ void Texture::destroy()
 }
 
 void VulkanTexture2D::loadFromFile(const std::string& t_filename, VkFormat t_format,
-    Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
-    VkImageLayout t_imageLayout, bool t_forceLinear, VkImageTiling t_tiling)
+                                   Device* t_device, VkQueue t_copyQueue,
+                                   VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout,
+                                   bool t_forceLinear, VkImageTiling t_tiling)
 {
     auto fibitmap = loadBitmap(t_filename);
-    loadFromFibitmap(fibitmap, t_format, t_device, t_copyQueue, t_imageUsageFlags, t_imageLayout, t_forceLinear, t_tiling);
+    loadFromFibitmap(fibitmap,
+                     t_format,
+                     t_device,
+                     t_copyQueue,
+                     t_imageUsageFlags,
+                     t_imageLayout,
+                     t_forceLinear,
+                     t_tiling);
     FreeImage_Unload(fibitmap);
 }
 
 void VulkanTexture2D::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_format,
-    uint32_t t_texWidth, uint32_t t_texHeight, Device* t_device, VkQueue t_copyQueue,
-    VkFilter t_filter, VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout)
+                                 uint32_t t_texWidth, uint32_t t_texHeight, Device* t_device,
+                                 VkQueue t_copyQueue, VkFilter t_filter,
+                                 VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout)
 {
     assert(t_buffer);
 
@@ -92,7 +101,8 @@ void VulkanTexture2D::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFo
 
     memAllocInfo.allocationSize = memReqs.size;
     // Get memory type index for a host visible buffer
-    memAllocInfo.memoryTypeIndex = t_device->getMemoryType(memReqs.memoryTypeBits,
+    memAllocInfo.memoryTypeIndex = t_device->getMemoryType(
+        memReqs.memoryTypeBits,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     VKM_CHECK_RESULT(
@@ -154,27 +164,27 @@ void VulkanTexture2D::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFo
     // Image barrier for optimal image (target)
     // Optimal image will be used as destination for the copy
     tools::setImageLayout(copyCmd,
-        m_image,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        subresourceRange);
+                          m_image,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          subresourceRange);
 
     // Copy mip levels from staging buffer
     vkCmdCopyBufferToImage(copyCmd,
-        stagingBuffer,
-        m_image,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1,
-        &bufferCopyRegion);
+                           stagingBuffer,
+                           m_image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &bufferCopyRegion);
 
     // Change texture image layout to shader read after all mip levels have been
     // copied
     this->m_imageLayout = t_imageLayout;
     tools::setImageLayout(copyCmd,
-        m_image,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        t_imageLayout,
-        subresourceRange);
+                          m_image,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          t_imageLayout,
+                          subresourceRange);
 
     t_device->flushCommandBuffer(copyCmd, t_copyQueue);
 
@@ -216,28 +226,42 @@ void VulkanTexture2D::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFo
 }
 
 void VulkanTexture2D::loadFromAssimp(const aiTexture* t_texture, VkFormat t_format,
-    Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
-                                     VkImageLayout t_imageLayout, bool t_forceLinear, VkImageTiling t_tiling)
+                                     Device* t_device, VkQueue t_copyQueue,
+                                     VkImageUsageFlags t_imageUsageFlags,
+                                     VkImageLayout t_imageLayout, bool t_forceLinear,
+                                     VkImageTiling t_tiling)
 {
-    auto fiMemory = FreeImage_OpenMemory(reinterpret_cast<BYTE*>(t_texture->pcData), t_texture->mWidth);
+    auto fiMemory
+        = FreeImage_OpenMemory(reinterpret_cast<BYTE*>(t_texture->pcData), t_texture->mWidth);
     auto format = FIF_UNKNOWN;
     if (t_texture->CheckFormat("jpg")) {
         format = FIF_JPEG;
-    } if (t_texture->CheckFormat("png")) {
+    }
+    if (t_texture->CheckFormat("png")) {
         format = FIF_PNG;
-    } if (t_texture->CheckFormat("tga")) {
+    }
+    if (t_texture->CheckFormat("tga")) {
         format = FIF_TARGA;
     }
     auto fibitmap = FreeImage_LoadFromMemory(format, fiMemory);
     const auto bitmap32 = FreeImage_ConvertTo32Bits(fibitmap);
-    loadFromFibitmap(bitmap32, t_format, t_device, t_copyQueue, t_imageUsageFlags, t_imageLayout, t_forceLinear, t_tiling);
+    loadFromFibitmap(bitmap32,
+                     t_format,
+                     t_device,
+                     t_copyQueue,
+                     t_imageUsageFlags,
+                     t_imageLayout,
+                     t_forceLinear,
+                     t_tiling);
     FreeImage_Unload(fibitmap);
     FreeImage_Unload(bitmap32);
     FreeImage_CloseMemory(fiMemory);
 }
 
-void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
-                                       VkImageLayout t_imageLayout, bool t_forceLinear, VkImageTiling t_tiling)
+void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* t_device,
+                                       VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
+                                       VkImageLayout t_imageLayout, bool t_forceLinear,
+                                       VkImageTiling t_tiling)
 {
     this->m_device = t_device;
     m_width = FreeImage_GetWidth(t_fibitmap);
@@ -284,8 +308,9 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
 
         memAllocInfo.allocationSize = memReqs.size;
         // Get memory type index for a host visible buffer
-        memAllocInfo.memoryTypeIndex = t_device->getMemoryType(memReqs.memoryTypeBits,
-                                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        memAllocInfo.memoryTypeIndex = t_device->getMemoryType(
+            memReqs.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         VKM_CHECK_RESULT(
             vkAllocateMemory(t_device->logicalDevice, &memAllocInfo, nullptr, &stagingMemory));
@@ -353,10 +378,10 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
         // Image barrier for optimal image (target)
         // Optimal image will be used as destination for the copy
         tools::setImageLayout(copyCmd,
-                                   m_image,
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   subresourceRange);
+                              m_image,
+                              VK_IMAGE_LAYOUT_UNDEFINED,
+                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                              subresourceRange);
 
         // Copy mip levels from staging buffer
         vkCmdCopyBufferToImage(copyCmd,
@@ -370,10 +395,10 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
         // copied
         this->m_imageLayout = t_imageLayout;
         tools::setImageLayout(copyCmd,
-                                   m_image,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   t_imageLayout,
-                                   subresourceRange);
+                              m_image,
+                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                              t_imageLayout,
+                              subresourceRange);
 
         t_device->flushCommandBuffer(copyCmd, t_copyQueue);
 
@@ -415,8 +440,9 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
         memAllocInfo.allocationSize = memReqs.size;
 
         // Get memory type that can be mapped to host memory
-        memAllocInfo.memoryTypeIndex = t_device->getMemoryType(memReqs.memoryTypeBits,
-                                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        memAllocInfo.memoryTypeIndex = t_device->getMemoryType(
+            memReqs.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         // Allocate host memory
         VKM_CHECK_RESULT(
@@ -456,10 +482,10 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
 
         // Setup image memory barrier
         tools::setImageLayout(copyCmd,
-                                   m_image,
-                                   VK_IMAGE_ASPECT_COLOR_BIT,
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   t_imageLayout);
+                              m_image,
+                              VK_IMAGE_ASPECT_COLOR_BIT,
+                              VK_IMAGE_LAYOUT_UNDEFINED,
+                              t_imageLayout);
 
         t_device->flushCommandBuffer(copyCmd, t_copyQueue);
     }
@@ -480,8 +506,8 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
     samplerCreateInfo.maxLod = 0.0f;
     // Only enable anisotropic filtering if enabled on the devicec
     samplerCreateInfo.maxAnisotropy = t_device->enabledFeatures.samplerAnisotropy
-                                      ? t_device->properties.limits.maxSamplerAnisotropy
-                                      : 1.0f;
+                                          ? t_device->properties.limits.maxSamplerAnisotropy
+                                          : 1.0f;
     samplerCreateInfo.anisotropyEnable = t_device->enabledFeatures.samplerAnisotropy;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VKM_CHECK_RESULT(
@@ -512,9 +538,9 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
 }
 
 void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
-    Device* t_device, VkQueue t_copyQueue, VkFilter t_filter,
-    VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout,
-    bool t_unnormalizedCoordinates)
+                                  Device* t_device, VkQueue t_copyQueue, VkFilter t_filter,
+                                  VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout,
+                                  VkImageAspectFlags t_aspectFlags)
 {
     this->m_device = t_device;
     m_width = t_texWidth;
@@ -552,7 +578,7 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
     colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
     colorImageView.format = t_format;
     colorImageView.subresourceRange = {};
-    colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    colorImageView.subresourceRange.aspectMask = t_aspectFlags;
     colorImageView.subresourceRange.baseMipLevel = 0;
     colorImageView.subresourceRange.levelCount = 1;
     colorImageView.subresourceRange.baseArrayLayer = 0;
@@ -572,13 +598,13 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
     samplerCreateInfo.mipLodBias = 0.0f;
     samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
     samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.unnormalizedCoordinates = t_unnormalizedCoordinates;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
     // Max level-of-detail should match mip level count
     samplerCreateInfo.maxLod = 0.0f;
     // Only enable anisotropic filtering if enabled on the devicec
     samplerCreateInfo.maxAnisotropy = m_device->enabledFeatures.samplerAnisotropy
-        ? m_device->properties.limits.maxSamplerAnisotropy
-        : 1.0f;
+                                          ? m_device->properties.limits.maxSamplerAnisotropy
+                                          : 1.0f;
     samplerCreateInfo.anisotropyEnable = m_device->enabledFeatures.samplerAnisotropy;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VKM_CHECK_RESULT(
@@ -587,10 +613,180 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
     VkCommandBuffer cmdBuffer
         = m_device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
     tools::setImageLayout(cmdBuffer,
-        m_image,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        m_imageLayout,
-        { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+                          m_image,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          m_imageLayout,
+                          { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+    m_device->flushCommandBuffer(cmdBuffer, t_copyQueue);
+
+    // Update descriptor image info member that can be used for setting up
+    // descriptor sets
+    updateDescriptor();
+}
+
+void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
+                                      Device* t_device, VkQueue t_copyQueue,
+                                      VkImageUsageFlags t_imageUsageFlags)
+{
+    this->m_device = t_device;
+    m_width = t_texWidth;
+    m_height = t_texHeight;
+    this->m_imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkImageCreateInfo image = {};
+    image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image.imageType = VK_IMAGE_TYPE_2D;
+    image.format = t_format;
+    image.extent.width = t_texWidth;
+    image.extent.height = t_texHeight;
+    image.extent.depth = 1;
+    image.mipLevels = 1;
+    image.arrayLayers = 1;
+    image.samples = VK_SAMPLE_COUNT_1_BIT;
+    image.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | t_imageUsageFlags;
+    image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VKM_CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
+
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(m_device->logicalDevice, m_image, &memReqs);
+    VkMemoryAllocateInfo memoryAllocateInfo = {};
+    memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryAllocateInfo.allocationSize = memReqs.size;
+    memoryAllocateInfo.memoryTypeIndex
+        = m_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VKM_CHECK_RESULT(
+        vkAllocateMemory(m_device->logicalDevice, &memoryAllocateInfo, nullptr, &m_deviceMemory));
+    VKM_CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
+
+    VkImageViewCreateInfo colorImageView = {};
+    colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    colorImageView.format = t_format;
+    colorImageView.subresourceRange = {};
+    colorImageView.subresourceRange.aspectMask
+        = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    colorImageView.subresourceRange.baseMipLevel = 0;
+    colorImageView.subresourceRange.levelCount = 1;
+    colorImageView.subresourceRange.baseArrayLayer = 0;
+    colorImageView.subresourceRange.layerCount = 1;
+    colorImageView.image = m_image;
+    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
+
+    // Create a defaultsampler
+    VkSamplerCreateInfo samplerCreateInfo = {};
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.mipLodBias = 0.0f;
+    samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+    samplerCreateInfo.minLod = 0.0f;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+    // Max level-of-detail should match mip level count
+    samplerCreateInfo.maxLod = 1.0f;
+    // Only enable anisotropic filtering if enabled on the devicec
+    samplerCreateInfo.maxAnisotropy = 1.0f;
+    samplerCreateInfo.anisotropyEnable = m_device->enabledFeatures.samplerAnisotropy;
+    samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    VKM_CHECK_RESULT(
+        vkCreateSampler(m_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
+
+    VkCommandBuffer cmdBuffer
+        = m_device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    tools::setImageLayout(cmdBuffer,
+                          m_image,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          m_imageLayout,
+                          { colorImageView.subresourceRange.aspectMask, 0, 1, 0, 1 });
+    m_device->flushCommandBuffer(cmdBuffer, t_copyQueue);
+
+    // Update descriptor image info member that can be used for setting up
+    // descriptor sets
+    updateDescriptor();
+}
+
+void VulkanTexture2D::colorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
+                                      Device* t_device, VkQueue t_copyQueue,
+                                      VkImageUsageFlags t_imageUsageFlags)
+{
+    this->m_device = t_device;
+    m_width = t_texWidth;
+    m_height = t_texHeight;
+    this->m_imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkImageCreateInfo image = {};
+    image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image.imageType = VK_IMAGE_TYPE_2D;
+    image.format = t_format;
+    image.extent.width = t_texWidth;
+    image.extent.height = t_texHeight;
+    image.extent.depth = 1;
+    image.mipLevels = 1;
+    image.arrayLayers = 1;
+    image.samples = VK_SAMPLE_COUNT_1_BIT;
+    image.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image.usage
+        = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | t_imageUsageFlags;
+    image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VKM_CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
+
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(m_device->logicalDevice, m_image, &memReqs);
+    VkMemoryAllocateInfo memoryAllocateInfo = {};
+    memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memoryAllocateInfo.allocationSize = memReqs.size;
+    memoryAllocateInfo.memoryTypeIndex
+        = m_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VKM_CHECK_RESULT(
+        vkAllocateMemory(m_device->logicalDevice, &memoryAllocateInfo, nullptr, &m_deviceMemory));
+    VKM_CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
+
+    VkImageViewCreateInfo colorImageView = {};
+    colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    colorImageView.format = t_format;
+    colorImageView.subresourceRange = {};
+    colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    colorImageView.subresourceRange.baseMipLevel = 0;
+    colorImageView.subresourceRange.levelCount = 1;
+    colorImageView.subresourceRange.baseArrayLayer = 0;
+    colorImageView.subresourceRange.layerCount = 1;
+    colorImageView.image = m_image;
+    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
+
+    // Create a defaultsampler
+    VkSamplerCreateInfo samplerCreateInfo = {};
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.mipLodBias = 0.0f;
+    samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+    samplerCreateInfo.minLod = 0.0f;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+    // Max level-of-detail should match mip level count
+    samplerCreateInfo.maxLod = 1.0f;
+    // Only enable anisotropic filtering if enabled on the devicec
+    samplerCreateInfo.maxAnisotropy = 1.0f;
+    samplerCreateInfo.anisotropyEnable = m_device->enabledFeatures.samplerAnisotropy;
+    samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    VKM_CHECK_RESULT(
+        vkCreateSampler(m_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
+
+    VkCommandBuffer cmdBuffer
+        = m_device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    tools::setImageLayout(cmdBuffer,
+                          m_image,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          m_imageLayout,
+                          { colorImageView.subresourceRange.aspectMask, 0, 1, 0, 1 });
     m_device->flushCommandBuffer(cmdBuffer, t_copyQueue);
 
     // Update descriptor image info member that can be used for setting up
@@ -602,6 +798,5 @@ VulkanTexture2D::VulkanTexture2D()
     : Texture()
 {
 }
-
 
 VulkanTexture2D::~VulkanTexture2D() = default;
