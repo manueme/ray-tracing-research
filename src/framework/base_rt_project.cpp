@@ -243,12 +243,12 @@ void BaseRTProject::createRTScene(const std::string& t_modelPath, SceneVertexLay
     m_scene = new Scene();
     m_scene->loadFromFile(t_modelPath, t_vertexLayout, &modelCreateInfo, m_vulkanDevice, m_queue);
     auto camera = m_scene->getCamera();
-    camera->setMovementSpeed(50.0f);
+    camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);
     camera->setPerspective(60.0f,
         static_cast<float>(m_width) / static_cast<float>(m_height),
-        RAY_MIN_HIT,
-        RAY_MAX_HIT);
+        CAMERA_NEAR,
+        CAMERA_FAR);
 
     // One Geometry per blas for this scene
     VkAccelerationStructureGeometryKHR geometry {};

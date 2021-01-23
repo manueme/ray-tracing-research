@@ -60,8 +60,9 @@ void trace_ray(vec3 origin, vec3 direction, int instanceMask)
         RT_PAYLOAD_BRDF);
 }
 
-const float CAMERA_APERTURE = M_PIf / 2.0;
-const float CAMERA_DEFAULT_FOCAL_DEPTH = 1000.0f;
+const float CAMERA_APERTURE = 0.75;
+const float RAY_DISTANCE = RAY_MAX_HIT - RAY_MIN_HIT;
+const float CAMERA_DEFAULT_FOCAL_DEPTH = RAY_DISTANCE / 3.0f;
 
 float estimateFocalDepth()
 {
@@ -75,7 +76,7 @@ float estimateFocalDepth()
         samp += imageLoad(imageDepth, ivec2(screenCenter.x - sensorSize.x, screenCenter.y)).r;
         samp += imageLoad(imageDepth, ivec2(screenCenter.x + sensorSize.x, screenCenter.y)).r;
         samp /= 5.0f;
-        return RAY_MAX_HIT * samp;
+        return RAY_DISTANCE * samp;
     }
 #endif
     return CAMERA_DEFAULT_FOCAL_DEPTH;
@@ -136,10 +137,14 @@ void main()
 
         // Direct Illum
         int depth = 0;
+        float resultDistance;
         for (depth; depth < maxDepth; depth++) {
             trace_ray(origin, direction, AS_FLAG_EVERYTHING);
             origin = rayPayloadBRDF.nextRayOrigin;
             direction = rayPayloadBRDF.nextRayDirection;
+            if (depth == 0) {
+                resultDistance = rayPayloadBRDF.hitDistance;
+            }
             if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE) {
                 sampleResult
                     = rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance / M_PIf;
@@ -155,7 +160,7 @@ void main()
         // End Direct Illum ---
 
 #ifdef USE_DEPTH_MAP
-        hitDistance += rayPayloadBRDF.hitDistance / RAY_MAX_HIT;
+        hitDistance += resultDistance / RAY_DISTANCE;
 #endif
 
         // Indirect Illum

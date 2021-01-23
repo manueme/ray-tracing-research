@@ -45,7 +45,7 @@ float trace_shadow_ray(vec3 origin, vec3 direction, int instanceMask, float maxD
         0 /*sbtRecordStride*/,
         SBT_MC_SHADOW_MISS_INDEX /*missIndex*/,
         origin,
-        RAY_MIN_HIT,
+        CAMERA_NEAR,
         direction,
         maxDistance,
         RT_PAYLOAD_SHADOW);
@@ -83,7 +83,7 @@ void main()
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
         vec3 lightIntensity = vec3(0.0f);
-        float maxHitDistance = RAY_MAX_HIT;
+        float maxHitDistance = CAMERA_FAR;
         if (light.lightType == 1) { // Directional light (SUN)
             lightDir = light.direction.xyz + vec3(scene.overrideSunDirection);
             lightIntensity = light.diffuse.rgb * SUN_POWER;

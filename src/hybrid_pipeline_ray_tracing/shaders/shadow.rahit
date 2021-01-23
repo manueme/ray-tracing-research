@@ -37,8 +37,7 @@ void main()
     if (transparency >= 1.0) {
         rayPayloadShadow.shadowAmount = 1.0;
     } else {
-        // TODO: this is not necessarily correct due to unordered anyhit checking...
-        rayPayloadShadow.shadowAmount = transparency;
+        rayPayloadShadow.shadowAmount += transparency;
         ignoreIntersectionEXT;
     }
 }
