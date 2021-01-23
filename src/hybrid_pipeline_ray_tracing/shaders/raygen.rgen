@@ -18,10 +18,10 @@ layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadSh
 layout(binding = 0, set = 4) buffer _Lights { LightProperties l[]; }
 lighting;
 
-layout(binding = 0, set = 5, rgba32f) uniform image2D inputColor;
-layout(binding = 1, set = 5, rgba32f) uniform image2D inputNormals;
-layout(binding = 2, set = 5, r32f) uniform image2D inputDepth;
-layout(binding = 3, set = 5, rgba32f) uniform image2D resultImage;
+layout(binding = 0, set = 5) uniform sampler2D inputColor;
+layout(binding = 1, set = 5) uniform sampler2D inputDepth;
+layout(binding = 0, set = 6, rgba8) uniform image2D inputNormals;
+layout(binding = 1, set = 6, rgba8) uniform image2D resultImage;
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {
@@ -51,12 +51,12 @@ float trace_shadow_ray(vec3 origin, vec3 direction, int instanceMask, float maxD
 
 void main()
 {
-    vec3 result = imageLoad(inputColor, ivec2(gl_LaunchIDEXT.xy)).rbg;
+    vec3 result = texelFetch(inputColor, ivec2(gl_LaunchIDEXT.xy), 0).rbg;
     const vec2 inUV = vec2(gl_LaunchSizeEXT.xy);
     const vec2 thetaOut = inUV * 2.0f - 1.0f;
     const vec4 target = scene.projInverse * vec4(thetaOut.x, thetaOut.y, 1.0f, 1.0f);
     // Initial Origin and Direction
-    const float surfaceDepth = imageLoad(inputDepth, ivec2(gl_LaunchIDEXT.xy)).r;
+    const float surfaceDepth = texelFetch(inputDepth, ivec2(gl_LaunchIDEXT.xy), 0).r;
     vec3 hitPoint = vec3((scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xy, surfaceDepth);
     const vec3 shadingNormal = imageLoad(inputNormals, ivec2(gl_LaunchIDEXT.xy)).rgb;
     // vec3 auxRirection = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;

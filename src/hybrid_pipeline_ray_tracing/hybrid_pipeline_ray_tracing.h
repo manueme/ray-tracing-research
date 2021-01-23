@@ -32,13 +32,13 @@ private:
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1Materials;
         VkDescriptorSet set2Lights;
-        VkDescriptorSet set3StorageImage;
+        VkDescriptorSet set3StorageImages;
     } m_rasterDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1Materials;
         VkDescriptorSetLayout set2Lights;
-        VkDescriptorSetLayout set3StorageImage;
+        VkDescriptorSetLayout set3StorageImages;
     } m_rasterDescriptorSetLayouts;
     struct {
         VkDescriptorSet set0AccelerationStructure;
@@ -46,7 +46,8 @@ private:
         VkDescriptorSet set2Geometry;
         VkDescriptorSet set3Materials;
         VkDescriptorSet set4Lights;
-        VkDescriptorSet set5StorageImage;
+        VkDescriptorSet set5OffscreenImages;
+        VkDescriptorSet set6StorageImages;
     } m_rtDescriptorSets;
     struct {
         VkDescriptorSetLayout set0AccelerationStructure;
@@ -54,7 +55,8 @@ private:
         VkDescriptorSetLayout set2Geometry;
         VkDescriptorSetLayout set3Materials;
         VkDescriptorSetLayout set4Lights;
-        VkDescriptorSetLayout set5StorageImage;
+        VkDescriptorSetLayout set5OffscreenImages;
+        VkDescriptorSetLayout set6StorageImages;
     } m_rtDescriptorSetLayouts;
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
@@ -66,8 +68,11 @@ private:
         VulkanTexture2D offscreenNormals;
         VulkanTexture2D offscreenDepth;
         VulkanTexture2D rtResultImage;
-    } m_storageImage;
-    VkRenderPass offscreenRenderPass;
+    } m_offscreenImages;
+    // Offscreen raster render pass
+    VkRenderPass m_offscreenRenderPass;
+    std::vector<VkFramebuffer> m_offscreenFramebuffers;
+    // ---
 
 
     struct {
@@ -100,9 +105,11 @@ private:
 
     void render() override;
     void prepare() override;
-    void createStorageImages();
+    void createOffscreenRenderPass();
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void onSwapChainRecreation() override;
+    void createStorageImages();
+    void createOffscreenFramebuffers();
     void buildCommandBuffers() override;
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
     void createDescriptorPool();

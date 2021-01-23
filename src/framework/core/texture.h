@@ -28,6 +28,8 @@ public:
 
     VkDescriptorImageInfo descriptor;
 
+    VkImageView getImageView();
+
 protected:
     Device* m_device;
     VkImage m_image;

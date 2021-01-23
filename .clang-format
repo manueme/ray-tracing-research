@@ -3,5 +3,3 @@ BasedOnStyle: WebKit
 ColumnLimit: 100
 BinPackArguments: false
 AllowAllArgumentsOnNextLine: false
-AlignAfterOpenBracket: Align
-AlignOperands: true
