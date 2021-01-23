@@ -79,7 +79,6 @@ void Scene::draw(VkCommandBuffer t_commandBuffer, VkPipelineLayout t_pipelineLay
     uint32_t t_firstBinding) const
 {
     VkDeviceSize offsets[1] = { 0 };
-    vkCmdBindPipeline(t_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
     vkCmdBindVertexBuffers(t_commandBuffer, t_firstBinding, 1, &vertices.buffer, offsets);
     vkCmdBindIndexBuffer(t_commandBuffer, indices.buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -104,10 +103,9 @@ void Scene::draw(VkCommandBuffer t_commandBuffer, VkPipelineLayout t_pipelineLay
 }
 
 bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout& t_layout,
-    SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue, VkPipeline* t_pipeline)
+    SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue)
 {
     this->m_device = t_device;
-    this->m_pipeline = t_pipeline;
 
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile((t_modelPath).c_str(), defaultFlags);

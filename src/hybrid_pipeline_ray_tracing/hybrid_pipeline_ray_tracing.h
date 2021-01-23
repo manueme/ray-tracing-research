@@ -32,7 +32,7 @@ private:
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1Materials;
         VkDescriptorSet set2Lights;
-        VkDescriptorSet set3StorageImages;
+        std::vector<VkDescriptorSet> set3StorageImages;
     } m_rasterDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
@@ -46,8 +46,8 @@ private:
         VkDescriptorSet set2Geometry;
         VkDescriptorSet set3Materials;
         VkDescriptorSet set4Lights;
-        VkDescriptorSet set5OffscreenImages;
-        VkDescriptorSet set6StorageImages;
+        std::vector<VkDescriptorSet> set5OffscreenImages;
+        std::vector<VkDescriptorSet> set6StorageImages;
     } m_rtDescriptorSets;
     struct {
         VkDescriptorSetLayout set0AccelerationStructure;
@@ -63,12 +63,14 @@ private:
     Buffer m_materialsBuffer;
 
     // Images used to store ray traced image
-    struct {
+    struct OffscreenImages {
         VulkanTexture2D offscreenColor;
         VulkanTexture2D offscreenNormals;
         VulkanTexture2D offscreenDepth;
         VulkanTexture2D rtResultImage;
-    } m_offscreenImages;
+    };
+    // we will have one set of images per swap image
+    std::vector<OffscreenImages> m_offscreenImages;
     // Offscreen raster render pass
     VkRenderPass m_offscreenRenderPass;
     std::vector<VkFramebuffer> m_offscreenFramebuffers;

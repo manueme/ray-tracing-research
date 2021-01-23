@@ -10,7 +10,7 @@
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 
-layout(binding = 0, set = 3, rgba32f) uniform image2D outputNormals;
+layout(binding = 0, set = 3, rgba8) uniform image2D outputNormals;
 
 layout(binding = 0, set = 1) uniform sampler2D textures[];
 layout(binding = 1, set = 1) buffer _Materials { MaterialProperties m[]; }
@@ -114,5 +114,6 @@ void main()
             }
         }
     }
+    imageStore(outputNormals, ivec2(gl_FragCoord.xy), vec4(shadingNormal, 1.0f));
     outFragColor = vec4(emissive + (diffuse + specular) * surfaceAlbedo.rgb, surfaceAlbedo.a);
 }

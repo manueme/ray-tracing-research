@@ -45,7 +45,10 @@ void Texture::destroy()
     }
     vkFreeMemory(m_device->logicalDevice, m_deviceMemory, nullptr);
 }
+
 VkImageView Texture::getImageView() { return m_view; }
+
+VkImage Texture::getImage() { return m_image; }
 
 void VulkanTexture2D::loadFromFile(const std::string& t_filename, VkFormat t_format,
     Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
@@ -569,6 +572,10 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
     colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
     colorImageView.format = t_format;
+    colorImageView.components = { VK_COMPONENT_SWIZZLE_R,
+        VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B,
+        VK_COMPONENT_SWIZZLE_A };
     colorImageView.subresourceRange = {};
     colorImageView.subresourceRange.aspectMask = t_aspectFlags;
     colorImageView.subresourceRange.baseMipLevel = 0;
@@ -576,7 +583,7 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = 1;
     colorImageView.image = m_image;
-    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
+    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view))
 
     // Create a defaultsampler
     VkSamplerCreateInfo samplerCreateInfo = {};
@@ -677,10 +684,9 @@ void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, ui
     samplerCreateInfo.minLod = 0.0f;
     samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
     // Max level-of-detail should match mip level count
-    samplerCreateInfo.maxLod = 1.0f;
-    // Only enable anisotropic filtering if enabled on the devicec
+    samplerCreateInfo.maxLod = 0.0f;
     samplerCreateInfo.maxAnisotropy = 1.0f;
-    samplerCreateInfo.anisotropyEnable = m_device->enabledFeatures.samplerAnisotropy;
+    samplerCreateInfo.anisotropyEnable = VK_FALSE;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     VKM_CHECK_RESULT(
         vkCreateSampler(m_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));

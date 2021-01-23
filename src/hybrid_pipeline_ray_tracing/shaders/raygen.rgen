@@ -25,6 +25,9 @@ layout(binding = 1, set = 6, rgba8) uniform image2D resultImage;
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {
+    mat4 projection;
+    mat4 model;
+    mat4 view;
     mat4 viewInverse;
     mat4 projInverse;
     vec4 overrideSunDirection;
@@ -49,18 +52,33 @@ float trace_shadow_ray(vec3 origin, vec3 direction, int instanceMask, float maxD
     return rayPayloadShadow.shadowAmount;
 }
 
+float get_hit_depth(vec2 inUV)
+{
+    const float surfaceDepth = texelFetch(inputDepth, ivec2(gl_LaunchIDEXT.xy), 0).x;
+    const vec4 clipSpacePosition = vec4(inUV * 2.0f - 1.0f, surfaceDepth, 1.0f);
+    vec4 viewSpacePosition = scene.projInverse * clipSpacePosition;
+    viewSpacePosition /= viewSpacePosition.w;
+    return length(viewSpacePosition.xyz);
+}
+
 void main()
 {
-    vec3 result = texelFetch(inputColor, ivec2(gl_LaunchIDEXT.xy), 0).rbg;
-    const vec2 inUV = vec2(gl_LaunchSizeEXT.xy);
+    vec3 result = texelFetch(inputColor, ivec2(gl_LaunchIDEXT.xy), 0).xyz;
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5f);
+    const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
     const vec2 thetaOut = inUV * 2.0f - 1.0f;
     const vec4 target = scene.projInverse * vec4(thetaOut.x, thetaOut.y, 1.0f, 1.0f);
-    // Initial Origin and Direction
-    const float surfaceDepth = texelFetch(inputDepth, ivec2(gl_LaunchIDEXT.xy), 0).r;
-    vec3 hitPoint = vec3((scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xy, surfaceDepth);
-    const vec3 shadingNormal = imageLoad(inputNormals, ivec2(gl_LaunchIDEXT.xy)).rgb;
-    // vec3 auxRirection = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;
-    // vec3 rayDirection = reflect(auxRirection, shadingNormal);
+
+    // Initial Origin, Direction and Hit Depth
+    vec3 origin = (scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    vec3 direction = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;
+    const float hitDepth = get_hit_depth(inUV);
+    const vec3 hitPoint = origin.xyz + direction.xyz * hitDepth;
+    // ---
+
+    const vec3 shadingNormal = imageLoad(inputNormals, ivec2(gl_LaunchIDEXT.xy)).xyz;
+
+    const float ambient = 0.8f;
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -76,8 +94,9 @@ void main()
 
         const float cosThetaLight = abs(dot(shadingNormal, lightDir));
         if (cosThetaLight > 0) {
-            const float visibility
-                = (1.0 - trace_shadow_ray(hitPoint, -lightDir, AS_FLAG_EVERYTHING, maxHitDistance));
+            const float visibility = (1.0
+                - ambient
+                    * trace_shadow_ray(hitPoint, -lightDir, AS_FLAG_EVERYTHING, maxHitDistance));
             result *= visibility * lightIntensity;
         }
     }

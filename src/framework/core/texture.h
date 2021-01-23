@@ -30,6 +30,8 @@ public:
 
     VkImageView getImageView();
 
+    VkImage getImage();
+
 protected:
     Device* m_device;
     VkImage m_image;

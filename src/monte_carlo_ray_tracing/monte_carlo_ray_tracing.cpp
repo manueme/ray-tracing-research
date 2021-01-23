@@ -44,7 +44,7 @@ void MonteCarloRTApp::buildCommandBuffers()
 
     for (int32_t i = 0; i < m_drawCmdBuffers.size();
          ++i) { // This must be the same size as the swap chain image vector
-        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo));
+        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
 
         /*
             Dispatch the ray tracing commands
