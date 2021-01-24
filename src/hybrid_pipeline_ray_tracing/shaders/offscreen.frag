@@ -9,6 +9,7 @@
 
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
+#include "./hybrid_constants.h"
 
 layout(binding = 0, set = 3, rgba8) uniform image2D outputNormals;
 
@@ -86,6 +87,7 @@ void main()
     vec3 diffuse = vec3(0.0);
     vec3 specular = vec3(0.0);
     vec3 emissive = surfaceEmissive;
+    const float ambient = AMBIENT_WEIGHT;
 
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
@@ -102,16 +104,10 @@ void main()
         }
 
         const float cosThetaLight = dot(shadingNormal, -lightDir);
-        if (cosThetaLight > 0) {
-            const float visibility = 1.0; // TODO: shadow map (?)
-            if (visibility > 0) {
-                diffuse += visibility * lightIntensity * cosThetaLight;
-                if (material.shininessStrength > 0) {
-                    const vec3 r = reflect(lightDir, shadingNormal);
-                    specular += visibility * lightIntensity
-                        * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
-                }
-            }
+        diffuse += lightIntensity * max(cosThetaLight, ambient);
+        if (material.shininessStrength > 0) {
+            const vec3 r = reflect(lightDir, shadingNormal);
+            specular += lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
         }
     }
     imageStore(outputNormals, ivec2(gl_FragCoord.xy), vec4(shadingNormal, 1.0f));

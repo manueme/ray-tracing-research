@@ -17,11 +17,11 @@ public:
 private:
     struct {
         VkPipeline rayTracing;
-        VkPipeline raster;
+        VkPipeline postProcess;
     } m_pipelines;
     struct {
         VkPipelineLayout rayTracing;
-        VkPipelineLayout raster;
+        VkPipelineLayout postProcess;
     } m_pipelineLayouts;
 
     struct {
@@ -46,12 +46,12 @@ private:
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1InputImage;
         VkDescriptorSet set2ConvolutionKernels;
-    } m_rasterDescriptorSets;
+    } m_postprocessDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1InputImage;
         VkDescriptorSetLayout set2ConvolutionKernels;
-    } m_rasterDescriptorSetLayouts;
+    } m_postprocessDescriptorSetLayouts;
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
@@ -115,8 +115,8 @@ private:
     void updateResultImageDescriptorSets();
     void createUniformBuffers();
     void createRTPipeline();
-    void createRasterPipeline();
     void createShaderRTBindingTable();
+    void createPostprocessPipeline();
 
     void getEnabledFeatures() override;
 };

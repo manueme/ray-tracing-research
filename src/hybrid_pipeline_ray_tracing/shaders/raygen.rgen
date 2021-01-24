@@ -11,6 +11,7 @@
 
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
+#include "./hybrid_constants.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
@@ -78,7 +79,7 @@ void main()
 
     const vec3 shadingNormal = imageLoad(inputNormals, ivec2(gl_LaunchIDEXT.xy)).xyz;
 
-    const float ambient = 0.8f;
+    const float shadowWeight = 1.0 - AMBIENT_WEIGHT;
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -95,7 +96,7 @@ void main()
         const float cosThetaLight = abs(dot(shadingNormal, lightDir));
         if (cosThetaLight > 0) {
             const float visibility = (1.0
-                - ambient
+                - shadowWeight
                     * trace_shadow_ray(hitPoint, -lightDir, AS_FLAG_EVERYTHING, maxHitDistance));
             result *= visibility * lightIntensity;
         }

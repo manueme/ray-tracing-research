@@ -27,7 +27,7 @@ void MonteCarloRTApp::buildCommandBuffers()
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    // Raster pass info
+    // Postprocess pass info
     std::array<VkClearValue, 2> clearValues = {};
     clearValues[0].color = m_default_clear_color;
     clearValues[1].depthStencil = { 1.0f, 0 };
@@ -98,9 +98,7 @@ void MonteCarloRTApp::buildCommandBuffers()
             m_height,
             1);
 
-        // Raster section:
-        // The render pass, viewport and scissor is defined only for the raster
-        // pipeline
+        // Postprocess section:
         renderPassBeginInfo.framebuffer = m_frameBuffers[i];
         vkCmdBeginRenderPass(m_drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -111,31 +109,27 @@ void MonteCarloRTApp::buildCommandBuffers()
         vkCmdSetViewport(m_drawCmdBuffers[i], 0, 1, &viewport);
         VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
         vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
-        std::vector<VkDescriptorSet> rasterDescriptorSets = { m_rasterDescriptorSets.set0Scene[i],
-            m_rasterDescriptorSets.set1InputImage,
-            m_rasterDescriptorSets.set2ConvolutionKernels };
+        std::vector<VkDescriptorSet> postprocessDescriptorSets
+            = { m_postprocessDescriptorSets.set0Scene[i],
+                  m_postprocessDescriptorSets.set1InputImage,
+                  m_postprocessDescriptorSets.set2ConvolutionKernels };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            m_pipelineLayouts.raster,
+            m_pipelineLayouts.postProcess,
             0,
-            rasterDescriptorSets.size(),
-            rasterDescriptorSets.data(),
+            postprocessDescriptorSets.size(),
+            postprocessDescriptorSets.data(),
             0,
             nullptr);
-        auto aspectRatio = static_cast<float>(m_width) / static_cast<float>(m_height);
-        vkCmdBindPipeline(m_drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelines.raster);
-        vkCmdPushConstants(m_drawCmdBuffers[i],
-            m_pipelineLayouts.raster,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            0,
-            sizeof(float),
-            &aspectRatio);
+        vkCmdBindPipeline(m_drawCmdBuffers[i],
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            m_pipelines.postProcess);
         vkCmdDraw(m_drawCmdBuffers[i], 3, 1, 0, 0);
 
         vkCmdEndRenderPass(m_drawCmdBuffers[i]);
-        // End of raster section --
+        // End of Postprocess section --
 
-        VKM_CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]));
+        VKM_CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
     }
 }
 
@@ -339,7 +333,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
         nullptr,
         &m_pipelineLayouts.rayTracing));
 
-    // Set 0 Raster: Scene information buffer
+    // Set 0 Postprocess: Scene information buffer
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
         // Binding 0 : Buffer
@@ -351,9 +345,9 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rasterDescriptorSetLayouts.set0Scene));
+        &m_postprocessDescriptorSetLayouts.set0Scene));
 
-    // Set 1 Raster: Input Image
+    // Set 1 Postprocess: Input Image
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
         // Binding 0 : Result Image Color
@@ -375,9 +369,9 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rasterDescriptorSetLayouts.set1InputImage));
+        &m_postprocessDescriptorSetLayouts.set1InputImage));
 
-    // Set 2 Raster: Convolution Kernel
+    // Set 2 Postprocess: Convolution Kernel
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
         // Binding 0 : Layer 1
@@ -389,27 +383,23 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
-        &m_rasterDescriptorSetLayouts.set2ConvolutionKernels));
+        &m_postprocessDescriptorSetLayouts.set2ConvolutionKernels));
 
-    // Raster Pipeline Layout
-    // Push constant to pass camera aspect ratio
-    VkPushConstantRange pushConstantRange
-        = initializers::pushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float), 0);
-    std::array<VkDescriptorSetLayout, 3> rasterSetLayouts
-        = { m_rasterDescriptorSetLayouts.set0Scene,
-              m_rasterDescriptorSetLayouts.set1InputImage,
-              m_rasterDescriptorSetLayouts.set2ConvolutionKernels };
-    VkPipelineLayoutCreateInfo rasterPipelineLayoutCreateInfo
-        = initializers::pipelineLayoutCreateInfo(rasterSetLayouts.data(), rasterSetLayouts.size());
-    rasterPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-    rasterPipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+    // Postprocess Pipeline Layout
+    std::array<VkDescriptorSetLayout, 3> postprocessSetLayouts
+        = { m_postprocessDescriptorSetLayouts.set0Scene,
+              m_postprocessDescriptorSetLayouts.set1InputImage,
+              m_postprocessDescriptorSetLayouts.set2ConvolutionKernels };
+    VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
+        = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
+            postprocessSetLayouts.size());
     VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
-        &rasterPipelineLayoutCreateInfo,
+        &postprocessPipelineLayoutCreateInfo,
         nullptr,
-        &m_pipelineLayouts.raster));
+        &m_pipelineLayouts.postProcess))
 }
 
-void MonteCarloRTApp::createRasterPipeline()
+void MonteCarloRTApp::createPostprocessPipeline()
 {
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState
         = initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -445,14 +435,12 @@ void MonteCarloRTApp::createRasterPipeline()
     vertexInputState.vertexAttributeDescriptionCount = 0;
     vertexInputState.pVertexAttributeDescriptions = nullptr;
 
-    // Pipeline for the meshes
-    // Load shaders
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-    shaderStages[0] = loadShader("./shaders/final.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader("./shaders/final.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+    shaderStages[0] = loadShader("./shaders/postprocess.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+    shaderStages[1] = loadShader("./shaders/postprocess.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo
-        = initializers::pipelineCreateInfo(m_pipelineLayouts.raster, m_renderPass, 0);
+        = initializers::pipelineCreateInfo(m_pipelineLayouts.postProcess, m_renderPass, 0);
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -468,7 +456,7 @@ void MonteCarloRTApp::createRasterPipeline()
         1,
         &pipelineCreateInfo,
         nullptr,
-        &m_pipelines.raster));
+        &m_pipelines.postProcess))
 }
 
 void MonteCarloRTApp::createRTPipeline()
@@ -719,20 +707,21 @@ void MonteCarloRTApp::createDescriptorSets()
         0,
         VK_NULL_HANDLE);
 
-    // Raster input scene descriptor set, set 0
-    std::vector<VkDescriptorSetLayout> rasterSet0Layouts(m_swapChain.imageCount,
-        m_rasterDescriptorSetLayouts.set0Scene);
+    // Postprocess input scene descriptor set, set 0
+    std::vector<VkDescriptorSetLayout> postprocessSet0Layouts(m_swapChain.imageCount,
+        m_postprocessDescriptorSetLayouts.set0Scene);
     VkDescriptorSetAllocateInfo allocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            rasterSet0Layouts.data(),
+            postprocessSet0Layouts.data(),
             m_swapChain.imageCount);
-    m_rasterDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
-    VKM_CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &allocInfo, m_rasterDescriptorSets.set0Scene.data()));
+    m_postprocessDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
+    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+        &allocInfo,
+        m_postprocessDescriptorSets.set0Scene.data()));
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
         std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
             // Binding 0 : Vertex shader uniform buffer
-            initializers::writeDescriptorSet(m_rasterDescriptorSets.set0Scene[i],
+            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set0Scene[i],
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 0,
                 &m_sceneBuffers[i].descriptor),
@@ -744,32 +733,32 @@ void MonteCarloRTApp::createDescriptorSets()
             VK_NULL_HANDLE);
     }
 
-    // Raster input image descriptor set, set 1
+    // Postprocess input image descriptor set, set 1
     VkDescriptorSetAllocateInfo inputImageAllocateInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rasterDescriptorSetLayouts.set1InputImage,
+            &m_postprocessDescriptorSetLayouts.set1InputImage,
             1);
     VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
         &inputImageAllocateInfo,
-        &m_rasterDescriptorSets.set1InputImage));
+        &m_postprocessDescriptorSets.set1InputImage));
 
-    // Raster input image descriptor set, set 2
+    // Postprocess input image descriptor set, set 2
     VkDescriptorSetAllocateInfo convolutionKernelAllocateInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rasterDescriptorSetLayouts.set2ConvolutionKernels,
+            &m_postprocessDescriptorSetLayouts.set2ConvolutionKernels,
             1);
     VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
         &convolutionKernelAllocateInfo,
-        &m_rasterDescriptorSets.set2ConvolutionKernels));
+        &m_postprocessDescriptorSets.set2ConvolutionKernels));
     VkWriteDescriptorSet convolutionKernelsWrite
-        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set2ConvolutionKernels,
+        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set2ConvolutionKernels,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             0,
             &m_convolutionKernels.layer1.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet2Raster = { convolutionKernelsWrite };
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet2Postprocess = { convolutionKernelsWrite };
     vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet2Raster.size()),
-        writeDescriptorSet2Raster.data(),
+        static_cast<uint32_t>(writeDescriptorSet2Postprocess.size()),
+        writeDescriptorSet2Postprocess.data(),
         0,
         VK_NULL_HANDLE);
 
@@ -802,25 +791,25 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
         VK_NULL_HANDLE);
 
     VkWriteDescriptorSet inputImageWrite
-        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1InputImage,
+        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
             &m_storageImage.color.descriptor);
     VkWriteDescriptorSet inputDepthMapWrite
-        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1InputImage,
+        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             1,
             &m_storageImage.depthMap.descriptor);
     VkWriteDescriptorSet inputFirstSampleWrite
-        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1InputImage,
+        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             2,
             &m_storageImage.firstSample.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet1Raster
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess
         = { inputImageWrite, inputDepthMapWrite, inputFirstSampleWrite };
     vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet1Raster.size()),
-        writeDescriptorSet1Raster.data(),
+        static_cast<uint32_t>(writeDescriptorSet1Postprocess.size()),
+        writeDescriptorSet1Postprocess.data(),
         0,
         VK_NULL_HANDLE);
 }
@@ -1001,7 +990,7 @@ void MonteCarloRTApp::prepare()
     createUniformBuffers();
     createDescriptorSetsLayout();
     assignPushConstants();
-    createRasterPipeline();
+    createPostprocessPipeline();
     createRTPipeline();
     createShaderRTBindingTable();
     createDescriptorPool();
@@ -1024,14 +1013,16 @@ void MonteCarloRTApp::render()
 
 MonteCarloRTApp::~MonteCarloRTApp()
 {
-    vkDestroyPipeline(m_device, m_pipelines.raster, nullptr);
+    vkDestroyPipeline(m_device, m_pipelines.postProcess, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.rayTracing, nullptr);
-    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.raster, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.postProcess, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.rayTracing, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set0Scene, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set1InputImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
-        m_rasterDescriptorSetLayouts.set2ConvolutionKernels,
+        m_postprocessDescriptorSetLayouts.set1InputImage,
+        nullptr);
+    vkDestroyDescriptorSetLayout(m_device,
+        m_postprocessDescriptorSetLayouts.set2ConvolutionKernels,
         nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_rtDescriptorSetLayouts.set0AccelerationStructure,

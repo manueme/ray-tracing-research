@@ -8,8 +8,8 @@ set(SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rmiss.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/anyhit.rahit.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rahit.spv
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/final.vert.spv
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/final.frag.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.vert.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.frag.spv
         )
 
 file(GLOB SOURCE ${FRAMEWORK_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)

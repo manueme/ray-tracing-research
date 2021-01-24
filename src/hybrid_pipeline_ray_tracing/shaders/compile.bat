@@ -6,6 +6,7 @@ glslc %mypath%raygen.rgen -o %mypath%raygen.rgen.spv --target-env=vulkan1.2
 glslc %mypath%shadow.rmiss -o %mypath%shadow.rmiss.spv --target-env=vulkan1.2
 glslc %mypath%anyhit.rahit -o %mypath%anyhit.rahit.spv --target-env=vulkan1.2
 glslc %mypath%shadow.rahit -o %mypath%shadow.rahit.spv --target-env=vulkan1.2
-
-glslc %mypath%shader.vert -o %mypath%vert.spv
-glslc %mypath%shader.frag -o %mypath%frag.spv
+glslc %mypath%offscreen.vert -o %mypath%offscreen.vert.spv
+glslc %mypath%offscreen.frag -o %mypath%offscreen.frag.spv
+glslc %mypath%postprocess.vert -o %mypath%postprocess.vert.spv
+glslc %mypath%postprocess.frag -o %mypath%postprocess.frag.spv

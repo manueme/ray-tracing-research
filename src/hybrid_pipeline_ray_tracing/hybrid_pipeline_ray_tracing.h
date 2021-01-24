@@ -21,15 +21,19 @@ private:
 
     VkSampleCountFlagBits m_samples;
 
+    // PIPELINES
     struct {
         VkPipeline rayTracing;
         VkPipeline raster;
+        VkPipeline postProcess;
     } m_pipelines;
     struct {
         VkPipelineLayout rayTracing;
         VkPipelineLayout raster;
+        VkPipelineLayout postProcess;
     } m_pipelineLayouts;
 
+    // RASTER SETS
     struct {
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1Materials;
@@ -42,6 +46,7 @@ private:
         VkDescriptorSetLayout set2Lights;
         VkDescriptorSetLayout set3StorageImages;
     } m_rasterDescriptorSetLayouts;
+    // RAY TRACING SETS
     struct {
         VkDescriptorSet set0AccelerationStructure;
         std::vector<VkDescriptorSet> set1Scene;
@@ -60,6 +65,14 @@ private:
         VkDescriptorSetLayout set5OffscreenImages;
         VkDescriptorSetLayout set6StorageImages;
     } m_rtDescriptorSetLayouts;
+    // POSTPROCESS SETS
+    struct {
+        std::vector<VkDescriptorSet> set0StorageImages;
+    } m_postProcessDescriptorSets;
+    struct {
+        VkDescriptorSetLayout set0StorageImages;
+    } m_postProcessDescriptorSetLayouts;
+
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
@@ -111,23 +124,30 @@ private:
 
     void render() override;
     void prepare() override;
+
     void setSamplesSettings();
     void createOffscreenRenderPass();
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void onSwapChainRecreation() override;
     void createStorageImages();
     void createOffscreenFramebuffers();
-    void buildCommandBuffers() override;
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
-    void createDescriptorPool();
-    void createDescriptorSets();
-    void updateResultImageDescriptorSets();
-    void createDescriptorSetLayout();
-    void assignPushConstants();
-    void createUniformBuffers();
+
+    void buildCommandBuffers() override;
+
     void createRTPipeline();
     void createRasterPipeline();
+    void createPostprocessPipeline();
     void createShaderRTBindingTable();
+
+    void createDescriptorPool();
+    void createDescriptorSetLayout();
+    void createDescriptorSets();
+    void updateResultImageDescriptorSets();
+
+    void assignPushConstants();
+    void createUniformBuffers();
+
     void getEnabledFeatures() override;
 };
 
