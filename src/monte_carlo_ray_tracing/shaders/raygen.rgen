@@ -137,7 +137,7 @@ void main()
 
         // Direct Illum
         int depth = 0;
-        float resultDistance;
+        float resultDistance = 0.0f;
         for (depth; depth < maxDepth; depth++) {
             trace_ray(origin, direction, AS_FLAG_EVERYTHING);
             origin = rayPayloadBRDF.nextRayOrigin;
