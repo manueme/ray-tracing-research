@@ -42,13 +42,13 @@ layout(push_constant) uniform Constants
     int samples;
 };
 
-float trace_shadow_ray(vec3 origin, vec3 direction, int instanceMask, float maxDistance)
+float trace_shadow_ray(vec3 origin, vec3 direction, float maxDistance)
 {
     const uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT;
     rayPayloadShadow.shadowAmount = 0.0f;
     traceRayEXT(topLevelAS,
         rayFlags,
-        instanceMask,
+        AS_FLAG_EVERYTHING,
         SBT_MC_SHADOW_HIT_GROUP /*sbtRecordOffset*/,
         0 /*sbtRecordStride*/,
         SBT_MC_SHADOW_MISS_INDEX /*missIndex*/,
@@ -182,9 +182,8 @@ void main()
         vec3 lightIntensity = vec3(0.0f);
         float maxHitDistance = RAY_MAX_HIT;
         if (light.lightType == 1) { // Directional light (SUN)
-            lightDir = light.direction.xyz + vec3(scene.overrideSunDirection);
+            lightDir = normalize(light.direction.xyz + vec3(scene.overrideSunDirection));
             lightIntensity = light.diffuse.rgb * SUN_POWER;
-            lightDir = normalize(lightDir);
         } else if (light.lightType == 5) { // Area light
             const MaterialProperties areaMaterial = materials.m[light.areaMaterialIdx];
             const uint lightRandomPrimitiveID
@@ -200,13 +199,16 @@ void main()
             float distSqr = dot(lightDir, lightDir);
             float dist = sqrt(distSqr);
             lightDir = normalize(lightDir);
-            float area = get_surface_area(areaSurface);
+            // Estimate full area of the light by multiplying by the number of triangles, this will
+            // probably cause some very bright pixels, the clamping at the end of the raygen loop
+            // will solve that issue:
+            float area = get_surface_area(areaSurface) * light.areaPrimitiveCount;
+            // ---
             float cosThetaAreaLight = abs(dot(lightNormal, lightDir));
             if (area == 0.0f || cosThetaAreaLight == 0.0f) {
                 continue;
             }
-            const float epsilon = 0.01f;
-            float lightPDF = distSqr / max(epsilon, cosThetaAreaLight * area);
+            float lightPDF = distSqr / (cosThetaAreaLight * area);
             if (areaMaterial.emissiveMapIndex >= 0) {
                 vec2 lightUV = get_surface_uv(areaSurface);
                 lightIntensity
@@ -215,33 +217,30 @@ void main()
                 lightIntensity = areaMaterial.emissive.rgb;
             }
             lightIntensity /= lightPDF;
-            maxHitDistance = max(0.0f, dist - epsilon);
+            maxHitDistance = max(0.0f, dist - 0.001f);
         } else {
             continue;
         }
 
-        const float cosThetaLight = abs(dot(shadingNormal, lightDir));
-        if (cosThetaLight > 0) {
-            const float visibility
-                = (1.0 - trace_shadow_ray(hitPoint, -lightDir, AS_FLAG_EVERYTHING, maxHitDistance));
-            if (visibility > 0) {
-                diffuse += visibility * lightIntensity * cosThetaLight;
-                if (material.shininessStrength > 0) {
-                    const vec3 r = reflect(lightDir, shadingNormal);
-                    specular += visibility * lightIntensity
-                        * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
-                }
+        const float visibility = 1.0 - trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
+        if (visibility > 0) {
+            const float cosThetaLight = abs(dot(shadingNormal, lightDir));
+            diffuse += visibility * lightIntensity * cosThetaLight;
+            if (material.shininessStrength > 0) {
+                const vec3 r = reflect(lightDir, shadingNormal);
+                specular += visibility * lightIntensity
+                    * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
             }
         }
     }
     rayPayload.surfaceEmissive = emissive;
-    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo / M_PIf * material.opacity;
+    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo.rgb;
     // ####  End Compute direct ligthing ####
 
     // Russian roulette termination
-    // Very slow (good for interiors):
+    // Slow (good for interiors):
     const float betaTermination = length(surfaceAlbedo);
-    // Very fast (bad for interiors):
+    // Faster (bad for interiors):
     // const float betaTermination = max(surfaceAlbedo.r, max(surfaceAlbedo.g, surfaceAlbedo.b));
     if (rnd(rayPayload.seed) > betaTermination) {
         rayPayload.done = 1;

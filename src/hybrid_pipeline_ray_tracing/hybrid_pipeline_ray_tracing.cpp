@@ -16,7 +16,7 @@
 HybridPipelineRT::HybridPipelineRT()
     : BaseRTProject("Hybrid Pipeline Ray Tracing", "Hybrid Pipeline Ray Tracing", true)
 {
-    m_settings.vsync = true;
+    m_settings.vsync = false;
 }
 
 void HybridPipelineRT::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }
@@ -35,25 +35,26 @@ void HybridPipelineRT::buildCommandBuffers()
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    VkClearValue clearValues[2];
+    std::array<VkClearValue, 2> clearValues = {};
     clearValues[0].color = m_default_clear_color;
     clearValues[1].depthStencil = { 1.0f, 0 };
 
     VkRenderPassBeginInfo renderPassBeginInfo = {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass = m_renderPass;
+    renderPassBeginInfo.renderPass = m_offscreenRenderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
     renderPassBeginInfo.renderArea.offset.y = 0;
     renderPassBeginInfo.renderArea.extent.width = m_width;
     renderPassBeginInfo.renderArea.extent.height = m_height;
     renderPassBeginInfo.clearValueCount = 2;
-    renderPassBeginInfo.pClearValues = clearValues;
+    renderPassBeginInfo.pClearValues = clearValues.data();
 
     for (int32_t i = 0; i < m_drawCmdBuffers.size(); ++i) {
-        renderPassBeginInfo.framebuffer = m_frameBuffers[i];
+        renderPassBeginInfo.framebuffer = m_offscreenFramebuffers[i];
 
-        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo));
+        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
 
+        // Offscreen render pass
         vkCmdBeginRenderPass(m_drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         VkViewport viewport = initializers::viewport(static_cast<float>(m_width),
@@ -65,12 +66,12 @@ void HybridPipelineRT::buildCommandBuffers()
         VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
         vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
 
-        std::vector<VkDescriptorSet> descriptorSets = {
-            m_rasterDescriptorSets.set0Scene[i],
+        vkCmdBindPipeline(m_drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelines.raster);
+
+        std::vector<VkDescriptorSet> descriptorSets = { m_rasterDescriptorSets.set0Scene[i],
             m_rasterDescriptorSets.set1Materials,
             m_rasterDescriptorSets.set2Lights,
-            m_rasterDescriptorSets.set3StorageImage,
-        };
+            m_rasterDescriptorSets.set3StorageImages[i] };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_pipelineLayouts.raster,
@@ -82,8 +83,113 @@ void HybridPipelineRT::buildCommandBuffers()
         m_scene->draw(m_drawCmdBuffers[i], m_pipelineLayouts.raster, vertex_buffer_bind_id);
 
         vkCmdEndRenderPass(m_drawCmdBuffers[i]);
+        // End Offscreen render pass
 
-        VKM_CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]));
+        // Ray tracing "pass" using the offscreen result (color, depth and normals)
+        vkCmdBindPipeline(m_drawCmdBuffers[i],
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            m_pipelines.rayTracing);
+        std::vector<VkDescriptorSet> rtDescriptorSets
+            = { m_rtDescriptorSets.set0AccelerationStructure,
+                  m_rtDescriptorSets.set1Scene[i],
+                  m_rtDescriptorSets.set2Geometry,
+                  m_rtDescriptorSets.set3Materials,
+                  m_rtDescriptorSets.set4Lights,
+                  m_rtDescriptorSets.set5OffscreenImages[i],
+                  m_rtDescriptorSets.set6StorageImages[i] };
+        vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
+            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+            m_pipelineLayouts.rayTracing,
+            0,
+            rtDescriptorSets.size(),
+            rtDescriptorSets.data(),
+            0,
+            nullptr);
+        vkCmdPushConstants(m_drawCmdBuffers[i],
+            m_pipelineLayouts.rayTracing,
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
+                | VK_SHADER_STAGE_MISS_BIT_KHR,
+            0,
+            sizeof(PathTracerParameters),
+            &m_pathTracerParams);
+
+        // Calculate shader bindings
+        const uint32_t handleSizeAligned
+            = tools::alignedSize(m_rayTracingPipelineProperties.shaderGroupHandleSize,
+                m_rayTracingPipelineProperties.shaderGroupHandleAlignment);
+        VkStridedDeviceAddressRegionKHR rayGenSbtRegion;
+        rayGenSbtRegion.deviceAddress = m_shaderBindingTable.getDeviceAddress();
+        rayGenSbtRegion.stride = handleSizeAligned;
+        rayGenSbtRegion.size = handleSizeAligned;
+        VkStridedDeviceAddressRegionKHR missSbtRegion = rayGenSbtRegion;
+        VkStridedDeviceAddressRegionKHR hitSbtRegion = rayGenSbtRegion;
+        VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
+
+        vkCmdTraceRaysKHR(m_drawCmdBuffers[i],
+            &rayGenSbtRegion,
+            &missSbtRegion,
+            &hitSbtRegion,
+            &emptySbtEntry,
+            m_width,
+            m_height,
+            1);
+
+        // Copy ray tracing output to swap chain image
+        // TODO: use a third render pass for post processing
+        // Prepare current swap chain image as transfer destination
+        VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        tools::setImageLayout(m_drawCmdBuffers[i],
+            m_swapChain.images[i],
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            subresourceRange);
+
+        // Prepare ray tracing output image as transfer source
+        tools::setImageLayout(m_drawCmdBuffers[i],
+            m_offscreenImages[i].rtResultImage.getImage(),
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            subresourceRange);
+
+        // vkCmdBlitImage will take care of the color conversion between rtResultImage and the swapChain color format
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = { 0, 0, 0 };
+        blit.srcOffsets[1] = { static_cast<int32_t>(m_width), static_cast<int32_t>(m_height), 1 };
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = 0;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = { 0, 0, 0 };
+        blit.dstOffsets[1] = { static_cast<int32_t>(m_width), static_cast<int32_t>(m_height), 1 };
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = 0;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+        vkCmdBlitImage(m_drawCmdBuffers[i],
+            m_offscreenImages[i].rtResultImage.getImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            m_swapChain.images[i],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &blit,
+            VK_FILTER_NEAREST);
+
+        // Transition swap chain image back for presentation
+        tools::setImageLayout(m_drawCmdBuffers[i],
+            m_swapChain.images[i],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            subresourceRange);
+
+        // Transition ray tracing output image back to general layout
+        tools::setImageLayout(m_drawCmdBuffers[i],
+            m_offscreenImages[i].rtResultImage.getImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
+            subresourceRange);
+        // End Ray tracing "pass"
+
+        VKM_CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
     }
 }
 
@@ -101,16 +207,29 @@ void HybridPipelineRT::createDescriptorPool()
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Lights array
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
-        // Storage images
+        // Offscreen images
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+        // Storage images
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
     };
-    uint32_t maxSetsForPool = 13; // RT pipeline contains 12 sets and 1 push constant
+    // Calculate max set for pool
+    const auto asSets = 1;
+    const auto sceneSets = 1 * m_swapChain.imageCount;
+    const auto vertexAndIndexes = 3;
+    const auto textures = 1;
+    const auto materials = 1;
+    const auto lights = 1;
+    const auto offscreenImages = 2 * m_swapChain.imageCount;
+    const auto storageImages = 2 * m_swapChain.imageCount;
+    uint32_t maxSetsForPool = asSets + sceneSets + vertexAndIndexes + textures + materials + lights
+        + offscreenImages + storageImages;
+    // ---
     VkDescriptorPoolCreateInfo descriptorPoolInfo
         = initializers::descriptorPoolCreateInfo(poolSizes.size(),
             poolSizes.data(),
             maxSetsForPool);
     VKM_CHECK_RESULT(
-        vkCreateDescriptorPool(m_device, &descriptorPoolInfo, nullptr, &m_descriptorPool));
+        vkCreateDescriptorPool(m_device, &descriptorPoolInfo, nullptr, &m_descriptorPool))
 }
 
 void HybridPipelineRT::createDescriptorSetLayout()
@@ -179,13 +298,13 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rasterDescriptorSetLayouts.set3StorageImage))
+            &m_rasterDescriptorSetLayouts.set3StorageImages))
 
         std::array<VkDescriptorSetLayout, 4> setLayouts = {
             m_rasterDescriptorSetLayouts.set0Scene,
             m_rasterDescriptorSetLayouts.set1Materials,
             m_rasterDescriptorSetLayouts.set2Lights,
-            m_rasterDescriptorSetLayouts.set3StorageImage,
+            m_rasterDescriptorSetLayouts.set3StorageImages,
         };
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo
             = initializers::pipelineLayoutCreateInfo(setLayouts.data(), setLayouts.size());
@@ -217,7 +336,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rtDescriptorSetLayouts.set0AccelerationStructure));
+            &m_rtDescriptorSetLayouts.set0AccelerationStructure))
 
         // Set 1: Scene matrices
         setLayoutBindings.clear();
@@ -233,7 +352,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rtDescriptorSetLayouts.set1Scene));
+            &m_rtDescriptorSetLayouts.set1Scene))
 
         // Set 2: Geometry data
         setLayoutBindings.clear();
@@ -256,7 +375,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rtDescriptorSetLayouts.set2Geometry));
+            &m_rtDescriptorSetLayouts.set2Geometry))
 
         // Set 3: Textures data
         setLayoutBindings.clear();
@@ -276,7 +395,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rtDescriptorSetLayouts.set3Materials));
+            &m_rtDescriptorSetLayouts.set3Materials))
 
         // Set 4: Lighting data
         setLayoutBindings.clear();
@@ -292,37 +411,45 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rtDescriptorSetLayouts.set4Lights));
+            &m_rtDescriptorSetLayouts.set4Lights))
 
-        // Set 5: Result Image
+        // Set 5: Offscreen Images
         setLayoutBindings.clear();
         setLayoutBindings.push_back(
             // Binding 0 : Color input
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                 0));
         setLayoutBindings.push_back(
-            // Binding 1 : Normals input
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            // Binding 1 : Depth input
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                 1));
-        setLayoutBindings.push_back(
-            // Binding 2 : Depth input
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-                2));
-        setLayoutBindings.push_back(
-            // Binding 3 : Result
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-                3));
-
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_rtDescriptorSetLayouts.set5StorageImage));
+            &m_rtDescriptorSetLayouts.set5OffscreenImages))
+
+        // Set 6: Storage Images
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back(
+            // Binding 1 : Normals input
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                0));
+        setLayoutBindings.push_back(
+            // Binding 3 : Result
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                1));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set6StorageImages))
 
         // Ray Tracing Pipeline Layout
         // Push constant to pass path tracer parameters
@@ -331,13 +458,14 @@ void HybridPipelineRT::createDescriptorSetLayout()
                     | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
                 sizeof(PathTracerParameters),
                 0);
-        std::array<VkDescriptorSetLayout, 6> rayTracingSetLayouts
+        std::array<VkDescriptorSetLayout, 7> rayTracingSetLayouts
             = { m_rtDescriptorSetLayouts.set0AccelerationStructure,
                   m_rtDescriptorSetLayouts.set1Scene,
                   m_rtDescriptorSetLayouts.set2Geometry,
                   m_rtDescriptorSetLayouts.set3Materials,
                   m_rtDescriptorSetLayouts.set4Lights,
-                  m_rtDescriptorSetLayouts.set5StorageImage };
+                  m_rtDescriptorSetLayouts.set5OffscreenImages,
+                  m_rtDescriptorSetLayouts.set6StorageImages };
 
         VkPipelineLayoutCreateInfo rayTracingPipelineLayoutCreateInfo
             = initializers::pipelineLayoutCreateInfo(rayTracingSetLayouts.data(),
@@ -347,7 +475,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
             &rayTracingPipelineLayoutCreateInfo,
             nullptr,
-            &m_pipelineLayouts.rayTracing));
+            &m_pipelineLayouts.rayTracing))
     }
     // **** END RAY TRACING LAYOUTS ****
 }
@@ -364,9 +492,8 @@ void HybridPipelineRT::createDescriptorSets()
                 layouts.data(),
                 m_swapChain.imageCount);
         m_rasterDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &allocInfo,
-            m_rasterDescriptorSets.set0Scene.data()));
+        VKM_CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &allocInfo, m_rasterDescriptorSets.set0Scene.data()))
         for (size_t i = 0; i < m_swapChain.imageCount; i++) {
             std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
                 // Binding 0 : Vertex shader uniform buffer
@@ -390,7 +517,7 @@ void HybridPipelineRT::createDescriptorSets()
                 1);
         VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &textureAllocInfo,
-            &m_rasterDescriptorSets.set1Materials));
+            &m_rasterDescriptorSets.set1Materials))
 
         std::vector<VkDescriptorImageInfo> textureDescriptors;
         for (auto& texture : m_scene->textures) {
@@ -425,7 +552,7 @@ void HybridPipelineRT::createDescriptorSets()
                 &m_rasterDescriptorSetLayouts.set2Lights,
                 1);
         VKM_CHECK_RESULT(
-            vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rasterDescriptorSets.set2Lights));
+            vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rasterDescriptorSets.set2Lights))
         VkWriteDescriptorSet writeLightsDescriptorSet
             = initializers::writeDescriptorSet(m_rasterDescriptorSets.set2Lights,
                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -440,13 +567,16 @@ void HybridPipelineRT::createDescriptorSets()
             nullptr);
 
         // Set 3 Raster: Images
-        VkDescriptorSetAllocateInfo inputImageAllocateInfo
+        std::vector<VkDescriptorSetLayout> storageImageLayouts(m_swapChain.imageCount,
+            m_rasterDescriptorSetLayouts.set3StorageImages);
+        VkDescriptorSetAllocateInfo storageImageAllocInfo
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                &m_rasterDescriptorSetLayouts.set3StorageImage,
-                1);
+                storageImageLayouts.data(),
+                m_swapChain.imageCount);
+        m_rasterDescriptorSets.set3StorageImages.resize(m_swapChain.imageCount);
         VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &inputImageAllocateInfo,
-            &m_rasterDescriptorSets.set3StorageImage));
+            &storageImageAllocInfo,
+            m_rasterDescriptorSets.set3StorageImages.data()))
     }
     // **** END: RASTERIZATION SETS ****
 
@@ -459,7 +589,7 @@ void HybridPipelineRT::createDescriptorSets()
                 1);
         VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &set0AllocInfo,
-            &m_rtDescriptorSets.set0AccelerationStructure));
+            &m_rtDescriptorSets.set0AccelerationStructure))
 
         VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo {};
         descriptorAccelerationStructureInfo.sType
@@ -492,9 +622,8 @@ void HybridPipelineRT::createDescriptorSets()
                 set1Layouts.data(),
                 m_swapChain.imageCount);
         m_rtDescriptorSets.set1Scene.resize(m_swapChain.imageCount);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &set1AllocInfo,
-            m_rtDescriptorSets.set1Scene.data()));
+        VKM_CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_rtDescriptorSets.set1Scene.data()))
         for (size_t i = 0; i < m_swapChain.imageCount; i++) {
             VkWriteDescriptorSet uniformBufferWrite
                 = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene[i],
@@ -515,7 +644,7 @@ void HybridPipelineRT::createDescriptorSets()
                 &m_rtDescriptorSetLayouts.set2Geometry,
                 1);
         VKM_CHECK_RESULT(
-            vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry));
+            vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry))
 
         VkDescriptorBufferInfo vertexBufferDescriptor {};
         vertexBufferDescriptor.buffer = m_scene->vertices.buffer;
@@ -554,7 +683,7 @@ void HybridPipelineRT::createDescriptorSets()
                 &m_rtDescriptorSetLayouts.set3Materials,
                 1);
         VKM_CHECK_RESULT(
-            vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials));
+            vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials))
 
         std::vector<VkDescriptorImageInfo> textureDescriptors;
         for (auto& texture : m_scene->textures) {
@@ -587,7 +716,7 @@ void HybridPipelineRT::createDescriptorSets()
                 &m_rtDescriptorSetLayouts.set4Lights,
                 1);
         VKM_CHECK_RESULT(
-            vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights));
+            vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights))
         VkWriteDescriptorSet writeLightsDescriptorSet
             = initializers::writeDescriptorSet(m_rtDescriptorSets.set4Lights,
                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -601,97 +730,209 @@ void HybridPipelineRT::createDescriptorSets()
             0,
             nullptr);
 
-        // Set 5: Result image descriptor
-        VkDescriptorSetAllocateInfo set5AllocInfo
-            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                &m_rtDescriptorSetLayouts.set5StorageImage,
-                1);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &set5AllocInfo,
-            &m_rtDescriptorSets.set5StorageImage));
+        // Set 5: Offscreen images descriptor
+        {
+            std::vector<VkDescriptorSetLayout> storageImageLayouts(m_swapChain.imageCount,
+                m_rtDescriptorSetLayouts.set5OffscreenImages);
+            VkDescriptorSetAllocateInfo set5AllocInfo
+                = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                    storageImageLayouts.data(),
+                    m_swapChain.imageCount);
+            m_rtDescriptorSets.set5OffscreenImages.resize(m_swapChain.imageCount);
+            VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+                &set5AllocInfo,
+                m_rtDescriptorSets.set5OffscreenImages.data()))
+        }
+        // Set 6: Result image descriptor
+        {
+            std::vector<VkDescriptorSetLayout> storageImageLayouts(m_swapChain.imageCount,
+                m_rtDescriptorSetLayouts.set6StorageImages);
+            VkDescriptorSetAllocateInfo set6AllocInfo
+                = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                    storageImageLayouts.data(),
+                    m_swapChain.imageCount);
+            m_rtDescriptorSets.set6StorageImages.resize(m_swapChain.imageCount);
+            VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+                &set6AllocInfo,
+                m_rtDescriptorSets.set6StorageImages.data()))
+        }
     }
     // **** END: RAY TRACING SETS ****
+
+    updateResultImageDescriptorSets();
 }
 
 void HybridPipelineRT::createStorageImages()
 {
-    m_storageImage.resultImage.fromNothing(m_swapChain.colorFormat,
-        m_width,
-        m_height,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.rtInputColor.fromNothing(VK_FORMAT_R32_SFLOAT,
-        m_width,
-        m_height,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.rtInputNormals.fromNothing(VK_FORMAT_R32_SFLOAT,
-        m_width,
-        m_height,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.rtInputDepth.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
-        m_width,
-        m_height,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
+    m_offscreenImages.resize(m_swapChain.imageCount);
+    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        m_offscreenImages[i].offscreenColor.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_offscreenImages[i].offscreenDepth.depthAttachment(VK_FORMAT_D32_SFLOAT,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+
+        m_offscreenImages[i].offscreenNormals.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_FILTER_NEAREST,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_LAYOUT_GENERAL);
+        m_offscreenImages[i].rtResultImage.fromNothing(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_FILTER_NEAREST,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+                | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    }
+}
+
+void HybridPipelineRT::createOffscreenRenderPass()
+{
+    std::array<VkAttachmentDescription, 2> attchmentDescriptions = {};
+    // Color attachment
+    attchmentDescriptions[0].format = VK_FORMAT_R8G8B8A8_UNORM;
+    attchmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attchmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attchmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attchmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attchmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // Depth attachment
+    attchmentDescriptions[1].format = VK_FORMAT_D32_SFLOAT;
+    attchmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
+    attchmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attchmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attchmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attchmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+
+    VkSubpassDescription subpassDescription = {};
+    subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpassDescription.colorAttachmentCount = 1;
+    subpassDescription.pColorAttachments = &colorReference;
+    subpassDescription.pDepthStencilAttachment = &depthReference;
+
+    std::array<VkSubpassDependency, 2> dependencies;
+
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    // Create the actual renderpass
+    VkRenderPassCreateInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attchmentDescriptions.size());
+    renderPassInfo.pAttachments = attchmentDescriptions.data();
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpassDescription;
+    renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    renderPassInfo.pDependencies = dependencies.data();
+    VKM_CHECK_RESULT(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_offscreenRenderPass))
+}
+
+void HybridPipelineRT::createOffscreenFramebuffers()
+{
+    m_offscreenFramebuffers.resize(m_swapChain.imageCount);
+    for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
+        std::array<VkImageView, 2> attachments = {};
+        attachments[0] = m_offscreenImages[i].offscreenColor.getImageView();
+        attachments[1] = m_offscreenImages[i].offscreenDepth.getImageView();
+
+        VkFramebufferCreateInfo framebufferCreateInfo {};
+        framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferCreateInfo.renderPass = m_offscreenRenderPass;
+        framebufferCreateInfo.attachmentCount = 2;
+        framebufferCreateInfo.pAttachments = attachments.data();
+        framebufferCreateInfo.width = m_width;
+        framebufferCreateInfo.height = m_height;
+        framebufferCreateInfo.layers = 1;
+        VKM_CHECK_RESULT(vkCreateFramebuffer(m_device,
+            &framebufferCreateInfo,
+            nullptr,
+            &m_offscreenFramebuffers[i]))
+    }
 }
 
 void HybridPipelineRT::updateResultImageDescriptorSets()
 {
-    VkWriteDescriptorSet imageRTInputColorImageWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5StorageImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
+        VkWriteDescriptorSet imageRTInputColorImageWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5OffscreenImages[i],
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                0,
+                &m_offscreenImages[i].offscreenColor.descriptor);
+        VkWriteDescriptorSet imageRTInputDepthWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5OffscreenImages[i],
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                1,
+                &m_offscreenImages[i].offscreenDepth.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet5
+            = { imageRTInputColorImageWrite, imageRTInputDepthWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet5.size()),
+            writeDescriptorSet5.data(),
             0,
-            &m_storageImage.rtInputColor.descriptor);
-    VkWriteDescriptorSet imageRTInputNormalsWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5StorageImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            1,
-            &m_storageImage.rtInputNormals.descriptor);
-    VkWriteDescriptorSet imageRTInputDepthWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5StorageImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            2,
-            &m_storageImage.rtInputDepth.descriptor);
-    VkWriteDescriptorSet imageRTResultWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5StorageImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            3,
-            &m_storageImage.resultImage.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet5 = { imageRTInputColorImageWrite,
-        imageRTInputNormalsWrite,
-        imageRTInputDepthWrite,
-        imageRTResultWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet5.size()),
-        writeDescriptorSet5.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
 
-    VkWriteDescriptorSet imageInputNormalsWrite
-        = initializers::writeDescriptorSet(m_rasterDescriptorSets.set3StorageImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        VkWriteDescriptorSet imageRTInputNormalsWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set6StorageImages[i],
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                0,
+                &m_offscreenImages[i].offscreenNormals.descriptor);
+        VkWriteDescriptorSet imageRTResultWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set6StorageImages[i],
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                1,
+                &m_offscreenImages[i].rtResultImage.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet6
+            = { imageRTInputNormalsWrite, imageRTResultWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet6.size()),
+            writeDescriptorSet6.data(),
             0,
-            &m_storageImage.rtInputNormals.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet3Raster = { imageInputNormalsWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet3Raster.size()),
-        writeDescriptorSet3Raster.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
+
+        VkWriteDescriptorSet imageInputNormalsWrite
+            = initializers::writeDescriptorSet(m_rasterDescriptorSets.set3StorageImages[i],
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                0,
+                &m_offscreenImages[i].offscreenNormals.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet3Raster = { imageInputNormalsWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet3Raster.size()),
+            writeDescriptorSet3Raster.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
 }
 
 void HybridPipelineRT::updateUniformBuffers(uint32_t t_currentImage)
@@ -702,11 +943,18 @@ void HybridPipelineRT::updateUniformBuffers(uint32_t t_currentImage)
 void HybridPipelineRT::onSwapChainRecreation()
 {
     // Recreate the result image to fit the new extent size
-    m_storageImage.resultImage.destroy();
-    m_storageImage.rtInputColor.destroy();
-    m_storageImage.rtInputDepth.destroy();
-    m_storageImage.rtInputNormals.destroy();
+    for (auto& offscreenImage : m_offscreenImages) {
+        offscreenImage.rtResultImage.destroy();
+        offscreenImage.offscreenColor.destroy();
+        offscreenImage.offscreenDepth.destroy();
+        offscreenImage.offscreenNormals.destroy();
+    }
+    for (auto& frameBuffer : m_offscreenFramebuffers) {
+        vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
+    }
+
     createStorageImages();
+    createOffscreenFramebuffers();
     updateResultImageDescriptorSets();
 }
 
@@ -720,7 +968,7 @@ void HybridPipelineRT::createUniformBuffers()
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             bufferSize);
-        VKM_CHECK_RESULT(m_sceneBuffers[i].map());
+        VKM_CHECK_RESULT(m_sceneBuffers[i].map())
     }
     // Instances Information uniform
     bufferSize = sizeof(ShaderMeshInstance) * m_scene->getInstancesCount();
@@ -781,7 +1029,7 @@ void HybridPipelineRT::createRasterPipeline()
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo
-        = initializers::pipelineCreateInfo(m_pipelineLayouts.raster, m_renderPass, 0);
+        = initializers::pipelineCreateInfo(m_pipelineLayouts.raster, m_offscreenRenderPass, 0);
     pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
     pipelineCreateInfo.pRasterizationState = &rasterizationState;
     pipelineCreateInfo.pColorBlendState = &colorBlendState;
@@ -816,11 +1064,7 @@ void HybridPipelineRT::createRasterPipeline()
         initializers::vertexInputAttributeDescription(vertex_buffer_bind_id,
             3,
             VK_FORMAT_R32G32_SFLOAT,
-            sizeof(float) * 9), // Location 2: Texture coordinates
-        initializers::vertexInputAttributeDescription(vertex_buffer_bind_id,
-            4,
-            VK_FORMAT_R32G32B32_SFLOAT,
-            sizeof(float) * 11), // Location 3: Color
+            sizeof(float) * 9), // Location 3: Texture coordinates
     };
 
     VkPipelineVertexInputStateCreateInfo vertexInputState
@@ -841,7 +1085,7 @@ void HybridPipelineRT::createRasterPipeline()
         1,
         &pipelineCreateInfo,
         nullptr,
-        &m_pipelines.raster));
+        &m_pipelines.raster))
 }
 
 void HybridPipelineRT::assignPushConstants()
@@ -869,7 +1113,7 @@ void HybridPipelineRT::createShaderRTBindingTable()
         0,
         SBT_HP_NUM_SHADER_GROUPS,
         sbtSize,
-        shaderHandleStorage));
+        shaderHandleStorage))
     auto* data = static_cast<uint8_t*>(m_shaderBindingTable.mapped);
     // Copy the shader identifiers to the shader binding table
     data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_HP_RAY_GEN_GROUP);
@@ -944,15 +1188,17 @@ void HybridPipelineRT::createRTPipeline()
         1,
         &rayPipelineInfo,
         nullptr,
-        &m_pipelines.rayTracing));
+        &m_pipelines.rayTracing))
 }
 
 void HybridPipelineRT::prepare()
 {
     BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout, &m_pipelines.raster);
+    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
 
     createStorageImages();
+    createOffscreenRenderPass();
+    createOffscreenFramebuffers();
     createUniformBuffers();
     createDescriptorSetLayout();
     assignPushConstants();
@@ -967,6 +1213,11 @@ void HybridPipelineRT::prepare()
 
 HybridPipelineRT::~HybridPipelineRT()
 {
+    vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
+    for (auto& frameBuffer : m_offscreenFramebuffers) {
+        vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
+    }
+
     vkDestroyPipeline(m_device, m_pipelines.raster, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.rayTracing, nullptr);
 
@@ -976,7 +1227,7 @@ HybridPipelineRT::~HybridPipelineRT()
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set1Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set2Lights, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set3StorageImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set3StorageImages, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_rtDescriptorSetLayouts.set0AccelerationStructure,
         nullptr);
@@ -984,12 +1235,15 @@ HybridPipelineRT::~HybridPipelineRT()
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set2Geometry, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5StorageImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5OffscreenImages, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set6StorageImages, nullptr);
 
-    m_storageImage.rtInputDepth.destroy();
-    m_storageImage.resultImage.destroy();
-    m_storageImage.rtInputNormals.destroy();
-    m_storageImage.rtInputColor.destroy();
+    for (auto& offscreenImage : m_offscreenImages) {
+        offscreenImage.rtResultImage.destroy();
+        offscreenImage.offscreenColor.destroy();
+        offscreenImage.offscreenDepth.destroy();
+        offscreenImage.offscreenNormals.destroy();
+    }
 
     m_shaderBindingTable.destroy();
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {

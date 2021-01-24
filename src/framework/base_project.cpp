@@ -262,8 +262,7 @@ bool BaseProject::initVulkan()
     // Vulkan instance
     VkResult err = createInstance(m_settings.validation);
     if (err) {
-        throw std::runtime_error(
-            "Could not create Vulkan instance : \n" + tools::errorString(err));
+        throw std::runtime_error("Could not create Vulkan instance : \n" + tools::errorString(err));
     }
 
     if (m_settings.validation) {
@@ -310,8 +309,7 @@ bool BaseProject::initVulkan()
         m_enabledDeviceExtensions,
         m_deviceCreatedNextChain);
     if (res != VK_SUCCESS) {
-        throw std::runtime_error(
-            "Could not create Vulkan device: \n" + tools::errorString(res));
+        throw std::runtime_error("Could not create Vulkan device: \n" + tools::errorString(res));
     }
     m_device = m_vulkanDevice->logicalDevice;
 
@@ -319,8 +317,7 @@ bool BaseProject::initVulkan()
     vkGetDeviceQueue(m_device, m_vulkanDevice->queueFamilyIndices.graphics, 0, &m_queue);
 
     // Find a suitable depth format
-    VkBool32 validDepthFormat
-        = tools::getSupportedDepthFormat(m_physicalDevice, &m_depthFormat);
+    VkBool32 validDepthFormat = tools::getSupportedDepthFormat(m_physicalDevice, &m_depthFormat);
     assert(validDepthFormat);
 
     m_swapChain.connect(m_instance, m_physicalDevice, m_device);

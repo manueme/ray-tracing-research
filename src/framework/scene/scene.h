@@ -93,8 +93,7 @@ public:
     } dim;
 
     bool loadFromFile(const std::string& t_modelPath, const SceneVertexLayout& t_layout,
-        SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue,
-        VkPipeline* t_pipeline);
+        SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue);
 
     Camera* getCamera();
 
@@ -116,7 +115,6 @@ private:
         | aiProcess_EmbedTextures;
 
     Device* m_device = nullptr;
-    VkPipeline* m_pipeline = nullptr;
 
     std::vector<Material> m_materials;
     std::vector<Light> m_lights;

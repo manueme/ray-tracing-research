@@ -60,7 +60,7 @@ protected:
 
     void getEnabledFeatures() override;
     void prepare() override;
-    void createRTScene(const std::string& t_modelPath, SceneVertexLayout t_vertexLayout, VkPipeline* t_pipeline = nullptr);
+    void createRTScene(const std::string& t_modelPath, SceneVertexLayout t_vertexLayout);
 };
 
 #endif // MANUEME_BASE_RT_PROJECT_H

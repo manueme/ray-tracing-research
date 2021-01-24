@@ -44,7 +44,7 @@ void MonteCarloRTApp::buildCommandBuffers()
 
     for (int32_t i = 0; i < m_drawCmdBuffers.size();
          ++i) { // This must be the same size as the swap chain image vector
-        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo));
+        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
 
         /*
             Dispatch the ray tracing commands
@@ -160,7 +160,20 @@ void MonteCarloRTApp::createDescriptorPool()
         // Convolution Kernel
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
     };
-    uint32_t maxSetsForPool = 14; // 13 + 1 push constant
+    // Calculate max set for pool
+    const auto asSets = 1;
+    const auto sceneSets = 1 * m_swapChain.imageCount;
+    const auto vertexAndIndexes = 3;
+    const auto textures = 1;
+    const auto materials = 1;
+    const auto lights = 1;
+    const auto resultImages = 3;
+    const auto auxImages = 1;
+    const auto convolutionKernel = 1;
+    uint32_t maxSetsForPool = asSets + sceneSets + vertexAndIndexes + textures + materials + lights
+        + resultImages + auxImages + convolutionKernel;
+    // ---
+
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo
         = initializers::descriptorPoolCreateInfo(poolSizes.size(),
             poolSizes.data(),

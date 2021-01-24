@@ -1,4 +1,4 @@
-# Use the Chromium style in this project.
+# Use the WebKit style in this project.
 BasedOnStyle: WebKit
 ColumnLimit: 100
 BinPackArguments: false

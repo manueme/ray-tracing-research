@@ -107,6 +107,16 @@ void main()
         inside = true;
     };
 
+    // ####  Compute surface albedo ####
+    vec4 surfaceAlbedo;
+    if (diffuseMapIndex >= 0) {
+        surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], hitUV);
+    } else {
+        surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
+    }
+    rayPayload.surfaceAttenuation = surfaceAlbedo.rgb;
+    // ####  End compute surface albedo ####
+
     // #### Compute next ray direction ####
     const float reflectivity = material.reflectivity;
     const float endRefractIdx = material.refractIdx;
@@ -115,7 +125,7 @@ void main()
     float refractPercent = 0.0f;
     if (endRefractIdx != NOT_REFRACTIVE_IDX) {
         reflectPercent = fresnel(hitDirection, shadingNormal, startRefractIdx, endRefractIdx);
-        refractPercent = 1.0 - reflectPercent;
+        refractPercent = 1.0 - reflectPercent - surfaceAlbedo.a;
     } else if (reflectivity != NOT_REFLECTVE_IDX) {
         reflectPercent = reflectivity;
     }
@@ -151,16 +161,6 @@ void main()
     cosine_sample_hemisphere(z1, z2, sampledVec);
     rayPayload.nextRayDirection = TBN * sampledVec;
     // #### End compute next ray direction ####
-
-    // ####  Compute surface albedo ####
-    vec3 surfaceAlbedo;
-    if (diffuseMapIndex >= 0) {
-        surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], hitUV).rgb;
-    } else {
-        surfaceAlbedo = material.diffuse.rgb;
-    }
-    rayPayload.surfaceAttenuation = surfaceAlbedo;
-    // ####  End compute surface albedo ####
 
     // ####  Compute surface emission ####
     vec3 surfaceEmissive;
@@ -234,7 +234,7 @@ void main()
         }
     }
     rayPayload.surfaceEmissive = emissive;
-    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo;
+    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo.rgb;
     // ####  End Compute direct ligthing ####
 
     // Russian roulette termination
