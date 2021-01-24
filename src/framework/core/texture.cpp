@@ -624,7 +624,7 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
 }
 
 void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
-    Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags)
+    Device* t_device, VkQueue t_copyQueue, VkSampleCountFlagBits t_samples, VkImageUsageFlags t_imageUsageFlags)
 {
     this->m_device = t_device;
     m_width = t_texWidth;
@@ -640,7 +640,7 @@ void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, ui
     image.extent.depth = 1;
     image.mipLevels = 1;
     image.arrayLayers = 1;
-    image.samples = VK_SAMPLE_COUNT_1_BIT;
+    image.samples = t_samples;
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | t_imageUsageFlags;
     image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -706,7 +706,7 @@ void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, ui
 }
 
 void VulkanTexture2D::colorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
-    Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags)
+    Device* t_device, VkQueue t_copyQueue, VkSampleCountFlagBits t_samples, VkImageUsageFlags t_imageUsageFlags)
 {
     this->m_device = t_device;
     m_width = t_texWidth;
@@ -722,7 +722,7 @@ void VulkanTexture2D::colorAttachment(VkFormat t_format, uint32_t t_texWidth, ui
     image.extent.depth = 1;
     image.mipLevels = 1;
     image.arrayLayers = 1;
-    image.samples = VK_SAMPLE_COUNT_1_BIT;
+    image.samples = t_samples;
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | t_imageUsageFlags;
     image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

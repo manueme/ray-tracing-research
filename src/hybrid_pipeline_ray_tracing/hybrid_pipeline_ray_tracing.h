@@ -19,6 +19,8 @@ private:
 
     const uint32_t vertex_buffer_bind_id = 0;
 
+    VkSampleCountFlagBits m_samples;
+
     struct {
         VkPipeline rayTracing;
         VkPipeline raster;
@@ -64,8 +66,10 @@ private:
 
     // Images used to store ray traced image
     struct OffscreenImages {
+        VulkanTexture2D offscreenColorMultiSample;
         VulkanTexture2D offscreenColor;
         VulkanTexture2D offscreenNormals;
+        VulkanTexture2D offscreenDepthMultiSample;
         VulkanTexture2D offscreenDepth;
         VulkanTexture2D rtResultImage;
     };
@@ -107,6 +111,7 @@ private:
 
     void render() override;
     void prepare() override;
+    void setSamplesSettings();
     void createOffscreenRenderPass();
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void onSwapChainRecreation() override;

@@ -76,10 +76,14 @@ public:
         VkImageAspectFlags t_aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
 
     void depthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
-        Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags = 0);
+        Device* t_device, VkQueue t_copyQueue,
+        VkSampleCountFlagBits t_samples = VK_SAMPLE_COUNT_1_BIT,
+        VkImageUsageFlags t_imageUsageFlags = 0);
 
     void colorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
-        Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags = 0);
+        Device* t_device, VkQueue t_copyQueue,
+        VkSampleCountFlagBits t_samples = VK_SAMPLE_COUNT_1_BIT,
+        VkImageUsageFlags t_imageUsageFlags = 0);
 };
 
 #endif // MANUEME_TEXTURE_H

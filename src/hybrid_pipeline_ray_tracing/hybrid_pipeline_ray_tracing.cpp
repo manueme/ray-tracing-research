@@ -35,9 +35,11 @@ void HybridPipelineRT::buildCommandBuffers()
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    std::array<VkClearValue, 2> clearValues = {};
+    std::array<VkClearValue, 4> clearValues = {};
     clearValues[0].color = m_default_clear_color;
     clearValues[1].depthStencil = { 1.0f, 0 };
+    clearValues[1].color = m_default_clear_color;
+    clearValues[2].depthStencil = { 1.0f, 0 };
 
     VkRenderPassBeginInfo renderPassBeginInfo = {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -46,7 +48,7 @@ void HybridPipelineRT::buildCommandBuffers()
     renderPassBeginInfo.renderArea.offset.y = 0;
     renderPassBeginInfo.renderArea.extent.width = m_width;
     renderPassBeginInfo.renderArea.extent.height = m_height;
-    renderPassBeginInfo.clearValueCount = 2;
+    renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassBeginInfo.pClearValues = clearValues.data();
 
     for (int32_t i = 0; i < m_drawCmdBuffers.size(); ++i) {
@@ -151,8 +153,9 @@ void HybridPipelineRT::buildCommandBuffers()
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             subresourceRange);
 
-        // vkCmdBlitImage will take care of the color conversion between rtResultImage and the swapChain color format
-        VkImageBlit blit{};
+        // vkCmdBlitImage will take care of the color conversion between rtResultImage and the
+        // swapChain color format
+        VkImageBlit blit {};
         blit.srcOffsets[0] = { 0, 0, 0 };
         blit.srcOffsets[1] = { static_cast<int32_t>(m_width), static_cast<int32_t>(m_height), 1 };
         blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -766,17 +769,33 @@ void HybridPipelineRT::createStorageImages()
 {
     m_offscreenImages.resize(m_swapChain.imageCount);
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        m_offscreenImages[i].offscreenColorMultiSample.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            m_samples,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
         m_offscreenImages[i].offscreenColor.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
             m_width,
             m_height,
             m_vulkanDevice,
             m_queue,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_offscreenImages[i].offscreenDepthMultiSample.depthAttachment(VK_FORMAT_D32_SFLOAT,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            m_samples,
             VK_IMAGE_USAGE_SAMPLED_BIT);
         m_offscreenImages[i].offscreenDepth.depthAttachment(VK_FORMAT_D32_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
             m_queue,
+            VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
 
         m_offscreenImages[i].offscreenNormals.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
@@ -785,7 +804,7 @@ void HybridPipelineRT::createStorageImages()
             m_vulkanDevice,
             m_queue,
             VK_FILTER_NEAREST,
-            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_USAGE_STORAGE_BIT,
             VK_IMAGE_LAYOUT_GENERAL);
         m_offscreenImages[i].rtResultImage.fromNothing(VK_FORMAT_R8G8B8A8_UNORM,
             m_width,
@@ -800,37 +819,87 @@ void HybridPipelineRT::createStorageImages()
 
 void HybridPipelineRT::createOffscreenRenderPass()
 {
-    std::array<VkAttachmentDescription, 2> attchmentDescriptions = {};
+    std::array<VkAttachmentDescription2, 4> attchmentDescriptions = {};
     // Color attachment
+    attchmentDescriptions[0].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
     attchmentDescriptions[0].format = VK_FORMAT_R8G8B8A8_UNORM;
-    attchmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attchmentDescriptions[0].samples = m_samples;
     attchmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attchmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attchmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attchmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attchmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    // Depth attachment
-    attchmentDescriptions[1].format = VK_FORMAT_D32_SFLOAT;
+    attchmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // Resolve multisampling to 1
+    attchmentDescriptions[1].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attchmentDescriptions[1].format = attchmentDescriptions[0].format;
     attchmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
     attchmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attchmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attchmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attchmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attchmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    attchmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkAttachmentReference colorReference = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-    VkAttachmentReference depthReference = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+    // Depth attachment
+    attchmentDescriptions[2].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attchmentDescriptions[2].format = VK_FORMAT_D32_SFLOAT;
+    attchmentDescriptions[2].samples = m_samples;
+    attchmentDescriptions[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attchmentDescriptions[2].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attchmentDescriptions[2].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attchmentDescriptions[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions[2].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription subpassDescription = {};
+    // Resolve multisampling (depth) to 1
+    attchmentDescriptions[3].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attchmentDescriptions[3].format = attchmentDescriptions[2].format;
+    attchmentDescriptions[3].samples = VK_SAMPLE_COUNT_1_BIT;
+    attchmentDescriptions[3].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attchmentDescriptions[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attchmentDescriptions[3].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attchmentDescriptions[3].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attchmentDescriptions[3].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attchmentDescriptions[3].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference2 colorReference = {};
+    colorReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    colorReference.attachment = 0;
+    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference2 depthReference = {};
+    depthReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    depthReference.attachment = 2;
+    depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference2 resolveReference = {};
+    resolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    resolveReference.attachment = 1;
+    resolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference2 depthResolveReference = {};
+    depthResolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    depthResolveReference.attachment = 3;
+    depthResolveReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkSubpassDescriptionDepthStencilResolve depthResolveReferenceDescription = {};
+    depthResolveReferenceDescription.sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_DEPTH_STENCIL_RESOLVE;
+    depthResolveReferenceDescription.pDepthStencilResolveAttachment = &depthResolveReference;
+    depthResolveReferenceDescription.depthResolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+    depthResolveReferenceDescription.stencilResolveMode = VK_RESOLVE_MODE_NONE;
+
+    VkSubpassDescription2 subpassDescription = {};
+    subpassDescription.sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2;
     subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpassDescription.colorAttachmentCount = 1;
     subpassDescription.pColorAttachments = &colorReference;
     subpassDescription.pDepthStencilAttachment = &depthReference;
+    subpassDescription.pResolveAttachments = &resolveReference;
+    subpassDescription.pNext = &depthResolveReferenceDescription;
 
-    std::array<VkSubpassDependency, 2> dependencies;
+    std::array<VkSubpassDependency2, 2> dependencies = {};
 
+    dependencies[0].sType = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2;
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
     dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
@@ -838,7 +907,9 @@ void HybridPipelineRT::createOffscreenRenderPass()
     dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+    dependencies[0].pNext = VK_NULL_HANDLE;
 
+    dependencies[1].sType = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2;
     dependencies[1].srcSubpass = 0;
     dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -846,31 +917,34 @@ void HybridPipelineRT::createOffscreenRenderPass()
     dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+    dependencies[1].pNext = VK_NULL_HANDLE;
 
     // Create the actual renderpass
-    VkRenderPassCreateInfo renderPassInfo = {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    VkRenderPassCreateInfo2 renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2;
     renderPassInfo.attachmentCount = static_cast<uint32_t>(attchmentDescriptions.size());
     renderPassInfo.pAttachments = attchmentDescriptions.data();
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpassDescription;
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
-    VKM_CHECK_RESULT(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_offscreenRenderPass))
+    VKM_CHECK_RESULT(vkCreateRenderPass2(m_device, &renderPassInfo, nullptr, &m_offscreenRenderPass))
 }
 
 void HybridPipelineRT::createOffscreenFramebuffers()
 {
     m_offscreenFramebuffers.resize(m_swapChain.imageCount);
     for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
-        std::array<VkImageView, 2> attachments = {};
-        attachments[0] = m_offscreenImages[i].offscreenColor.getImageView();
-        attachments[1] = m_offscreenImages[i].offscreenDepth.getImageView();
+        std::array<VkImageView, 4> attachments = {};
+        attachments[0] = m_offscreenImages[i].offscreenColorMultiSample.getImageView();
+        attachments[1] = m_offscreenImages[i].offscreenColor.getImageView();
+        attachments[2] = m_offscreenImages[i].offscreenDepthMultiSample.getImageView();
+        attachments[3] = m_offscreenImages[i].offscreenDepth.getImageView();
 
         VkFramebufferCreateInfo framebufferCreateInfo {};
         framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferCreateInfo.renderPass = m_offscreenRenderPass;
-        framebufferCreateInfo.attachmentCount = 2;
+        framebufferCreateInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
         framebufferCreateInfo.pAttachments = attachments.data();
         framebufferCreateInfo.width = m_width;
         framebufferCreateInfo.height = m_height;
@@ -945,7 +1019,9 @@ void HybridPipelineRT::onSwapChainRecreation()
     // Recreate the result image to fit the new extent size
     for (auto& offscreenImage : m_offscreenImages) {
         offscreenImage.rtResultImage.destroy();
+        offscreenImage.offscreenColorMultiSample.destroy();
         offscreenImage.offscreenColor.destroy();
+        offscreenImage.offscreenDepthMultiSample.destroy();
         offscreenImage.offscreenDepth.destroy();
         offscreenImage.offscreenNormals.destroy();
     }
@@ -1016,7 +1092,7 @@ void HybridPipelineRT::createRasterPipeline()
     VkPipelineViewportStateCreateInfo viewportState
         = initializers::pipelineViewportStateCreateInfo(1, 1, 0);
     VkPipelineMultisampleStateCreateInfo multisampleState
-        = initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
+        = initializers::pipelineMultisampleStateCreateInfo(m_samples, 0);
     std::vector<VkDynamicState> dynamicStateEnables
         = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     VkPipelineDynamicStateCreateInfo dynamicState
@@ -1191,11 +1267,22 @@ void HybridPipelineRT::createRTPipeline()
         &m_pipelines.rayTracing))
 }
 
+void HybridPipelineRT::setSamplesSettings()
+{
+    VkSampleCountFlags counts = m_deviceProperties.limits.framebufferColorSampleCounts
+        & m_deviceProperties.limits.framebufferDepthSampleCounts;
+    if (counts & VK_SAMPLE_COUNT_8_BIT) {
+        m_samples = VK_SAMPLE_COUNT_8_BIT;
+    } else {
+        m_samples = VK_SAMPLE_COUNT_1_BIT;
+    }
+}
+
 void HybridPipelineRT::prepare()
 {
     BaseRTProject::prepare();
     BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
-
+    setSamplesSettings();
     createStorageImages();
     createOffscreenRenderPass();
     createOffscreenFramebuffers();
@@ -1240,7 +1327,9 @@ HybridPipelineRT::~HybridPipelineRT()
 
     for (auto& offscreenImage : m_offscreenImages) {
         offscreenImage.rtResultImage.destroy();
+        offscreenImage.offscreenColorMultiSample.destroy();
         offscreenImage.offscreenColor.destroy();
+        offscreenImage.offscreenDepthMultiSample.destroy();
         offscreenImage.offscreenDepth.destroy();
         offscreenImage.offscreenNormals.destroy();
     }
