@@ -75,7 +75,7 @@ private:
 protected:
     // constants
 
-    const VkClearColorValue m_default_clear_color = { { 0.025f, 0.025f, 0.025f, 1.0f } };
+    const VkClearColorValue m_default_clear_color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     const uint32_t api_version = VK_API_VERSION_1_2;
     // --
 

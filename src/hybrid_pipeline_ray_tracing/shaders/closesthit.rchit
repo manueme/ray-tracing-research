@@ -13,6 +13,7 @@
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 #include "../../framework/shaders/vertex.glsl"
+#include "./hybrid_constants.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_BRDF) rayPayloadInEXT RayPayload rayPayload;
@@ -107,60 +108,17 @@ void main()
         inside = true;
     };
 
-    // #### Compute next ray direction ####
-    const float reflectivity = material.reflectivity;
-    const float endRefractIdx = material.refractIdx;
-    float startRefractIdx = 1.0f;
-    float reflectPercent = 0.0f;
-    float refractPercent = 0.0f;
-    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
-        reflectPercent = fresnel(hitDirection, shadingNormal, startRefractIdx, endRefractIdx);
-        refractPercent = 1.0 - reflectPercent;
-    } else if (reflectivity != NOT_REFLECTVE_IDX) {
-        reflectPercent = reflectivity;
-    }
-    const bool computeReflectRefract = reflectPercent + refractPercent > 0.0f;
-    if (computeReflectRefract) {
-        const float splittingIndex = rnd(rayPayload.seed);
-        if (splittingIndex < reflectPercent) { // REFLECT RAY
-            // Default Values, they should not be used since it's a reflection ray
-            resetRayPayload();
-            // ---
-            rayPayload.nextRayDirection = reflect(hitDirection, shadingNormal);
-            rayPayload.rayType = RAY_TYPE_REFLECTION;
-            return;
-        } else if (splittingIndex < refractPercent + reflectPercent) { // REFRACT RAY
-            float ior = startRefractIdx / endRefractIdx;
-            const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
-            if (length(refractionRayDirection) != 0.0f) {
-                // Default Values, they should not be used since it's a refraction ray
-                resetRayPayload();
-                // ---
-                rayPayload.nextRayDirection = refractionRayDirection;
-                rayPayload.rayType = RAY_TYPE_REFRACTION;
-                return;
-            }
-        }
-    }
-
-    // if didn't return reflection or refraction then sample cosine hemisphere
-    rayPayload.rayType = RAY_TYPE_DIFFUSE;
-    float z1 = rnd(rayPayload.seed);
-    float z2 = rnd(rayPayload.seed);
-    vec3 sampledVec;
-    cosine_sample_hemisphere(z1, z2, sampledVec);
-    rayPayload.nextRayDirection = TBN * sampledVec;
-    // #### End compute next ray direction ####
-
     // ####  Compute surface albedo ####
-    vec3 surfaceAlbedo;
+    vec4 surfaceAlbedo;
     if (diffuseMapIndex >= 0) {
-        surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], hitUV).rgb;
+        surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], hitUV);
     } else {
-        surfaceAlbedo = material.diffuse.rgb;
+        surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
     }
-    rayPayload.surfaceAttenuation = surfaceAlbedo;
+    rayPayload.surfaceAttenuation = surfaceAlbedo.rgb;
     // ####  End compute surface albedo ####
+
+    rayPayload.rayType = RAY_TYPE_DIFFUSE;
 
     // ####  Compute surface emission ####
     vec3 surfaceEmissive;
@@ -175,7 +133,7 @@ void main()
     vec3 diffuse = vec3(0.0);
     vec3 specular = vec3(0.0);
     vec3 emissive = surfaceEmissive;
-
+    const float shadowWeight = 1.0 - AMBIENT_WEIGHT;
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -184,45 +142,11 @@ void main()
         if (light.lightType == 1) { // Directional light (SUN)
             lightDir = normalize(light.direction.xyz + vec3(scene.overrideSunDirection));
             lightIntensity = light.diffuse.rgb * SUN_POWER;
-        } else if (light.lightType == 5) { // Area light
-            const MaterialProperties areaMaterial = materials.m[light.areaMaterialIdx];
-            const uint lightRandomPrimitiveID
-                = uint(floor(light.areaPrimitiveCount * rnd(rayPayload.seed)));
-            z1 = rnd(rayPayload.seed);
-            z2 = rnd(rayPayload.seed);
-            const Surface areaSurface = get_surface_instance(light.areaInstanceId,
-                lightRandomPrimitiveID,
-                uniform_sample_triangle(z1, z2));
-            vec3 lightPosition = get_surface_pos(areaSurface);
-            vec3 lightNormal = normalize(get_surface_normal(areaSurface));
-            lightDir = hitPoint - lightPosition;
-            float distSqr = dot(lightDir, lightDir);
-            float dist = sqrt(distSqr);
-            lightDir = normalize(lightDir);
-            // Estimate full area of the light by multiplying by the number of triangles, this will
-            // probably cause some very bright pixels, the clamping at the end of the raygen loop
-            // will solve that issue:
-            float area = get_surface_area(areaSurface) * light.areaPrimitiveCount;
-            // ---
-            float cosThetaAreaLight = abs(dot(lightNormal, lightDir));
-            if (area == 0.0f || cosThetaAreaLight == 0.0f) {
-                continue;
-            }
-            float lightPDF = distSqr / (cosThetaAreaLight * area);
-            if (areaMaterial.emissiveMapIndex >= 0) {
-                vec2 lightUV = get_surface_uv(areaSurface);
-                lightIntensity
-                    = texture(textures[nonuniformEXT(areaMaterial.emissiveMapIndex)], lightUV).rgb;
-            } else {
-                lightIntensity = areaMaterial.emissive.rgb;
-            }
-            lightIntensity /= lightPDF;
-            maxHitDistance = max(0.0f, dist - 0.001f);
         } else {
             continue;
         }
-
-        const float visibility = 1.0 - trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
+        const float visibility
+            = 1.0 - shadowWeight * trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
         if (visibility > 0) {
             const float cosThetaLight = abs(dot(shadingNormal, lightDir));
             diffuse += visibility * lightIntensity * cosThetaLight;
@@ -236,14 +160,4 @@ void main()
     rayPayload.surfaceEmissive = emissive;
     rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo.rgb;
     // ####  End Compute direct ligthing ####
-
-    // Russian roulette termination
-    // Slow (good for interiors):
-    const float betaTermination = length(surfaceAlbedo);
-    // Faster (bad for interiors):
-    // const float betaTermination = max(surfaceAlbedo.r, max(surfaceAlbedo.g, surfaceAlbedo.b));
-    if (rnd(rayPayload.seed) > betaTermination) {
-        rayPayload.done = 1;
-    }
-    // ---
 }

@@ -35,11 +35,15 @@ void HybridPipelineRT::buildCommandBuffers()
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    std::array<VkClearValue, 4> rasterClearValues = {};
+    std::array<VkClearValue, 8> rasterClearValues = {};
     rasterClearValues[0].color = m_default_clear_color;
-    rasterClearValues[1].depthStencil = { 1.0f, 0 };
     rasterClearValues[1].color = m_default_clear_color;
-    rasterClearValues[2].depthStencil = { 1.0f, 0 };
+    rasterClearValues[2].color = m_default_clear_color;
+    rasterClearValues[3].color = m_default_clear_color;
+    rasterClearValues[4].color = m_default_clear_color;
+    rasterClearValues[5].color = m_default_clear_color;
+    rasterClearValues[6].depthStencil = { 1.0f, 0 };
+    rasterClearValues[7].depthStencil = { 1.0f, 0 };
     VkRenderPassBeginInfo rasterPassBeginInfo = {};
     rasterPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rasterPassBeginInfo.renderPass = m_offscreenRenderPass;
@@ -84,8 +88,7 @@ void HybridPipelineRT::buildCommandBuffers()
 
         std::vector<VkDescriptorSet> descriptorSets = { m_rasterDescriptorSets.set0Scene[i],
             m_rasterDescriptorSets.set1Materials,
-            m_rasterDescriptorSets.set2Lights,
-            m_rasterDescriptorSets.set3StorageImages[i] };
+            m_rasterDescriptorSets.set2Lights };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_pipelineLayouts.raster,
@@ -209,8 +212,8 @@ void HybridPipelineRT::createDescriptorPool()
     const auto textures = 1;
     const auto materials = 1;
     const auto lights = 1;
-    const auto offscreenImages = 2 * m_swapChain.imageCount;
-    const auto storageImages = 3 * m_swapChain.imageCount;
+    const auto offscreenImages = 6 * m_swapChain.imageCount;
+    const auto storageImages = 1 * m_swapChain.imageCount;
     uint32_t maxSetsForPool = asSets + sceneSets + vertexAndIndexes + textures + materials + lights
         + offscreenImages + storageImages;
     // ---
@@ -276,26 +279,9 @@ void HybridPipelineRT::createDescriptorSetLayout()
             nullptr,
             &m_rasterDescriptorSetLayouts.set2Lights))
 
-        // Set 3 Raster: Images
-        setLayoutBindings.clear();
-        setLayoutBindings.push_back(
-            // Binding 0 : Result Normals
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                0));
-        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-            setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-            &descriptorLayout,
-            nullptr,
-            &m_rasterDescriptorSetLayouts.set3StorageImages))
-
-        std::array<VkDescriptorSetLayout, 4> setLayouts = {
-            m_rasterDescriptorSetLayouts.set0Scene,
+        std::array<VkDescriptorSetLayout, 3> setLayouts = { m_rasterDescriptorSetLayouts.set0Scene,
             m_rasterDescriptorSetLayouts.set1Materials,
-            m_rasterDescriptorSetLayouts.set2Lights,
-            m_rasterDescriptorSetLayouts.set3StorageImages,
-        };
+            m_rasterDescriptorSetLayouts.set2Lights };
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo
             = initializers::pipelineLayoutCreateInfo(setLayouts.data(), setLayouts.size());
 
@@ -411,10 +397,20 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                 0));
         setLayoutBindings.push_back(
-            // Binding 1 : Depth input
+            // Binding 1 : Normals input
             initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                 1));
+        setLayoutBindings.push_back(
+            // Binding 2 : Reflection and Refraction input
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                2));
+        setLayoutBindings.push_back(
+            // Binding 3 : Depth input
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                3));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
@@ -425,15 +421,10 @@ void HybridPipelineRT::createDescriptorSetLayout()
         // Set 6: Storage Images
         setLayoutBindings.clear();
         setLayoutBindings.push_back(
-            // Binding 1 : Normals input
+            // Binding 0 : Result
             initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 VK_SHADER_STAGE_RAYGEN_BIT_KHR,
                 0));
-        setLayoutBindings.push_back(
-            // Binding 3 : Result
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-                1));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
         VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
@@ -471,10 +462,11 @@ void HybridPipelineRT::createDescriptorSetLayout()
     // **** POSTPROCESS LAYOUTS ****
     {
         // Set 0 Postprocess: Storage Images
-        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = { // Binding 0 : Result image
+        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+            // Binding 0 : Result image
             initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 VK_SHADER_STAGE_FRAGMENT_BIT,
-                0)
+                0),
         };
         VkDescriptorSetLayoutCreateInfo descriptorLayout
             = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
@@ -582,18 +574,6 @@ void HybridPipelineRT::createDescriptorSets()
             writeDescriptorSet2.data(),
             0,
             nullptr);
-
-        // Set 3 Raster: Images
-        std::vector<VkDescriptorSetLayout> storageImageLayouts(m_swapChain.imageCount,
-            m_rasterDescriptorSetLayouts.set3StorageImages);
-        VkDescriptorSetAllocateInfo storageImageAllocInfo
-            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                storageImageLayouts.data(),
-                m_swapChain.imageCount);
-        m_rasterDescriptorSets.set3StorageImages.resize(m_swapChain.imageCount);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &storageImageAllocInfo,
-            m_rasterDescriptorSets.set3StorageImages.data()))
     }
     // **** END: RASTERIZATION SETS ****
 
@@ -813,6 +793,35 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_offscreenImages[i].offscreenNormalsMultiSample.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            m_samples,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_offscreenImages[i].offscreenNormals.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_offscreenImages[i].offscreenReflectRefractMapMultiSample.colorAttachment(
+            VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            m_samples,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_offscreenImages[i].offscreenReflectRefractMap.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
         m_offscreenImages[i].offscreenDepthMultiSample.depthAttachment(VK_FORMAT_D32_SFLOAT,
             m_width,
             m_height,
@@ -827,15 +836,6 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-
-        m_offscreenImages[i].offscreenNormals.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
-            m_width,
-            m_height,
-            m_vulkanDevice,
-            m_queue,
-            VK_FILTER_NEAREST,
-            VK_IMAGE_USAGE_STORAGE_BIT,
-            VK_IMAGE_LAYOUT_GENERAL);
         m_offscreenImages[i].rtResultImage.fromNothing(VK_FORMAT_R8G8B8A8_UNORM,
             m_width,
             m_height,
@@ -848,68 +848,133 @@ void HybridPipelineRT::createStorageImages()
 
 void HybridPipelineRT::createOffscreenRenderPass()
 {
-    std::array<VkAttachmentDescription2, 4> attchmentDescriptions = {};
+    std::array<VkAttachmentDescription2, 8> attachmentDescriptions = {};
     // Color attachment
-    attchmentDescriptions[0].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attchmentDescriptions[0].format = VK_FORMAT_R8G8B8A8_UNORM;
-    attchmentDescriptions[0].samples = m_samples;
-    attchmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attchmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attchmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentDescriptions[0].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[0].format = VK_FORMAT_R8G8B8A8_UNORM;
+    attachmentDescriptions[0].samples = m_samples;
+    attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    // Resolve multisampling to 1
-    attchmentDescriptions[1].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attchmentDescriptions[1].format = attchmentDescriptions[0].format;
-    attchmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attchmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attchmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attchmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // Normals attachment
+    attachmentDescriptions[1].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
+    attachmentDescriptions[1].samples = m_samples;
+    attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // Reflection and Refraction map attachment
+    attachmentDescriptions[2].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+    attachmentDescriptions[2].samples = m_samples;
+    attachmentDescriptions[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[2].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[2].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[2].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // Resolve Color attachment
+    attachmentDescriptions[3].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[3].format = attachmentDescriptions[0].format;
+    attachmentDescriptions[3].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[3].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[3].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[3].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[3].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[3].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // Resolve multisampling Normals attachment
+    attachmentDescriptions[4].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[4].format = attachmentDescriptions[2].format;
+    attachmentDescriptions[4].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[4].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[4].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[4].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[4].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[4].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[4].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // Resolve multisampling Normals attachment
+    attachmentDescriptions[5].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[5].format = attachmentDescriptions[4].format;
+    attachmentDescriptions[5].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[5].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[5].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[5].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[5].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[5].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[5].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     // Depth attachment
-    attchmentDescriptions[2].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attchmentDescriptions[2].format = VK_FORMAT_D32_SFLOAT;
-    attchmentDescriptions[2].samples = m_samples;
-    attchmentDescriptions[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attchmentDescriptions[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attchmentDescriptions[2].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions[2].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[2].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachmentDescriptions[6].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[6].format = VK_FORMAT_D32_SFLOAT;
+    attachmentDescriptions[6].samples = m_samples;
+    attachmentDescriptions[6].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[6].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[6].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[6].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[6].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[6].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     // Resolve multisampling (depth) to 1
-    attchmentDescriptions[3].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attchmentDescriptions[3].format = attchmentDescriptions[2].format;
-    attchmentDescriptions[3].samples = VK_SAMPLE_COUNT_1_BIT;
-    attchmentDescriptions[3].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attchmentDescriptions[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attchmentDescriptions[3].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attchmentDescriptions[3].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attchmentDescriptions[3].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attchmentDescriptions[3].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    attachmentDescriptions[7].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
+    attachmentDescriptions[7].format = attachmentDescriptions[6].format;
+    attachmentDescriptions[7].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[7].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[7].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[7].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[7].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[7].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[7].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
     VkAttachmentReference2 colorReference = {};
     colorReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
     colorReference.attachment = 0;
     colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference2 normalsReference = {};
+    normalsReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    normalsReference.attachment = 1;
+    normalsReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference2 reflectRefractReference = {};
+    reflectRefractReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    reflectRefractReference.attachment = 2;
+    reflectRefractReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    std::array<VkAttachmentReference2, 3> colorAttachmentReferences
+        = { colorReference, normalsReference, reflectRefractReference };
+
+    VkAttachmentReference2 colorResolveReference = {};
+    colorResolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    colorResolveReference.attachment = 3;
+    colorResolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference2 normalsResolveReference = {};
+    normalsResolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    normalsResolveReference.attachment = 4;
+    normalsResolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference2 reflectRefractResolveReference = {};
+    reflectRefractResolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
+    reflectRefractResolveReference.attachment = 5;
+    reflectRefractResolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    std::array<VkAttachmentReference2, 3> colorAttachmentResolveReferences
+        = { colorResolveReference, normalsResolveReference, reflectRefractResolveReference };
+
     VkAttachmentReference2 depthReference = {};
     depthReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
-    depthReference.attachment = 2;
+    depthReference.attachment = 6;
     depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference2 resolveReference = {};
-    resolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
-    resolveReference.attachment = 1;
-    resolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference2 depthResolveReference = {};
     depthResolveReference.sType = VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2;
-    depthResolveReference.attachment = 3;
+    depthResolveReference.attachment = 7;
     depthResolveReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     VkSubpassDescriptionDepthStencilResolve depthResolveReferenceDescription = {};
     depthResolveReferenceDescription.sType
@@ -921,10 +986,11 @@ void HybridPipelineRT::createOffscreenRenderPass()
     VkSubpassDescription2 subpassDescription = {};
     subpassDescription.sType = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2;
     subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpassDescription.colorAttachmentCount = 1;
-    subpassDescription.pColorAttachments = &colorReference;
+    subpassDescription.colorAttachmentCount
+        = static_cast<uint32_t>(colorAttachmentReferences.size());
+    subpassDescription.pColorAttachments = colorAttachmentReferences.data();
     subpassDescription.pDepthStencilAttachment = &depthReference;
-    subpassDescription.pResolveAttachments = &resolveReference;
+    subpassDescription.pResolveAttachments = colorAttachmentResolveReferences.data();
     subpassDescription.pNext = &depthResolveReferenceDescription;
 
     std::array<VkSubpassDependency2, 2> dependencies = {};
@@ -952,8 +1018,8 @@ void HybridPipelineRT::createOffscreenRenderPass()
     // Create the actual renderpass
     VkRenderPassCreateInfo2 renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2;
-    renderPassInfo.attachmentCount = static_cast<uint32_t>(attchmentDescriptions.size());
-    renderPassInfo.pAttachments = attchmentDescriptions.data();
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
+    renderPassInfo.pAttachments = attachmentDescriptions.data();
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpassDescription;
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
@@ -966,11 +1032,15 @@ void HybridPipelineRT::createOffscreenFramebuffers()
 {
     m_offscreenFramebuffers.resize(m_swapChain.imageCount);
     for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
-        std::array<VkImageView, 4> attachments = {};
+        std::array<VkImageView, 8> attachments = {};
         attachments[0] = m_offscreenImages[i].offscreenColorMultiSample.getImageView();
-        attachments[1] = m_offscreenImages[i].offscreenColor.getImageView();
-        attachments[2] = m_offscreenImages[i].offscreenDepthMultiSample.getImageView();
-        attachments[3] = m_offscreenImages[i].offscreenDepth.getImageView();
+        attachments[1] = m_offscreenImages[i].offscreenNormalsMultiSample.getImageView();
+        attachments[2] = m_offscreenImages[i].offscreenReflectRefractMapMultiSample.getImageView();
+        attachments[3] = m_offscreenImages[i].offscreenColor.getImageView();
+        attachments[4] = m_offscreenImages[i].offscreenNormals.getImageView();
+        attachments[5] = m_offscreenImages[i].offscreenReflectRefractMap.getImageView();
+        attachments[6] = m_offscreenImages[i].offscreenDepthMultiSample.getImageView();
+        attachments[7] = m_offscreenImages[i].offscreenDepth.getImageView();
 
         VkFramebufferCreateInfo framebufferCreateInfo {};
         framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -996,47 +1066,40 @@ void HybridPipelineRT::updateResultImageDescriptorSets()
                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 0,
                 &m_offscreenImages[i].offscreenColor.descriptor);
-        VkWriteDescriptorSet imageRTInputDepthWrite
+        VkWriteDescriptorSet imageRTInputNormalsImageWrite
             = initializers::writeDescriptorSet(m_rtDescriptorSets.set5OffscreenImages[i],
                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 1,
+                &m_offscreenImages[i].offscreenNormals.descriptor);
+        VkWriteDescriptorSet imageRTInputReflectRefractImageWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5OffscreenImages[i],
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                2,
+                &m_offscreenImages[i].offscreenReflectRefractMap.descriptor);
+        VkWriteDescriptorSet imageRTInputDepthWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5OffscreenImages[i],
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                3,
                 &m_offscreenImages[i].offscreenDepth.descriptor);
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet5
-            = { imageRTInputColorImageWrite, imageRTInputDepthWrite };
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet5 = { imageRTInputColorImageWrite,
+            imageRTInputNormalsImageWrite,
+            imageRTInputReflectRefractImageWrite,
+            imageRTInputDepthWrite };
         vkUpdateDescriptorSets(m_device,
             static_cast<uint32_t>(writeDescriptorSet5.size()),
             writeDescriptorSet5.data(),
             0,
             VK_NULL_HANDLE);
 
-        VkWriteDescriptorSet imageRTInputNormalsWrite
-            = initializers::writeDescriptorSet(m_rtDescriptorSets.set6StorageImages[i],
-                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                0,
-                &m_offscreenImages[i].offscreenNormals.descriptor);
         VkWriteDescriptorSet imageRTResultWrite
             = initializers::writeDescriptorSet(m_rtDescriptorSets.set6StorageImages[i],
                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                1,
+                0,
                 &m_offscreenImages[i].rtResultImage.descriptor);
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet6
-            = { imageRTInputNormalsWrite, imageRTResultWrite };
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet6 = { imageRTResultWrite };
         vkUpdateDescriptorSets(m_device,
             static_cast<uint32_t>(writeDescriptorSet6.size()),
             writeDescriptorSet6.data(),
-            0,
-            VK_NULL_HANDLE);
-
-        // Raster sets
-        VkWriteDescriptorSet imageInputNormalsWrite
-            = initializers::writeDescriptorSet(m_rasterDescriptorSets.set3StorageImages[i],
-                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                0,
-                &m_offscreenImages[i].offscreenNormals.descriptor);
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet3Raster = { imageInputNormalsWrite };
-        vkUpdateDescriptorSets(m_device,
-            static_cast<uint32_t>(writeDescriptorSet3Raster.size()),
-            writeDescriptorSet3Raster.data(),
             0,
             VK_NULL_HANDLE);
 
@@ -1070,7 +1133,10 @@ void HybridPipelineRT::onSwapChainRecreation()
         offscreenImage.offscreenColor.destroy();
         offscreenImage.offscreenDepthMultiSample.destroy();
         offscreenImage.offscreenDepth.destroy();
+        offscreenImage.offscreenNormalsMultiSample.destroy();
         offscreenImage.offscreenNormals.destroy();
+        offscreenImage.offscreenReflectRefractMapMultiSample.destroy();
+        offscreenImage.offscreenReflectRefractMap.destroy();
     }
     for (auto& frameBuffer : m_offscreenFramebuffers) {
         vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
@@ -1128,10 +1194,13 @@ void HybridPipelineRT::createRasterPipeline()
             VK_CULL_MODE_BACK_BIT,
             VK_FRONT_FACE_CLOCKWISE,
             0);
-    VkPipelineColorBlendAttachmentState blendAttachmentState
-        = initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+    std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachmentStates = {
+        initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
+        initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
+        initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE)
+    };
     VkPipelineColorBlendStateCreateInfo colorBlendState
-        = initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
+        = initializers::pipelineColorBlendStateCreateInfo(blendAttachmentStates.size(), blendAttachmentStates.data());
     VkPipelineDepthStencilStateCreateInfo depthStencilState
         = initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE,
             VK_TRUE,
@@ -1424,7 +1493,6 @@ HybridPipelineRT::~HybridPipelineRT()
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set1Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set2Lights, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_rasterDescriptorSetLayouts.set3StorageImages, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_rtDescriptorSetLayouts.set0AccelerationStructure,
         nullptr);
@@ -1444,7 +1512,10 @@ HybridPipelineRT::~HybridPipelineRT()
         offscreenImage.offscreenColor.destroy();
         offscreenImage.offscreenDepthMultiSample.destroy();
         offscreenImage.offscreenDepth.destroy();
+        offscreenImage.offscreenNormalsMultiSample.destroy();
         offscreenImage.offscreenNormals.destroy();
+        offscreenImage.offscreenReflectRefractMapMultiSample.destroy();
+        offscreenImage.offscreenReflectRefractMap.destroy();
     }
 
     m_shaderBindingTable.destroy();

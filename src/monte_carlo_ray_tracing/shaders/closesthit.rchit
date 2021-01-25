@@ -142,7 +142,8 @@ void main()
         } else if (splittingIndex < refractPercent + reflectPercent) { // REFRACT RAY
             float ior = startRefractIdx / endRefractIdx;
             const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
-            if (length(refractionRayDirection) != 0.0f) {
+            if ((refractionRayDirection.x + refractionRayDirection.y + refractionRayDirection.z)
+                != 0.0f) {
                 // Default Values, they should not be used since it's a refraction ray
                 resetRayPayload();
                 // ---
@@ -152,7 +153,6 @@ void main()
             }
         }
     }
-
     // if didn't return reflection or refraction then sample cosine hemisphere
     rayPayload.rayType = RAY_TYPE_DIFFUSE;
     float z1 = rnd(rayPayload.seed);

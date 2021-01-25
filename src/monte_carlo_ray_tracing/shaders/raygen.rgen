@@ -44,12 +44,12 @@ layout(push_constant) uniform Constants
     int samples;
 };
 
-void trace_ray(vec3 origin, vec3 direction, int instanceMask)
+void trace_ray(vec3 origin, vec3 direction)
 {
     uint rayFlags = gl_RayFlagsNoneEXT;
     traceRayEXT(topLevelAS,
         rayFlags,
-        instanceMask,
+        AS_FLAG_EVERYTHING,
         SBT_MC_HIT_GROUP /*sbtRecordOffset*/,
         0 /*sbtRecordStride*/,
         SBT_MC_MISS_INDEX /*missIndex*/,
@@ -168,7 +168,7 @@ void main()
             if (rayPayloadBRDF.done == 1) {
                 break;
             }
-            trace_ray(origin, direction, AS_FLAG_EVERYTHING);
+            trace_ray(origin, direction);
             if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE) {
                 sampleResult += rayPayloadBRDF.surfaceEmissive
                     + rayPayloadBRDF.surfaceRadiance * transportFactor;

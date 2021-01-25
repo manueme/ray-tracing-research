@@ -15,14 +15,16 @@
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
+layout(location = RT_PAYLOAD_BRDF) rayPayloadEXT RayPayload rayPayloadBRDF;
 
 layout(binding = 0, set = 4) buffer _Lights { LightProperties l[]; }
 lighting;
 
 layout(binding = 0, set = 5) uniform sampler2D inputColor;
-layout(binding = 1, set = 5) uniform sampler2D inputDepth;
-layout(binding = 0, set = 6, rgba8) uniform image2D inputNormals;
-layout(binding = 1, set = 6, rgba8) uniform image2D resultImage;
+layout(binding = 1, set = 5) uniform sampler2D inputNormals;
+layout(binding = 2, set = 5) uniform sampler2D inputReflectRefractMap;
+layout(binding = 3, set = 5) uniform sampler2D inputDepth;
+layout(binding = 0, set = 6, rgba8) uniform image2D resultImage;
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {
@@ -35,13 +37,13 @@ layout(binding = 0, set = 1) uniform _SceneProperties
 }
 scene;
 
-float trace_shadow_ray(vec3 origin, vec3 direction, int instanceMask, float maxDistance)
+float trace_shadow_ray(vec3 origin, vec3 direction, float maxDistance)
 {
     const uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT;
     rayPayloadShadow.shadowAmount = 0.0f;
     traceRayEXT(topLevelAS,
         rayFlags,
-        instanceMask,
+        AS_FLAG_EVERYTHING,
         SBT_MC_SHADOW_HIT_GROUP /*sbtRecordOffset*/,
         0 /*sbtRecordStride*/,
         SBT_MC_SHADOW_MISS_INDEX /*missIndex*/,
@@ -51,6 +53,22 @@ float trace_shadow_ray(vec3 origin, vec3 direction, int instanceMask, float maxD
         maxDistance,
         RT_PAYLOAD_SHADOW);
     return rayPayloadShadow.shadowAmount;
+}
+
+void trace_ray(vec3 origin, vec3 direction)
+{
+    uint rayFlags = gl_RayFlagsNoneEXT;
+    traceRayEXT(topLevelAS,
+        rayFlags,
+        AS_FLAG_EVERYTHING,
+        SBT_MC_HIT_GROUP /*sbtRecordOffset*/,
+        0 /*sbtRecordStride*/,
+        SBT_MC_MISS_INDEX /*missIndex*/,
+        origin,
+        CAMERA_NEAR,
+        direction,
+        CAMERA_FAR,
+        RT_PAYLOAD_BRDF);
 }
 
 float get_hit_depth(vec2 inUV)
@@ -64,7 +82,7 @@ float get_hit_depth(vec2 inUV)
 
 void main()
 {
-    vec3 result = texelFetch(inputColor, ivec2(gl_LaunchIDEXT.xy), 0).xyz;
+    vec3 originalColor = texelFetch(inputColor, ivec2(gl_LaunchIDEXT.xy), 0).xyz;
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5f);
     const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
     const vec2 thetaOut = inUV * 2.0f - 1.0f;
@@ -77,30 +95,61 @@ void main()
     const vec3 hitPoint = origin.xyz + direction.xyz * hitDepth;
     // ---
 
-    const vec3 shadingNormal = imageLoad(inputNormals, ivec2(gl_LaunchIDEXT.xy)).xyz;
+    const vec3 shadingNormal = texelFetch(inputNormals, ivec2(gl_LaunchIDEXT.xy), 0).xyz;
 
-    const float shadowWeight = 1.0 - AMBIENT_WEIGHT;
-    for (int i = 0; i < lighting.l.length(); ++i) {
-        const LightProperties light = lighting.l[i];
-        vec3 lightDir = vec3(0.0f);
-        vec3 lightIntensity = vec3(0.0f);
-        float maxHitDistance = CAMERA_FAR;
-        if (light.lightType == 1) { // Directional light (SUN)
-            lightDir = light.direction.xyz + vec3(scene.overrideSunDirection);
-            lightIntensity = light.diffuse.rgb * SUN_POWER;
-            lightDir = normalize(lightDir);
-        } else {
-            continue;
-        }
-
-        const float cosThetaLight = abs(dot(shadingNormal, lightDir));
-        if (cosThetaLight > 0) {
-            const float visibility = (1.0
-                - shadowWeight
-                    * trace_shadow_ray(hitPoint, -lightDir, AS_FLAG_EVERYTHING, maxHitDistance));
-            result *= visibility * lightIntensity;
+    const vec3 reflectRefractData
+        = texelFetch(inputReflectRefractMap, ivec2(gl_LaunchIDEXT.xy), 0).xyz;
+    const float reflectionPercent = reflectRefractData.x;
+    const float refractionPercent = reflectRefractData.y;
+    const float refractionIdx = reflectRefractData.z;
+    vec3 reflections = vec3(0.0f);
+    if (reflectionPercent > 0.0f) { // REFLECT RAY
+        rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);
+        rayPayloadBRDF.surfaceRadiance = vec3(0.0f);
+        rayPayloadBRDF.surfaceEmissive = vec3(0.0f);
+        trace_ray(hitPoint, reflect(direction, shadingNormal));
+        reflections = rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance;
+    }
+    vec3 refractions = vec3(0.0f);
+    if (refractionPercent > 0.0f) { // REFRACT RAY
+        float ior = 1.0f / refractionIdx;
+        const vec3 refractionRayDirection = refract(direction, shadingNormal, ior);
+        if ((refractionRayDirection.x + refractionRayDirection.y + refractionRayDirection.z)
+            != 0.0f) {
+            rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);
+            rayPayloadBRDF.surfaceRadiance = vec3(0.0f);
+            rayPayloadBRDF.surfaceEmissive = vec3(0.0f);
+            trace_ray(hitPoint, refractionRayDirection);
+            refractions = rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance;
         }
     }
 
-    imageStore(resultImage, ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0f));
+    const float refractReflectComplement = 1.0f - (reflectionPercent + refractionPercent);
+    if (refractReflectComplement > 0.0f) {
+        const float shadowWeight = 1.0 - AMBIENT_WEIGHT;
+        for (int i = 0; i < lighting.l.length(); ++i) {
+            const LightProperties light = lighting.l[i];
+            vec3 lightDir = vec3(0.0f);
+            vec3 lightIntensity = vec3(0.0f);
+            float maxHitDistance = CAMERA_FAR;
+            if (light.lightType == 1) { // Directional light (SUN)
+                lightDir = light.direction.xyz + vec3(scene.overrideSunDirection);
+                lightIntensity = light.diffuse.rgb * SUN_POWER;
+                lightDir = normalize(lightDir);
+            } else {
+                continue;
+            }
+
+            const float cosThetaLight = abs(dot(shadingNormal, lightDir));
+            if (cosThetaLight > 0) {
+                const float visibility
+                    = (1.0 - shadowWeight * trace_shadow_ray(hitPoint, -lightDir, maxHitDistance));
+                originalColor *= visibility * lightIntensity;
+            }
+        }
+    }
+    vec3 result = reflections * reflectionPercent + refractions * refractionPercent
+        + originalColor * refractReflectComplement;
+
+    imageStore(resultImage, ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0));
 }

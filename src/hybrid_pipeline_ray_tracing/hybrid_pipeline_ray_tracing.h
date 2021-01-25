@@ -38,13 +38,11 @@ private:
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1Materials;
         VkDescriptorSet set2Lights;
-        std::vector<VkDescriptorSet> set3StorageImages;
     } m_rasterDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1Materials;
         VkDescriptorSetLayout set2Lights;
-        VkDescriptorSetLayout set3StorageImages;
     } m_rasterDescriptorSetLayouts;
     // RAY TRACING SETS
     struct {
@@ -81,9 +79,12 @@ private:
     struct OffscreenImages {
         VulkanTexture2D offscreenColorMultiSample;
         VulkanTexture2D offscreenColor;
+        VulkanTexture2D offscreenNormalsMultiSample;
         VulkanTexture2D offscreenNormals;
         VulkanTexture2D offscreenDepthMultiSample;
         VulkanTexture2D offscreenDepth;
+        VulkanTexture2D offscreenReflectRefractMapMultiSample;
+        VulkanTexture2D offscreenReflectRefractMap;
         VulkanTexture2D rtResultImage;
     };
     // we will have one set of images per swap image

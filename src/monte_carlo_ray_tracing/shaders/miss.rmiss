@@ -25,6 +25,7 @@ void main()
 {
     vec3 color = skyRay(-gl_WorldRayDirectionEXT);
     rayPayloadBRDF.surfaceRadiance = color;
+    rayPayloadBRDF.surfaceEmissive = vec3(0.0f);
     rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);
     rayPayloadBRDF.done = 1;
     rayPayloadBRDF.hitDistance = RAY_MAX_HIT;

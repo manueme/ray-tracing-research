@@ -7,11 +7,10 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
+#include "../../framework/shaders/common.glsl"
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 #include "./hybrid_constants.h"
-
-layout(binding = 0, set = 3, rgba8) uniform image2D outputNormals;
 
 layout(binding = 0, set = 1) uniform sampler2D textures[];
 layout(binding = 1, set = 1) buffer _Materials { MaterialProperties m[]; }
@@ -41,6 +40,8 @@ layout(location = 3) in vec3 inBitangent;
 layout(location = 4) in vec3 inEyePos;
 
 layout(location = 0) out vec4 outFragColor;
+layout(location = 1) out vec4 outFragNormals;
+layout(location = 2) out vec4 outFragReflectRefractMap;
 
 void main()
 {
@@ -68,7 +69,6 @@ void main()
     vec4 surfaceAlbedo;
     if (diffuseMapIndex >= 0) {
         surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], inUV).rgba;
-        surfaceAlbedo.a *= material.opacity;
     } else {
         surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
     }
@@ -110,6 +110,19 @@ void main()
             specular += lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
         }
     }
-    imageStore(outputNormals, ivec2(gl_FragCoord.xy), vec4(shadingNormal, 1.0f));
-    outFragColor = vec4(emissive + (diffuse + specular) * surfaceAlbedo.rgb, surfaceAlbedo.a);
+    const float reflectivity = material.reflectivity;
+    const float endRefractIdx = material.refractIdx;
+    float startRefractIdx = 1.0f;
+    float reflectPercent = 0.0f;
+    float refractPercent = 0.0f;
+    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
+        reflectPercent = fresnel(eyeVector, shadingNormal, startRefractIdx, endRefractIdx);
+        refractPercent = 1.0f - reflectPercent - surfaceAlbedo.a;
+    } else if (reflectivity != NOT_REFLECTVE_IDX) {
+        reflectPercent = reflectivity;
+    }
+    outFragNormals = vec4(shadingNormal, 1.0f);
+    outFragReflectRefractMap
+        = max(vec4(reflectPercent, refractPercent, endRefractIdx, surfaceAlbedo.a), 0.0f);
+    outFragColor = vec4(emissive + (diffuse + specular) * surfaceAlbedo.rgb, 1.0f);
 }
