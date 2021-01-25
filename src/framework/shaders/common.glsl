@@ -6,7 +6,9 @@
 
 #include "../../framework/shaders/constants.h" // to get M_PIf
 
-bool is_nan(vec3 c) { return isnan(c.x) || isnan(c.y) || isnan(c.z); }
+bool is_zero(vec3 v) { return v.x == 0.0 && v.y == 0.0 && v.z == 0.0; }
+
+bool is_nan(vec3 v) { return isnan(v.x) || isnan(v.y) || isnan(v.z); }
 
 // Tiny Encryption Algorithm for seed generation
 // https://es.wikipedia.org/wiki/Tiny_Encryption_Algorithm

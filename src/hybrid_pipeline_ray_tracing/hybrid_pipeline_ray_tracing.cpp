@@ -793,14 +793,14 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenNormalsMultiSample.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+        m_offscreenImages[i].offscreenNormalsMultiSample.colorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
             m_queue,
             m_samples,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenNormals.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+        m_offscreenImages[i].offscreenNormals.colorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
@@ -808,14 +808,14 @@ void HybridPipelineRT::createStorageImages()
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
         m_offscreenImages[i].offscreenReflectRefractMapMultiSample.colorAttachment(
-            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_FORMAT_R16G16B16A16_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
             m_queue,
             m_samples,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenReflectRefractMap.colorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+        m_offscreenImages[i].offscreenReflectRefractMap.colorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
@@ -862,7 +862,7 @@ void HybridPipelineRT::createOffscreenRenderPass()
 
     // Normals attachment
     attachmentDescriptions[1].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attachmentDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
+    attachmentDescriptions[1].format = VK_FORMAT_R16G16B16A16_SFLOAT;
     attachmentDescriptions[1].samples = m_samples;
     attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -873,7 +873,7 @@ void HybridPipelineRT::createOffscreenRenderPass()
 
     // Reflection and Refraction map attachment
     attachmentDescriptions[2].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attachmentDescriptions[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+    attachmentDescriptions[2].format = VK_FORMAT_R16G16B16A16_SFLOAT;
     attachmentDescriptions[2].samples = m_samples;
     attachmentDescriptions[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescriptions[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -895,7 +895,7 @@ void HybridPipelineRT::createOffscreenRenderPass()
 
     // Resolve multisampling Normals attachment
     attachmentDescriptions[4].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attachmentDescriptions[4].format = attachmentDescriptions[2].format;
+    attachmentDescriptions[4].format = attachmentDescriptions[1].format;
     attachmentDescriptions[4].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[4].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescriptions[4].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -904,9 +904,9 @@ void HybridPipelineRT::createOffscreenRenderPass()
     attachmentDescriptions[4].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachmentDescriptions[4].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    // Resolve multisampling Normals attachment
+    // Resolve multisampling Reflection and Refraction map attachment
     attachmentDescriptions[5].sType = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2;
-    attachmentDescriptions[5].format = attachmentDescriptions[4].format;
+    attachmentDescriptions[5].format = attachmentDescriptions[2].format;
     attachmentDescriptions[5].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[5].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescriptions[5].storeOp = VK_ATTACHMENT_STORE_OP_STORE;

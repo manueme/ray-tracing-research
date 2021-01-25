@@ -142,8 +142,7 @@ void main()
         } else if (splittingIndex < refractPercent + reflectPercent) { // REFRACT RAY
             float ior = startRefractIdx / endRefractIdx;
             const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
-            if ((refractionRayDirection.x + refractionRayDirection.y + refractionRayDirection.z)
-                != 0.0f) {
+            if (!is_zero(refractionRayDirection)) {
                 // Default Values, they should not be used since it's a refraction ray
                 resetRayPayload();
                 // ---

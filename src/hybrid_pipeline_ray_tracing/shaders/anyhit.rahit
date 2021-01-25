@@ -27,11 +27,11 @@ void main()
     const int diffuseMapIndex = material.diffuseMapIndex;
     bool ignore = false;
     if (diffuseMapIndex >= 0) {
+        // We don't consider refractive materials in the hybrid pipeline
         const vec2 uv = get_surface_uv(hitSurface);
-        ignore = texture(textures[nonuniformEXT(diffuseMapIndex)], uv).w == 0
-            && material.refractIdx == NOT_REFRACTIVE_IDX;
+        ignore = texture(textures[nonuniformEXT(diffuseMapIndex)], uv).w == 0;
     } else {
-        ignore = material.opacity == 0 && material.refractIdx == NOT_REFRACTIVE_IDX;
+        ignore = material.opacity == 0;
     }
     if (ignore) {
         ignoreIntersectionEXT;

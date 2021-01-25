@@ -23,12 +23,12 @@ hitAttributeEXT vec3 attribs;
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {
+    mat4 projection;
+    mat4 model;
+    mat4 view;
     mat4 viewInverse;
     mat4 projInverse;
     vec4 overrideSunDirection;
-    int frameIteration;
-    int frame;
-    bool frameChanged;
 }
 scene;
 layout(binding = 0, set = 3) uniform sampler2D textures[];
