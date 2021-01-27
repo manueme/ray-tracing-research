@@ -1447,7 +1447,9 @@ void HybridPipelineRT::setSamplesSettings()
 {
     VkSampleCountFlags counts = m_deviceProperties.limits.framebufferColorSampleCounts
         & m_deviceProperties.limits.framebufferDepthSampleCounts;
-    if (counts & VK_SAMPLE_COUNT_8_BIT) {
+    if (counts & VK_SAMPLE_COUNT_16_BIT) {
+        m_samples = VK_SAMPLE_COUNT_16_BIT;
+    } else if (counts & VK_SAMPLE_COUNT_8_BIT) {
         m_samples = VK_SAMPLE_COUNT_8_BIT;
     } else {
         m_samples = VK_SAMPLE_COUNT_1_BIT;

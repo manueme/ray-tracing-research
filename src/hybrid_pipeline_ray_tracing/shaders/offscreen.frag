@@ -121,8 +121,9 @@ void main()
     } else if (reflectivity != NOT_REFLECTVE_IDX) {
         reflectPercent = reflectivity;
     }
-    outFragNormals
-        = transpose(scene.view) * vec4(shadingNormal, 1.0f); // transform them back to view space
+    outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
+        surfaceAlbedo.a); // transform them back to view space
     outFragReflectRefractMap = vec4(reflectPercent, refractPercent, endRefractIdx, surfaceAlbedo.a);
-    outFragColor = vec4(emissive + (diffuse + specular + ambient) * surfaceAlbedo.rgb, 1.0f);
+    outFragColor
+        = vec4(emissive + (diffuse + specular + ambient) * surfaceAlbedo.rgb, surfaceAlbedo.a);
 }

@@ -6,6 +6,12 @@
 
 #include "../../framework/shaders/constants.h" // to get M_PIf
 
+vec3 sky_ray(vec3 dir)
+{
+    float t = 0.5 * (dir.y + 1.0);
+    return (1.0 - t) * vec3(1.0, 1.0, 1.0) + t * vec3(0.5, 0.7, 1.0);
+}
+
 bool is_zero(vec3 v) { return v.x == 0.0 && v.y == 0.0 && v.z == 0.0; }
 
 bool is_nan(vec3 v) { return isnan(v.x) || isnan(v.y) || isnan(v.z); }
