@@ -94,7 +94,7 @@ void main()
     vec3 direction = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;
     const float hitDepth = get_hit_depth(inUV);
 
-    if (hitDepth < CAMERA_FAR) {
+    if (hitDepth < CAMERA_FAR - CAMERA_NEAR) {
 
         const vec3 hitPoint = origin + direction * hitDepth;
         vec3 shadingNormal = texelFetch(inputNormals, ivec2(gl_LaunchIDEXT.xy), 0).xyz;
