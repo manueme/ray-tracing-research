@@ -56,21 +56,15 @@ void main()
     const int normalMapIndex = material.normalMapIndex;
     const int emissiveMapIndex = material.emissiveMapIndex;
 
-    vec3 shadingNormal;
-    if (normalMapIndex >= 0) {
-        shadingNormal = texture(textures[nonuniformEXT(normalMapIndex)], inUV).rgb;
-        shadingNormal = normalize(shadingNormal * 2.0 - 1.0);
-        shadingNormal = TBN * shadingNormal;
-    } else {
-        shadingNormal = inNormal;
-    }
-
     // ####  Compute surface albedo ####
     vec4 surfaceAlbedo;
     if (diffuseMapIndex >= 0) {
         surfaceAlbedo = texture(textures[nonuniformEXT(diffuseMapIndex)], inUV).rgba;
     } else {
         surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
+    }
+    if (surfaceAlbedo.a < 0.5 && material.refractIdx == NOT_REFRACTIVE_IDX) {
+        discard;
     }
     // ####  End compute surface albedo ####
 
@@ -83,12 +77,36 @@ void main()
     }
     // ####  End compute surface albedo ####
 
-    // ####  Compute direct ligthing ####
+    // #### Compute shading normal ####
+    vec3 shadingNormal;
+    if (normalMapIndex >= 0) {
+        shadingNormal = texture(textures[nonuniformEXT(normalMapIndex)], inUV).rgb;
+        shadingNormal = normalize(shadingNormal * 2.0 - 1.0);
+        shadingNormal = TBN * shadingNormal;
+    } else {
+        shadingNormal = inNormal;
+    }
+    // #### End compute shading normal ####
+
+    // #### Compute refraction and reflection maps ####
+    const float reflectivity = material.reflectivity;
+    const float endRefractIdx = material.refractIdx;
+    float startRefractIdx = 1.0f;
+    float reflectPercent = 0.0f;
+    float refractPercent = 0.0f;
+    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
+        reflectPercent = fresnel(eyeVector, shadingNormal, startRefractIdx, endRefractIdx);
+        refractPercent = 1.0f - reflectPercent - surfaceAlbedo.a;
+    } else if (reflectivity != NOT_REFLECTVE_IDX) {
+        reflectPercent = reflectivity;
+    }
+    // #### End compute refraction and reflection maps ####
+
+    // #### Compute direct ligthing ####
     vec3 diffuse = vec3(0.0);
     vec3 specular = vec3(0.0);
     vec3 emissive = surfaceEmissive;
     const float ambient = AMBIENT_WEIGHT;
-
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -110,17 +128,8 @@ void main()
             specular += lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
         }
     }
-    const float reflectivity = material.reflectivity;
-    const float endRefractIdx = material.refractIdx;
-    float startRefractIdx = 1.0f;
-    float reflectPercent = 0.0f;
-    float refractPercent = 0.0f;
-    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
-        reflectPercent = fresnel(eyeVector, shadingNormal, startRefractIdx, endRefractIdx);
-        refractPercent = 1.0f - reflectPercent - surfaceAlbedo.a;
-    } else if (reflectivity != NOT_REFLECTVE_IDX) {
-        reflectPercent = reflectivity;
-    }
+    // #### End compute direct ligthing ####
+
     outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
         surfaceAlbedo.a); // transform them back to view space
     outFragReflectRefractMap = vec4(reflectPercent, refractPercent, endRefractIdx, surfaceAlbedo.a);
