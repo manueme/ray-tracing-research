@@ -115,18 +115,19 @@ void main()
         if (light.lightType == 1) { // Directional light (SUN)
             lightDir = (transpose(mat3(scene.viewInverse)) * light.direction.xyz).xyz
                 + vec3(scene.overrideSunDirection);
-            lightIntensity = light.diffuse.rgb * SUN_POWER;
+            lightIntensity = light.diffuse.rgb;
             lightDir = normalize(lightDir);
         } else {
             continue;
         }
-
         const float cosThetaLight = dot(shadingNormal, -lightDir);
         diffuse += lightIntensity * max(cosThetaLight, ambient);
-        if (material.shininessStrength > 0) {
-            const vec3 r = reflect(lightDir, shadingNormal);
-            specular += lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
+        if (material.shininessStrength == 0) {
+            continue;
         }
+        const vec3 r = reflect(lightDir, shadingNormal);
+        specular += lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininess)
+            * material.shininessStrength;
     }
     // #### End compute direct ligthing ####
 

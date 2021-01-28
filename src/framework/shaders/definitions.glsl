@@ -27,22 +27,18 @@ struct ShaderMeshInstance {
 };
 
 struct MaterialProperties {
-    vec3 ambient; // 1 2 3
-    float pad0; // 4
-    vec3 diffuse; // 1 2 3
-    float pad1; // 4
-    vec3 specular; // 1 2 3
-    float pad2; // 4
-    vec3 emissive; // 1 2 3
-    float pad3; // 4
-    int diffuseMapIndex; // 1
-    int normalMapIndex; // 2
-    int specularMapIndex; // 3
-    int emissiveMapIndex; // 4
-    float opacity; // 1
-    float reflectivity; // 2
-    float refractIdx; // 3
-    float shininessStrength; // 4
+    vec4 ambient;
+    vec4 diffuse;
+    vec4 specular;
+    vec4 emissive;
+    int diffuseMapIndex;
+    int normalMapIndex;
+    int emissiveMapIndex;
+    float opacity;
+    float reflectivity; // NOT_REFLECTVE_IDX
+    float refractIdx; // NOT_REFRACTIVE_IDX
+    float shininessStrength;
+    float shininess;
 };
 
 struct LightProperties {

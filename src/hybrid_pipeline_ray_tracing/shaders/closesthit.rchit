@@ -141,21 +141,23 @@ void main()
         float maxHitDistance = RAY_MAX_HIT;
         if (light.lightType == 1) { // Directional light (SUN)
             lightDir = normalize(light.direction.xyz + vec3(scene.overrideSunDirection));
-            lightIntensity = light.diffuse.rgb * SUN_POWER;
+            lightIntensity = light.diffuse.rgb;
         } else {
             continue;
         }
         const float visibility
             = 1.0 - shadowWeight * trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
-        if (visibility > 0) {
-            const float cosThetaLight = abs(dot(shadingNormal, lightDir));
-            diffuse += visibility * lightIntensity * cosThetaLight;
-            if (material.shininessStrength > 0) {
-                const vec3 r = reflect(lightDir, shadingNormal);
-                specular += visibility * lightIntensity
-                    * pow(max(0, dot(r, eyeVector)), material.shininessStrength);
-            }
+        if (visibility == 0) {
+            continue;
         }
+        const float cosThetaLight = abs(dot(shadingNormal, lightDir));
+        diffuse += visibility * lightIntensity * cosThetaLight;
+        if (material.shininessStrength == 0) {
+            continue;
+        }
+        const vec3 r = reflect(lightDir, shadingNormal);
+        specular += visibility * lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininess)
+            * material.shininessStrength;
     }
     rayPayload.surfaceEmissive = emissive;
     rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo.rgb;

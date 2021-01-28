@@ -60,7 +60,7 @@ void trace_ray(vec3 origin, vec3 direction)
         RT_PAYLOAD_BRDF);
 }
 
-const float CAMERA_APERTURE = 0.75;
+const float CAMERA_APERTURE = 0.90;
 const float RAY_DISTANCE = RAY_MAX_HIT - RAY_MIN_HIT;
 const float CAMERA_DEFAULT_FOCAL_DEPTH = RAY_DISTANCE / 3.0f;
 

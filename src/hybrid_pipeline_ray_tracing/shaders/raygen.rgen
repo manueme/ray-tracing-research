@@ -140,7 +140,7 @@ void main()
                 float maxHitDistance = CAMERA_FAR;
                 if (light.lightType == 1) { // Directional light (SUN)
                     lightDir = light.direction.xyz + vec3(scene.overrideSunDirection);
-                    lightIntensity = light.diffuse.rgb * SUN_POWER;
+                    lightIntensity = light.diffuse.rgb;
                     lightDir = normalize(lightDir);
                 } else {
                     continue;

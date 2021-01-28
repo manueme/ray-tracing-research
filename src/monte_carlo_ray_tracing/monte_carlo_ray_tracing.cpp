@@ -983,7 +983,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
 void MonteCarloRTApp::prepare()
 {
     BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/sponza/Sponza.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
 
     createStorageImages();
     createConvolutionKernels();
