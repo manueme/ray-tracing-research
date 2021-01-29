@@ -1063,6 +1063,7 @@ void MonteCarloRTApp::onSwapChainRecreation()
     m_storageImage.firstSample.destroy();
     m_storageImage.color.destroy();
     m_storageImage.depthMap.destroy();
+    m_auxImages.rgbNoise.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();
 }
