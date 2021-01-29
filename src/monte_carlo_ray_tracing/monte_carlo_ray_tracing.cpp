@@ -635,25 +635,28 @@ void MonteCarloRTApp::createDescriptorSets()
     VKM_CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials));
 
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = {};
     std::vector<VkDescriptorImageInfo> textureDescriptors;
-    for (auto& texture : m_scene->textures) {
-        textureDescriptors.push_back(texture.descriptor);
+    VkWriteDescriptorSet writeTextureDescriptorSet;
+    if (!m_scene->textures.empty()) {
+        for (auto& texture : m_scene->textures) {
+            textureDescriptors.push_back(texture.descriptor);
+        }
+        writeTextureDescriptorSet
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                0,
+                textureDescriptors.data(),
+                textureDescriptors.size());
+        writeDescriptorSet3.push_back(writeTextureDescriptorSet);
     }
-
-    VkWriteDescriptorSet writeTextureDescriptorSet
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            0,
-            textureDescriptors.data(),
-            textureDescriptors.size());
     VkWriteDescriptorSet writeMaterialsDescriptorSet
         = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             1,
             &m_materialsBuffer.descriptor);
+    writeDescriptorSet3.push_back(writeMaterialsDescriptorSet);
 
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet3
-        = { writeTextureDescriptorSet, writeMaterialsDescriptorSet };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet3.size()),
         writeDescriptorSet3.data(),

@@ -528,27 +528,27 @@ void HybridPipelineRT::createDescriptorSets()
             &textureAllocInfo,
             &m_rasterDescriptorSets.set1Materials))
 
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1;
+        VkWriteDescriptorSet writeTextureDescriptorSet;
         std::vector<VkDescriptorImageInfo> textureDescriptors;
-        for (auto& texture : m_scene->textures) {
-            textureDescriptors.push_back(texture.descriptor);
+        if (!m_scene->textures.empty()) {
+            for (auto& texture : m_scene->textures) {
+                textureDescriptors.push_back(texture.descriptor);
+            }
+            writeTextureDescriptorSet
+                = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1Materials,
+                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    0,
+                    textureDescriptors.data(),
+                    textureDescriptors.size());
+            writeDescriptorSet1.push_back(writeTextureDescriptorSet);
         }
-
-        VkWriteDescriptorSet writeTextureDescriptorSet
-            = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1Materials,
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                0,
-                textureDescriptors.data(),
-                textureDescriptors.size());
         VkWriteDescriptorSet writeMaterialsDescriptorSet
             = initializers::writeDescriptorSet(m_rasterDescriptorSets.set1Materials,
                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 1,
                 &m_materialsBuffer.descriptor);
-
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = {
-            writeTextureDescriptorSet,
-            writeMaterialsDescriptorSet,
-        };
+        writeDescriptorSet1.push_back(writeMaterialsDescriptorSet);
         vkUpdateDescriptorSets(m_device,
             static_cast<uint32_t>(writeDescriptorSet1.size()),
             writeDescriptorSet1.data(),
@@ -682,25 +682,28 @@ void HybridPipelineRT::createDescriptorSets()
         VKM_CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials))
 
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = {};
+        VkWriteDescriptorSet writeTextureDescriptorSet;
         std::vector<VkDescriptorImageInfo> textureDescriptors;
-        for (auto& texture : m_scene->textures) {
-            textureDescriptors.push_back(texture.descriptor);
-        }
+        if (!m_scene->textures.empty()) {
+            for (auto& texture : m_scene->textures) {
+                textureDescriptors.push_back(texture.descriptor);
+            }
 
-        VkWriteDescriptorSet writeTextureDescriptorSet
-            = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                0,
-                textureDescriptors.data(),
-                textureDescriptors.size());
+            writeTextureDescriptorSet
+                = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
+                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    0,
+                    textureDescriptors.data(),
+                    textureDescriptors.size());
+            writeDescriptorSet3.push_back(writeTextureDescriptorSet);
+        }
         VkWriteDescriptorSet writeMaterialsDescriptorSet
             = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
                 VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 1,
                 &m_materialsBuffer.descriptor);
-
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet3
-            = { writeTextureDescriptorSet, writeMaterialsDescriptorSet };
+        writeDescriptorSet3.push_back(writeMaterialsDescriptorSet);
         vkUpdateDescriptorSets(m_device,
             static_cast<uint32_t>(writeDescriptorSet3.size()),
             writeDescriptorSet3.data(),
@@ -793,7 +796,8 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenNormalsMultiSample.colorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT,
+        m_offscreenImages[i].offscreenNormalsMultiSample.colorAttachment(
+            VK_FORMAT_R16G16B16A16_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
@@ -815,7 +819,8 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             m_samples,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenReflectRefractMap.colorAttachment(VK_FORMAT_R16G16B16A16_SFLOAT,
+        m_offscreenImages[i].offscreenReflectRefractMap.colorAttachment(
+            VK_FORMAT_R16G16B16A16_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
@@ -1127,21 +1132,18 @@ void HybridPipelineRT::updateUniformBuffers(uint32_t t_currentImage)
 void HybridPipelineRT::onSwapChainRecreation()
 {
     // Recreate the result image to fit the new extent size
-    for (auto& offscreenImage : m_offscreenImages) {
-        offscreenImage.rtResultImage.destroy();
-        offscreenImage.offscreenColorMultiSample.destroy();
-        offscreenImage.offscreenColor.destroy();
-        offscreenImage.offscreenDepthMultiSample.destroy();
-        offscreenImage.offscreenDepth.destroy();
-        offscreenImage.offscreenNormalsMultiSample.destroy();
-        offscreenImage.offscreenNormals.destroy();
-        offscreenImage.offscreenReflectRefractMapMultiSample.destroy();
-        offscreenImage.offscreenReflectRefractMap.destroy();
+    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        m_offscreenImages[i].rtResultImage.destroy();
+        m_offscreenImages[i].offscreenColorMultiSample.destroy();
+        m_offscreenImages[i].offscreenColor.destroy();
+        m_offscreenImages[i].offscreenDepthMultiSample.destroy();
+        m_offscreenImages[i].offscreenDepth.destroy();
+        m_offscreenImages[i].offscreenNormalsMultiSample.destroy();
+        m_offscreenImages[i].offscreenNormals.destroy();
+        m_offscreenImages[i].offscreenReflectRefractMapMultiSample.destroy();
+        m_offscreenImages[i].offscreenReflectRefractMap.destroy();
+        vkDestroyFramebuffer(m_device, m_offscreenFramebuffers[i], nullptr);
     }
-    for (auto& frameBuffer : m_offscreenFramebuffers) {
-        vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
-    }
-
     createStorageImages();
     createOffscreenFramebuffers();
     updateResultImageDescriptorSets();
@@ -1194,13 +1196,13 @@ void HybridPipelineRT::createRasterPipeline()
             VK_CULL_MODE_BACK_BIT,
             VK_FRONT_FACE_CLOCKWISE,
             0);
-    std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachmentStates = {
-        initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
-        initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
-        initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE)
-    };
+    std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachmentStates
+        = { initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
+              initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
+              initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE) };
     VkPipelineColorBlendStateCreateInfo colorBlendState
-        = initializers::pipelineColorBlendStateCreateInfo(blendAttachmentStates.size(), blendAttachmentStates.data());
+        = initializers::pipelineColorBlendStateCreateInfo(blendAttachmentStates.size(),
+            blendAttachmentStates.data());
     VkPipelineDepthStencilStateCreateInfo depthStencilState
         = initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE,
             VK_TRUE,
