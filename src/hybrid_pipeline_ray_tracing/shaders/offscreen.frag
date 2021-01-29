@@ -92,6 +92,7 @@ void main()
     const float reflectivity = material.reflectivity;
     const float endRefractIdx = material.refractIdx;
     float startRefractIdx = 1.0f;
+    float ior = startRefractIdx / endRefractIdx;
     float reflectPercent = 0.0f;
     float refractPercent = 0.0f;
     if (endRefractIdx != NOT_REFRACTIVE_IDX) {
@@ -133,7 +134,7 @@ void main()
 
     outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
         surfaceAlbedo.a); // transform them back to view space
-    outFragReflectRefractMap = vec4(reflectPercent, refractPercent, endRefractIdx, surfaceAlbedo.a);
+    outFragReflectRefractMap = vec4(reflectPercent, refractPercent, ior, surfaceAlbedo.a);
     outFragColor
         = vec4(emissive + (diffuse + specular + ambient) * surfaceAlbedo.rgb, surfaceAlbedo.a);
 }

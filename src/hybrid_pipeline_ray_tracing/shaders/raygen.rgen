@@ -103,11 +103,10 @@ void main()
             = texelFetch(inputReflectRefractMap, ivec2(gl_LaunchIDEXT.xy), 0).xyzw;
         float reflectionPercent = reflectRefractData.x;
         float refractionPercent = reflectRefractData.y;
-        float refractionIdx = reflectRefractData.z;
+        float ior = reflectRefractData.z;
         float surfaceOpacity = reflectRefractData.w;
         vec3 refractions = vec3(0.0f);
         if (refractionPercent > 0.0) { // REFRACT RAY
-            float ior = 1.0f / refractionIdx;
             const vec3 refractionRayDirection = refract(direction, shadingNormal, ior);
             if (!is_zero(refractionRayDirection)) {
                 rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);

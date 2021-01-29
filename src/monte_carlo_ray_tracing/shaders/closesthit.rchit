@@ -119,8 +119,15 @@ void main()
 
     // #### Compute next ray direction ####
     const float reflectivity = material.reflectivity;
-    const float endRefractIdx = material.refractIdx;
-    float startRefractIdx = 1.0f;
+    float endRefractIdx;
+    float startRefractIdx;
+    if (inside) {
+        startRefractIdx = material.refractIdx;
+        endRefractIdx = 1.0f;
+    } else {
+        startRefractIdx = 1.0f;
+        endRefractIdx = material.refractIdx;
+    }
     float reflectPercent = 0.0f;
     float refractPercent = 0.0f;
     if (endRefractIdx != NOT_REFRACTIVE_IDX) {
@@ -148,6 +155,11 @@ void main()
                 // ---
                 rayPayload.nextRayDirection = refractionRayDirection;
                 rayPayload.rayType = RAY_TYPE_REFRACTION;
+                return;
+            } else {
+                // total internal reflection
+                rayPayload.nextRayDirection = reflect(hitDirection, shadingNormal);
+                rayPayload.rayType = RAY_TYPE_REFLECTION;
                 return;
             }
         }
