@@ -29,6 +29,7 @@ layout(binding = 0, set = 1) uniform _SceneProperties
     mat4 viewInverse;
     mat4 projInverse;
     vec4 overrideSunDirection;
+    int frame;
 }
 scene;
 layout(binding = 0, set = 3) uniform sampler2D textures[];
@@ -115,25 +116,14 @@ void main()
     } else {
         surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
     }
-    rayPayload.surfaceAttenuation = surfaceAlbedo.rgb;
     // ####  End compute surface albedo ####
 
     rayPayload.rayType = RAY_TYPE_DIFFUSE;
 
-    // ####  Compute surface emission ####
-    vec3 surfaceEmissive;
-    if (material.emissiveMapIndex >= 0) {
-        surfaceEmissive = texture(textures[nonuniformEXT(material.emissiveMapIndex)], hitUV).rgb;
-    } else {
-        surfaceEmissive = material.emissive.rgb;
-    }
-    // ####  End compute surface albedo ####
-
     // ####  Compute direct ligthing ####
     vec3 diffuse = vec3(0.0);
     vec3 specular = vec3(0.0);
-    vec3 emissive = surfaceEmissive;
-    const float shadowWeight = 1.0 - AMBIENT_WEIGHT;
+    float ambient = AMBIENT_WEIGHT;
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -145,13 +135,9 @@ void main()
         } else {
             continue;
         }
-        const float visibility
-            = 1.0 - shadowWeight * trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
-        if (visibility == 0) {
-            continue;
-        }
+        const float visibility = 1.0 - trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
         const float cosThetaLight = abs(dot(shadingNormal, lightDir));
-        diffuse += visibility * lightIntensity * cosThetaLight;
+        diffuse += lightIntensity * max(visibility * cosThetaLight, ambient);
         if (material.shininessStrength == 0) {
             continue;
         }
@@ -159,7 +145,6 @@ void main()
         specular += visibility * lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininess)
             * material.shininessStrength;
     }
-    rayPayload.surfaceEmissive = emissive;
     rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo.rgb;
     // ####  End Compute direct ligthing ####
 }

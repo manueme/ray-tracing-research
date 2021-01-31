@@ -420,8 +420,10 @@ void MonteCarloRTApp::createPostprocessPipeline()
             VK_COMPARE_OP_LESS_OR_EQUAL);
     VkPipelineViewportStateCreateInfo viewportState
         = initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-    VkPipelineMultisampleStateCreateInfo multisampleState
-        = initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
+    VkPipelineMultisampleStateCreateInfo multisampleState {};
+    multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampleState.flags = 0;
     std::vector<VkDynamicState> dynamicStateEnables
         = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     VkPipelineDynamicStateCreateInfo dynamicState
@@ -986,7 +988,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
 void MonteCarloRTApp::prepare()
 {
     BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/cornellbox/Cornellbox.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
 
     createStorageImages();
     createConvolutionKernels();

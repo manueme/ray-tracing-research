@@ -211,17 +211,6 @@ inline VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo(
     return pipelineViewportStateCreateInfo;
 }
 
-inline VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo(
-    VkSampleCountFlagBits rasterizationSamples, VkPipelineMultisampleStateCreateFlags flags = 0)
-{
-    VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo {};
-    pipelineMultisampleStateCreateInfo.sType
-        = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    pipelineMultisampleStateCreateInfo.rasterizationSamples = rasterizationSamples;
-    pipelineMultisampleStateCreateInfo.flags = flags;
-    return pipelineMultisampleStateCreateInfo;
-}
-
 inline VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo(
     const VkDynamicState* pDynamicStates, uint32_t dynamicStateCount,
     VkPipelineDynamicStateCreateFlags flags = 0)

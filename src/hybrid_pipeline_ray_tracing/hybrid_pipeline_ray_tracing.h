@@ -19,8 +19,6 @@ private:
 
     const uint32_t vertex_buffer_bind_id = 0;
 
-    VkSampleCountFlagBits m_samples;
-
     // PIPELINES
     struct {
         VkPipeline rayTracing;
@@ -77,13 +75,9 @@ private:
 
     // Images used to store ray traced image
     struct OffscreenImages {
-        VulkanTexture2D offscreenColorMultiSample;
         VulkanTexture2D offscreenColor;
-        VulkanTexture2D offscreenNormalsMultiSample;
         VulkanTexture2D offscreenNormals;
-        VulkanTexture2D offscreenDepthMultiSample;
         VulkanTexture2D offscreenDepth;
-        VulkanTexture2D offscreenReflectRefractMapMultiSample;
         VulkanTexture2D offscreenReflectRefractMap;
         VulkanTexture2D rtResultImage;
     };
@@ -102,6 +96,7 @@ private:
         glm::mat4 viewInverse { glm::mat4(1.0) };
         glm::mat4 projInverse { glm::mat4(1.0) };
         glm::vec4 overrideSunDirection { glm::vec4(0.0) };
+        int frame { 0 }; // Current frame
     } m_sceneUniformData;
     // one for each swap chain image, the scene can change on every frame
     std::vector<Buffer> m_sceneBuffers;
@@ -126,7 +121,6 @@ private:
     void render() override;
     void prepare() override;
 
-    void setSamplesSettings();
     void createOffscreenRenderPass();
     void updateUniformBuffers(uint32_t t_currentImage) override;
     void onSwapChainRecreation() override;

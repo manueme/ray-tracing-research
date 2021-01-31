@@ -27,6 +27,7 @@ layout(binding = 0) uniform SceneProperties
     mat4 viewInverse;
     mat4 projInverse;
     vec4 overrideSunDirection;
+    int frame;
 }
 scene;
 
@@ -95,11 +96,13 @@ void main()
     float ior = startRefractIdx / endRefractIdx;
     float reflectPercent = 0.0f;
     float refractPercent = 0.0f;
+    float alphaWithoutRefractives = surfaceAlbedo.a;
     if (endRefractIdx != NOT_REFRACTIVE_IDX) {
         reflectPercent = fresnel(eyeVector, shadingNormal, startRefractIdx, endRefractIdx);
         refractPercent = 1.0f - reflectPercent - surfaceAlbedo.a;
+        alphaWithoutRefractives = 1.0f;
     } else if (reflectivity != NOT_REFLECTVE_IDX) {
-        reflectPercent = reflectivity;
+        reflectPercent = reflectivity * surfaceAlbedo.a;
     }
     // #### End compute refraction and reflection maps ####
 
@@ -107,7 +110,7 @@ void main()
     vec3 diffuse = vec3(0.0);
     vec3 specular = vec3(0.0);
     vec3 emissive = surfaceEmissive;
-    const float ambient = AMBIENT_WEIGHT;
+    float ambient = AMBIENT_WEIGHT;
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -134,7 +137,6 @@ void main()
 
     outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
         surfaceAlbedo.a); // transform them back to view space
-    outFragReflectRefractMap = vec4(reflectPercent, refractPercent, ior, surfaceAlbedo.a);
-    outFragColor
-        = vec4(emissive + (diffuse + specular + ambient) * surfaceAlbedo.rgb, surfaceAlbedo.a);
+    outFragReflectRefractMap = vec4(reflectPercent, refractPercent, ior, alphaWithoutRefractives);
+    outFragColor = vec4((diffuse + specular) * surfaceAlbedo.rgb, emissive.r);
 }
