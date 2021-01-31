@@ -3,9 +3,11 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#pragma once
+#ifndef MANUEME_DEBUG_H
+#define MANUEME_DEBUG_H
 
 #include "vulkan/vulkan.h"
+#include <iostream>
 
 namespace debug {
 
@@ -15,4 +17,10 @@ VkResult setupDebugging(
 // Clear debug callback
 void freeDebugCallback(VkInstance t_instance);
 
+static inline void printPercentage(int step, int length) {
+    std::cout << '\r' << std::round(100.0f * (step + 1.0f) / length) << "%" << std::flush;
+}
+
 } // namespace debug
+
+#endif // MANUEME_DEBUG_H

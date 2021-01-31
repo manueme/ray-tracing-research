@@ -109,12 +109,17 @@ public:
     std::vector<ShaderMeshInstance> getInstancesShaderData();
     size_t getInstancesCount();
 
+    bool isLoaded();
+
 private:
     static const int defaultFlags = aiProcess_FlipWindingOrder | aiProcess_PreTransformVertices
         | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals
         | aiProcess_EmbedTextures;
 
     Device* m_device = nullptr;
+
+    bool m_loaded = false;
+    bool m_error = false;
 
     std::vector<Material> m_materials;
     std::vector<Light> m_lights;

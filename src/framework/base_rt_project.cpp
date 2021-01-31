@@ -5,6 +5,7 @@
 
 #include "base_rt_project.h"
 #include "shaders/constants.h"
+#include <thread>
 
 BaseRTProject::BaseRTProject(
     std::string t_appName, std::string t_windowTitle, bool t_enableValidation)
@@ -241,7 +242,12 @@ void BaseRTProject::createRTScene(const std::string& t_modelPath, SceneVertexLay
     SceneCreateInfo modelCreateInfo(glm::vec3(1.0f), glm::vec3(1.0f), glm::vec3(0.0f));
     modelCreateInfo.memoryPropertyFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     m_scene = new Scene();
-    m_scene->loadFromFile(t_modelPath, t_vertexLayout, &modelCreateInfo, m_vulkanDevice, m_queue);
+    std::thread loadSceneThread(&Scene::loadFromFile, m_scene, t_modelPath, t_vertexLayout, &modelCreateInfo, m_vulkanDevice, m_queue);
+    loadSceneThread.detach();
+    while (!m_scene->isLoaded()) {
+        glfwWaitEvents();
+    }
+    std::cout << "\nGenerating acceleration structure..." << std::endl;
     auto camera = m_scene->getCamera();
     camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);
@@ -310,6 +316,7 @@ void BaseRTProject::createRTScene(const std::string& t_modelPath, SceneVertexLay
         geometryInstances.update = false;
     }
     createTopLevelAccelerationStructure(geometryInstances);
+    debug::printPercentage(0, 1);
 }
 
 VkDeviceSize BaseRTProject::copyRTShaderIdentifier(

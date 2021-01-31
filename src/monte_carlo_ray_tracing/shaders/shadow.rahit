@@ -27,7 +27,7 @@ void main()
     const vec2 uv = get_surface_uv(hitSurface);
     // #### ignore if it is a light ####
     if (material.emissiveMapIndex >= 0
-        && texture(textures[nonuniformEXT(materiawl.emissiveMapIndex)], uv).r > 0.5f) {
+        && texture(textures[nonuniformEXT(material.emissiveMapIndex)], uv).r > 0.5f) {
         ignoreIntersectionEXT;
         return;
     } else if (material.emissive.r > 0.5f) {

@@ -110,11 +110,9 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile((t_modelPath).c_str(), defaultFlags);
     if (!scene) {
-        std::string error = importer.GetErrorString();
-        throw std::logic_error("Error loading assets: " + error);
-    }
-
-    if (scene) {
+        m_error = true;
+        throw std::logic_error("Error loading assets: " + std::string(importer.GetErrorString()));
+    } else {
         loadCamera(scene);
         loadLights(scene);
         loadMaterials(scene, t_copyQueue);
@@ -137,6 +135,8 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
         vertexCount = 0;
         indexCount = 0;
         // Load meshes (and instances for each mesh)
+        std::cout << "\nLoading Meshes..." << std::endl;
+        const auto length = static_cast<float>(scene->mNumMeshes);
         for (unsigned int i = 0; i < scene->mNumMeshes; i++) {
             const aiMesh* pAiMesh = scene->mMeshes[i];
             auto currentIndexOffset = static_cast<uint32_t>(indexBuffer.size()) * sizeof(uint32_t);
@@ -236,7 +236,9 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
                 Light areaLight(i, meshes[i].getMaterialIdx(), pAiMesh->mNumFaces);
                 m_lights.emplace_back(areaLight);
             }
+            debug::printPercentage(i, length);
         }
+        std::cout << "\nGenerating mesh buffers..." << std::endl;
 
         uint32_t vBufferSize = static_cast<uint32_t>(vertexBuffer.size()) * sizeof(float);
         uint32_t iBufferSize = static_cast<uint32_t>(indexBuffer.size()) * sizeof(uint32_t);
@@ -251,7 +253,6 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             vBufferSize,
             vertexBuffer.data());
-
         // Index buffer
         indexStaging.create(t_device,
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
@@ -266,14 +267,12 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
                 | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | t_createInfo->memoryPropertyFlags,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             vBufferSize);
-
         // Index buffer
         indices.create(t_device,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
                 | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | t_createInfo->memoryPropertyFlags,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             iBufferSize);
-
         // Copy from staging buffers
         VkCommandBuffer copyCmd
             = t_device->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
@@ -287,17 +286,15 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
         vkCmdCopyBuffer(copyCmd, indexStaging.buffer, indices.buffer, 1, &copyRegion);
 
         t_device->flushCommandBuffer(copyCmd, t_copyQueue);
-
         // Destroy staging resources
         vkDestroyBuffer(t_device->logicalDevice, vertexStaging.buffer, nullptr);
         vkFreeMemory(t_device->logicalDevice, vertexStaging.memory, nullptr);
         vkDestroyBuffer(t_device->logicalDevice, indexStaging.buffer, nullptr);
         vkFreeMemory(t_device->logicalDevice, indexStaging.memory, nullptr);
 
+        debug::printPercentage(0, 1);
+        m_loaded = true;
         return true;
-    } else {
-        printf("Error parsing '%s': '%s'\n", t_modelPath.c_str(), importer.GetErrorString());
-        return false;
     }
 }
 
@@ -313,9 +310,11 @@ Camera* Scene::getCamera() { return &m_camera; }
 void Scene::loadLights(const aiScene* t_scene)
 {
     if (t_scene->HasLights()) {
+        std::cout << "\nLoading Lights..." << std::endl;
         for (unsigned int i = 0; i < t_scene->mNumLights; i++) {
             const auto aiLight = t_scene->mLights[i];
             m_lights.emplace_back(*aiLight);
+            debug::printPercentage(i, t_scene->mNumLights);
         }
     }
 }
@@ -334,8 +333,11 @@ size_t Scene::getLightCount() { return m_lights.size(); }
 void Scene::loadMaterials(const aiScene* t_scene, VkQueue t_transferQueue)
 {
     m_materials.resize(t_scene->mNumMaterials);
+    std::cout << "\nLoading Materials..." << std::endl;
+    const auto length = static_cast<float>(m_materials.size());
     for (size_t i = 0; i < m_materials.size(); i++) {
         m_materials[i] = Material(m_device, t_transferQueue, this, t_scene, t_scene->mMaterials[i]);
+        debug::printPercentage(i, length);
     }
 }
 
@@ -372,3 +374,5 @@ void Scene::createMeshInstance(uint32_t t_blasIdx, uint32_t t_meshIdx)
 {
     instances.emplace_back(Instance(t_blasIdx, t_meshIdx));
 }
+
+bool Scene::isLoaded() { return m_loaded || m_error; }
