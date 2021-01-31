@@ -88,35 +88,6 @@ float get_hit_depth(vec2 inUV)
     return length(viewSpacePosition.xyz);
 }
 
-void blendColors(in vec4 src, inout vec4 dst)
-{
-    float outR = 0.0;
-    float srcR = src.x;
-    float dstR = dst.x;
-
-    float outG = 0.0;
-    float srcG = src.y;
-    float dstG = dst.y;
-
-    float outB = 0.0;
-    float srcB = src.z;
-    float dstB = dst.z;
-
-    float outA = 0.0;
-    float srcA = src.w;
-    float dstA = dst.w;
-
-    outA = srcA + dstA * (1.0 - srcA);
-    if (outA == 0.0) {
-        dst = vec4(0.0, 0.0, 0.0, 0.0);
-    } else {
-        outR = (srcR * srcA + dstR * dstA * (1.0 - srcA)) / outA;
-        outG = (srcG * srcA + dstG * dstA * (1.0 - srcA)) / outA;
-        outB = (srcB * srcA + dstB * dstA * (1.0 - srcA)) / outA;
-        dst = vec4(outR, outG, outB, outA);
-    }
-}
-
 void main()
 {
     // Initialize ray payload
@@ -137,8 +108,7 @@ void main()
     vec3 direction = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;
     const float hitDepth = get_hit_depth(inUV);
 
-    vec4 result = vec4(sky_ray(-direction), 1.0);
-
+    vec4 result;
     if (hitDepth < CAMERA_FAR - CAMERA_NEAR) {
         vec3 origin = (scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
         const vec3 hitPoint = origin + direction * hitDepth;
@@ -215,7 +185,9 @@ void main()
         } else {
             surfaceColor = vec4(reflectRefractResult, 1.0f);
         }
-        blendColors(surfaceEmissive + surfaceColor, result);
+        result = surfaceEmissive + surfaceColor;
+    } else {
+        result = vec4(sky_ray(-direction), 1.0);
     }
     imageStore(resultImage, ivec2(gl_LaunchIDEXT.xy), result);
 }
