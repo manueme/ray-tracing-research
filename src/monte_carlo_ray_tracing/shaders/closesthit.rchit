@@ -15,8 +15,8 @@
 #include "../../framework/shaders/vertex.glsl"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(location = RT_PAYLOAD_BRDF) rayPayloadInEXT RayPayload rayPayload;
-layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
+layout(location = RT_PAYLOAD_LOCATION) rayPayloadInEXT RayPayload rayPayload;
+layout(location = RT_PAYLOAD_SHADOW_LOCATION) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
 
 hitAttributeEXT vec3 attribs;
 
@@ -56,7 +56,7 @@ float trace_shadow_ray(vec3 origin, vec3 direction, float maxDistance)
         RAY_MIN_HIT,
         direction,
         maxDistance,
-        RT_PAYLOAD_SHADOW);
+        RT_PAYLOAD_SHADOW_LOCATION);
     return rayPayloadShadow.shadowAmount;
 }
 
@@ -180,7 +180,7 @@ void main()
     } else {
         surfaceEmissive = material.emissive.rgb;
     }
-    // ####  End compute surface albedo ####
+    // ####  End compute surface emission ####
 
     // ####  Compute direct ligthing ####
     vec3 diffuse = vec3(0.0);

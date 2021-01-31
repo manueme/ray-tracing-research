@@ -15,8 +15,8 @@
 #include "./hybrid_constants.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
-layout(location = RT_PAYLOAD_BRDF) rayPayloadEXT RayPayload rayPayloadBRDF;
+layout(location = RT_PAYLOAD_SHADOW_LOCATION) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
+layout(location = RT_PAYLOAD_LOCATION) rayPayloadEXT RayPayload rayPayload;
 
 layout(binding = 0, set = 4) buffer _Lights { LightProperties l[]; }
 lighting;
@@ -56,10 +56,10 @@ float trace_shadow_ray(vec3 origin, vec3 direction, float maxDistance)
         0 /*sbtRecordStride*/,
         SBT_MC_SHADOW_MISS_INDEX /*missIndex*/,
         origin,
-        CAMERA_NEAR,
+        0.0f,
         direction,
         maxDistance,
-        RT_PAYLOAD_SHADOW);
+        RT_PAYLOAD_SHADOW_LOCATION);
     return rayPayloadShadow.shadowAmount;
 }
 
@@ -73,10 +73,10 @@ void trace_ray(vec3 origin, vec3 direction)
         0 /*sbtRecordStride*/,
         SBT_MC_MISS_INDEX /*missIndex*/,
         origin,
-        0.001f,
+        0.0f,
         direction,
         CAMERA_FAR,
-        RT_PAYLOAD_BRDF);
+        RT_PAYLOAD_LOCATION);
 }
 
 float get_hit_depth(vec2 inUV)
@@ -88,18 +88,18 @@ float get_hit_depth(vec2 inUV)
     return length(viewSpacePosition.xyz);
 }
 
+void reset_payload()
+{
+    rayPayload.done = 0;
+    rayPayload.depth = 0;
+    rayPayload.surfaceAttenuation = vec3(1.0f);
+    rayPayload.surfaceRadiance = vec3(0.0f);
+    rayPayload.surfaceEmissive = vec3(0.0f);
+    rayPayload.rayType = RAY_TYPE_UNDEFINED;
+}
+
 void main()
 {
-    // Initialize ray payload
-    rayPayloadBRDF.seed
-        = tea(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, scene.frame);
-    rayPayloadBRDF.done = 0;
-    rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);
-    rayPayloadBRDF.surfaceRadiance = vec3(0.0f);
-    rayPayloadBRDF.surfaceEmissive = vec3(0.0f);
-    rayPayloadBRDF.rayType = RAY_TYPE_UNDEFINED;
-    // ---
-
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5f);
     const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
 
@@ -111,7 +111,7 @@ void main()
     vec4 result;
     if (hitDepth < CAMERA_FAR - CAMERA_NEAR) {
         vec3 origin = (scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
-        const vec3 hitPoint = origin + direction * hitDepth;
+        const vec3 hitPoint = origin + direction * (hitDepth - CAMERA_NEAR);
         vec3 shadingNormal = texture(inputNormals, inUV).xyz;
         const vec4 reflectRefractData = texture(inputReflectRefractMap, inUV).xyzw;
         float alphaWithoutRefractives = reflectRefractData.w;
@@ -128,16 +128,9 @@ void main()
             vec3 refractionRayDirection = refract(direction, shadingNormal, ior);
             vec3 refractionPoint = hitPoint;
             if (!is_zero(refractionRayDirection)) {
-                for (int depth = 1; depth < maxDepth; depth++) {
-                    trace_ray(refractionPoint, refractionRayDirection);
-                    if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE
-                        || rayPayloadBRDF.rayType == RAY_TYPE_MISS) {
-                        break;
-                    }
-                    refractionPoint = rayPayloadBRDF.nextRayOrigin;
-                    refractionRayDirection = rayPayloadBRDF.nextRayDirection;
-                }
-                refractions = vec3(rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance)
+                reset_payload();
+                trace_ray(refractionPoint, refractionRayDirection);
+                refractions = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance)
                     * refractionPercent;
             } else {
                 refractionPercent = 0.0f;
@@ -147,18 +140,12 @@ void main()
         if (reflectionPercent > 0.0f) { // REFLECT RAY
             vec3 reflectionRayDirection = reflect(direction, shadingNormal);
             vec3 reflectionPoint = hitPoint;
-            for (int depth = 1; depth < maxDepth; depth++) {
-                trace_ray(reflectionPoint, reflectionRayDirection);
-                if (rayPayloadBRDF.rayType == RAY_TYPE_DIFFUSE
-                    || rayPayloadBRDF.rayType == RAY_TYPE_MISS) {
-                    break;
-                }
-                reflectionPoint = rayPayloadBRDF.nextRayOrigin;
-                reflectionRayDirection = rayPayloadBRDF.nextRayDirection;
-            }
-            reflections = vec3(rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceRadiance)
-                * reflectionPercent;
+            reset_payload();
+            trace_ray(reflectionPoint, reflectionRayDirection);
+            reflections
+                = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance) * reflectionPercent;
         }
+        reset_payload();
 
         vec3 reflectRefractResult = reflections + refractions;
         const float refractReflectComplement = (1.0f - (reflectionPercent + refractionPercent));

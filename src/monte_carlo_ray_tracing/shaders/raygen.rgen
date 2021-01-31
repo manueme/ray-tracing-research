@@ -14,7 +14,7 @@
 #include "../../framework/shaders/definitions.glsl"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(location = RT_PAYLOAD_BRDF) rayPayloadEXT RayPayload rayPayloadBRDF;
+layout(location = RT_PAYLOAD_LOCATION) rayPayloadEXT RayPayload rayPayloadBRDF;
 
 // #define SAMPLE_PRIMARY
 #define DEPTH_OF_FIELD
@@ -57,7 +57,7 @@ void trace_ray(vec3 origin, vec3 direction)
         RAY_MIN_HIT,
         direction,
         RAY_MAX_HIT,
-        RT_PAYLOAD_BRDF);
+        RT_PAYLOAD_LOCATION);
 }
 
 const float CAMERA_APERTURE = 0.90;

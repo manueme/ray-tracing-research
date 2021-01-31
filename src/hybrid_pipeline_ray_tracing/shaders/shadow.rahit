@@ -14,7 +14,7 @@
 #include "../../framework/shaders/vertex.glsl"
 
 hitAttributeEXT vec3 attribs;
-layout(location = RT_PAYLOAD_SHADOW) rayPayloadInEXT RayPayloadShadow rayPayloadShadow;
+layout(location = RT_PAYLOAD_SHADOW_LOCATION) rayPayloadInEXT RayPayloadShadow rayPayloadShadow;
 layout(binding = 0, set = 3) uniform sampler2D textures[];
 layout(binding = 1, set = 3) buffer _Materials { MaterialProperties m[]; }
 materials;

@@ -11,7 +11,7 @@
 #include "../../framework/shaders/constants.h"
 #include "../../framework/shaders/definitions.glsl"
 
-layout(location = RT_PAYLOAD_BRDF) rayPayloadInEXT RayPayload rayPayloadBRDF;
+layout(location = RT_PAYLOAD_LOCATION) rayPayloadInEXT RayPayload rayPayloadBRDF;
 
 void main()
 {

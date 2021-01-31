@@ -11,6 +11,7 @@ struct RayPayload {
     vec3 nextRayDirection;
     uint seed;
     int done;
+    uint depth;
     int rayType; // RAY_TYPE_DIFFUSE 1, RAY_TYPE_REFRACTION 1, RAY_TYPE_REFLECTION 2, RAY_TYPE_MISS
                  // 3
     float hitDistance;

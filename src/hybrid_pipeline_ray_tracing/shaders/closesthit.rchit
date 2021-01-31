@@ -16,8 +16,8 @@
 #include "./hybrid_constants.h"
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(location = RT_PAYLOAD_BRDF) rayPayloadInEXT RayPayload rayPayload;
-layout(location = RT_PAYLOAD_SHADOW) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
+layout(location = RT_PAYLOAD_LOCATION) rayPayloadInEXT RayPayload rayPayload;
+layout(location = RT_PAYLOAD_SHADOW_LOCATION) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
 
 hitAttributeEXT vec3 attribs;
 
@@ -55,18 +55,27 @@ float trace_shadow_ray(vec3 origin, vec3 direction, float maxDistance)
         0 /*sbtRecordStride*/,
         SBT_MC_SHADOW_MISS_INDEX /*missIndex*/,
         origin,
-        RAY_MIN_HIT,
+        0.0f,
         direction,
         maxDistance,
-        RT_PAYLOAD_SHADOW);
+        RT_PAYLOAD_SHADOW_LOCATION);
     return rayPayloadShadow.shadowAmount;
 }
 
-void resetRayPayload()
+void trace_ray(vec3 origin, vec3 direction)
 {
-    rayPayload.surfaceAttenuation = vec3(1.0f);
-    rayPayload.surfaceRadiance = vec3(0.0f);
-    rayPayload.surfaceEmissive = vec3(0.0f);
+    uint rayFlags = gl_RayFlagsNoneEXT;
+    traceRayEXT(topLevelAS,
+        rayFlags,
+        AS_FLAG_EVERYTHING,
+        SBT_MC_HIT_GROUP /*sbtRecordOffset*/,
+        0 /*sbtRecordStride*/,
+        SBT_MC_MISS_INDEX /*missIndex*/,
+        origin,
+        0.0f,
+        direction,
+        CAMERA_FAR,
+        RT_PAYLOAD_LOCATION);
 }
 
 void main()
@@ -76,7 +85,8 @@ void main()
     const MaterialProperties material = materials.m[materialIndex];
     const int diffuseMapIndex = material.diffuseMapIndex;
     const vec2 hitUV = get_surface_uv(hitSurface);
-    const vec3 hitPoint = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+    const vec3 hitPoint
+        = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * (gl_HitTEXT - CAMERA_NEAR);
     const vec3 hitNormal = get_surface_normal(hitSurface);
     vec3 hitTangent = get_surface_tangent(hitSurface);
     // re-orthogonalize T with respect to N
@@ -86,13 +96,8 @@ void main()
     vec3 hitDirection = gl_WorldRayDirectionEXT;
     const vec3 eyeVector = normalize(-hitDirection);
 
-    // Store hitDistance
-    rayPayload.hitDistance = gl_HitTEXT;
-    // ####
-
-    // #### New Ray Origin ####
-    rayPayload.nextRayOrigin = hitPoint;
-    // ####
+    uint currentDepth = rayPayload.depth;
+    int done = (currentDepth >= maxDepth - 1) ? 1 : 0;
 
     const int normalMapIndex = material.normalMapIndex;
     vec3 shadingNormal;
@@ -118,7 +123,55 @@ void main()
     }
     // ####  End compute surface albedo ####
 
-    rayPayload.rayType = RAY_TYPE_DIFFUSE;
+    // #### Compute recursive reflections and refractions ####
+    const float reflectivity = material.reflectivity;
+    float endRefractIdx;
+    float startRefractIdx;
+    if (inside) {
+        startRefractIdx = material.refractIdx;
+        endRefractIdx = 1.0f;
+    } else {
+        startRefractIdx = 1.0f;
+        endRefractIdx = material.refractIdx;
+    }
+    float reflectPercent = 0.0f;
+    float refractPercent = 0.0f;
+    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
+        reflectPercent = fresnel(hitDirection, shadingNormal, startRefractIdx, endRefractIdx);
+        refractPercent = 1.0 - reflectPercent - surfaceAlbedo.a;
+    } else if (reflectivity != NOT_REFLECTVE_IDX) {
+        reflectPercent = reflectivity;
+    }
+    vec3 refractions = vec3(0.0f);
+    if (done == 0 && refractPercent > 0) { // REFRACT RAY
+        float ior = startRefractIdx / endRefractIdx;
+        const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
+        if (!is_zero(refractionRayDirection)) {
+            rayPayload.surfaceRadiance = vec3(0.0);
+            rayPayload.surfaceEmissive = vec3(0.0);
+            rayPayload.rayType = RAY_TYPE_REFRACTION;
+            rayPayload.depth = currentDepth + 1;
+            trace_ray(hitPoint, refractionRayDirection);
+            refractions
+                = (rayPayload.surfaceEmissive + rayPayload.surfaceRadiance) * refractPercent;
+        } else {
+            // total internal reflection
+            reflectPercent += refractPercent;
+        }
+    }
+    vec3 reflections = vec3(0.0);
+    if (done == 0 && reflectPercent > 0) { // REFLECT RAY
+        vec3 reflectDirection = reflect(hitDirection, shadingNormal);
+        rayPayload.surfaceRadiance = vec3(0.0);
+        rayPayload.surfaceEmissive = vec3(0.0);
+        rayPayload.rayType = RAY_TYPE_REFLECTION;
+        rayPayload.depth = currentDepth + 1;
+        trace_ray(hitPoint, reflectDirection);
+        reflections = (rayPayload.surfaceEmissive + rayPayload.surfaceRadiance) * reflectPercent;
+    }
+    rayPayload.surfaceRadiance = reflections + refractions;
+    float refractReflectComplement = (1.0f - (reflectPercent + refractPercent));
+    // #### End compute recursive reflections and refractions ####
 
     // ####  Compute direct ligthing ####
     vec3 diffuse = vec3(0.0);
@@ -128,7 +181,7 @@ void main()
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
         vec3 lightIntensity = vec3(0.0f);
-        float maxHitDistance = RAY_MAX_HIT;
+        float maxHitDistance = CAMERA_FAR;
         if (light.lightType == 1) { // Directional light (SUN)
             lightDir = normalize(light.direction.xyz + vec3(scene.overrideSunDirection));
             lightIntensity = light.diffuse.rgb;
@@ -145,6 +198,21 @@ void main()
         specular += visibility * lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininess)
             * material.shininessStrength;
     }
-    rayPayload.surfaceRadiance = (diffuse + specular) * surfaceAlbedo.rgb;
+    rayPayload.surfaceRadiance
+        += (diffuse + specular) * surfaceAlbedo.rgb * refractReflectComplement;
     // ####  End Compute direct ligthing ####
+
+    // ####  Compute surface emission ####
+    vec3 surfaceEmissive;
+    if (material.emissiveMapIndex >= 0) {
+        surfaceEmissive = texture(textures[nonuniformEXT(material.emissiveMapIndex)], hitUV).rgb;
+    } else {
+        surfaceEmissive = material.emissive.rgb;
+    }
+    rayPayload.surfaceEmissive = surfaceEmissive;
+    // ####  End compute surface emission ####
+
+    rayPayload.rayType = RAY_TYPE_DIFFUSE;
+    rayPayload.hitDistance = gl_HitTEXT;
+    rayPayload.done = done;
 }

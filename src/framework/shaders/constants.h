@@ -21,8 +21,9 @@
 
 #define AS_FLAG_EVERYTHING 0xFF
 
-#define RT_PAYLOAD_SHADOW 0
-#define RT_PAYLOAD_BRDF 1
+#define RT_PAYLOAD_SHADOW_LOCATION 0
+#define RT_PAYLOAD_LOCATION 1
+#define RT_PAYLOAD_RECURSIVE_LOCATION 2 // to be used in the hybrid pipeline
 
 // MonteCarlo app shader table groups
 // Main Ray Generation Group
