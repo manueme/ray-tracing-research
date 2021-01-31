@@ -17,7 +17,7 @@ layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_LOCATION) rayPayloadEXT RayPayload rayPayloadBRDF;
 
 // #define SAMPLE_PRIMARY
-#define DEPTH_OF_FIELD
+// #define DEPTH_OF_FIELD
 #define USE_DEPTH_MAP
 #define SHOW_NANS
 

@@ -219,7 +219,7 @@ void main()
             if (area == 0.0f || cosThetaAreaLight == 0.0f) {
                 continue;
             }
-            float lightPDF = distSqr / (cosThetaAreaLight * area);
+            float lightPDF = uniform_triangle_pdf(distSqr, cosThetaAreaLight, area);
             if (areaMaterial.emissiveMapIndex >= 0) {
                 vec2 lightUV = get_surface_uv(areaSurface);
                 lightIntensity

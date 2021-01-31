@@ -73,7 +73,6 @@ void concentric_sample_disk(const float u1, const float u2, out vec2 p)
         p = r * vec2(cos(theta), sin(theta));
     }
 }
-
 // Malley’s Method
 void cosine_sample_hemisphere(const float u1, const float u2, out vec3 p)
 {
@@ -82,10 +81,23 @@ void cosine_sample_hemisphere(const float u1, const float u2, out vec3 p)
     p = vec3(disk.x, disk.y, sqrt(max(0.0, 1.0 - dot(disk, disk))));
 }
 
+vec3 uniform_sample_cone(const float u1, const float u2, float cosThetaMax)
+{
+    float cosTheta = (1.0f - u1) + u1 * cosThetaMax;
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+    float phi = u2 * 2 * M_PIf;
+    return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+float uniform_cone_pdf(float cosThetaMax) { return 1.0f / (2.0f * M_PIf * (1.0f - cosThetaMax)); }
+
 vec2 uniform_sample_triangle(const float u1, const float u2)
 {
     float su0 = sqrt(u1);
     return vec2(1 - su0, u2 * su0);
+}
+float uniform_triangle_pdf(float distSqr, float cosTheta, float area)
+{
+    return distSqr / (cosTheta * area);
 }
 
 // Asuming all dielectric maretials for now...

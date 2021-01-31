@@ -24,11 +24,11 @@ void main()
     const Surface hitSurface = get_surface_instance(gl_InstanceID, gl_PrimitiveID, attribs.xy);
     const uint materialIndex = instanceInfo.i[gl_InstanceID].materialIndex;
     const MaterialProperties material = materials.m[materialIndex];
-    const int diffuseMapIndex = material.diffuseMapIndex;
     bool ignore = false;
-    if (diffuseMapIndex >= 0) {
+    // #### ignore if it is transparent ####
+    if (material.diffuseMapIndex >= 0) {
         const vec2 uv = get_surface_uv(hitSurface);
-        ignore = texture(textures[nonuniformEXT(diffuseMapIndex)], uv).w == 0
+        ignore = texture(textures[nonuniformEXT(material.diffuseMapIndex)], uv).w == 0
             && material.refractIdx == NOT_REFRACTIVE_IDX;
     } else {
         ignore = material.opacity == 0 && material.refractIdx == NOT_REFRACTIVE_IDX;

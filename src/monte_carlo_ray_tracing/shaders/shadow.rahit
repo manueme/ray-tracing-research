@@ -24,12 +24,21 @@ void main()
     const Surface hitSurface = get_surface_instance(gl_InstanceID, gl_PrimitiveID, attribs.xy);
     const uint materialIndex = instanceInfo.i[gl_InstanceID].materialIndex;
     const MaterialProperties material = materials.m[materialIndex];
+    const vec2 uv = get_surface_uv(hitSurface);
+    // #### ignore if it is a light ####
+    if (material.emissiveMapIndex >= 0
+        && texture(textures[nonuniformEXT(materiawl.emissiveMapIndex)], uv).r > 0.5f) {
+        ignoreIntersectionEXT;
+        return;
+    } else if (material.emissive.r > 0.5f) {
+        ignoreIntersectionEXT;
+        return;
+    }
+    // #### or partially ignore if it is transparent ####
     float transparency;
-    const int diffuseMapIndex = material.diffuseMapIndex;
-    if (diffuseMapIndex >= 0) {
-        const vec2 uv = get_surface_uv(hitSurface);
+    if (material.diffuseMapIndex >= 0) {
         transparency = rayPayloadShadow.shadowAmount
-            + texture(textures[nonuniformEXT(diffuseMapIndex)], uv).w;
+            + texture(textures[nonuniformEXT(material.diffuseMapIndex)], uv).w;
     } else {
         transparency = rayPayloadShadow.shadowAmount + material.opacity;
     }
