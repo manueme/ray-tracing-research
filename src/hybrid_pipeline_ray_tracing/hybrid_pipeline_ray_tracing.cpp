@@ -16,7 +16,7 @@
 HybridPipelineRT::HybridPipelineRT()
     : BaseRTProject("Hybrid Pipeline Ray Tracing", "Hybrid Pipeline Ray Tracing", true)
 {
-    m_settings.vsync = true;
+    m_settings.vsync = false;
 }
 
 void HybridPipelineRT::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }
