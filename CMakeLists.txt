@@ -87,3 +87,4 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/framework)
 
 add_subdirectory(src/hybrid_pipeline_ray_tracing)
 add_subdirectory(src/monte_carlo_ray_tracing)
+add_subdirectory(src/denoiser)

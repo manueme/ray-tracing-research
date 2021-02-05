@@ -3,7 +3,7 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#include "monte_carlo_ray_tracing.h"
+#include "denoiser.h"
 
 #include "shaders/constants.h"
 
@@ -14,15 +14,15 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-MonteCarloRTApp::MonteCarloRTApp()
+DenoiserApp::DenoiserApp()
     : BaseRTProject("Monte Carlo Ray Tracing", "Monte Carlo Ray Tracing App", true)
 {
     m_settings.vsync = false;
 }
 
-void MonteCarloRTApp::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }
+void DenoiserApp::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }
 
-void MonteCarloRTApp::buildCommandBuffers()
+void DenoiserApp::buildCommandBuffers()
 {
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -58,7 +58,8 @@ void MonteCarloRTApp::buildCommandBuffers()
                   m_rtDescriptorSets.set2Geometry,
                   m_rtDescriptorSets.set3Materials,
                   m_rtDescriptorSets.set4Lights,
-                  m_rtDescriptorSets.set5ResultImage };
+                  m_rtDescriptorSets.set5ResultImage,
+                  m_rtDescriptorSets.set6AuxImage };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
             m_pipelineLayouts.rayTracing,
@@ -110,7 +111,8 @@ void MonteCarloRTApp::buildCommandBuffers()
         vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
         std::vector<VkDescriptorSet> postprocessDescriptorSets
             = { m_postprocessDescriptorSets.set0Scene[i],
-                  m_postprocessDescriptorSets.set1InputImage };
+                  m_postprocessDescriptorSets.set1InputImage,
+                  m_postprocessDescriptorSets.set2ConvolutionKernels };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_pipelineLayouts.postProcess,
@@ -131,7 +133,7 @@ void MonteCarloRTApp::buildCommandBuffers()
     }
 }
 
-void MonteCarloRTApp::createDescriptorPool()
+void DenoiserApp::createDescriptorPool()
 {
     std::vector<VkDescriptorPoolSize> poolSizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
@@ -174,7 +176,7 @@ void MonteCarloRTApp::createDescriptorPool()
         vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 }
 
-void MonteCarloRTApp::createDescriptorSetsLayout()
+void DenoiserApp::createDescriptorSetsLayout()
 {
     // Set 0: Acceleration Structure Layout
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -291,6 +293,20 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
         nullptr,
         &m_rtDescriptorSetLayouts.set5ResultImage));
 
+    // Set 6: Aux Images
+    setLayoutBindings.clear();
+    setLayoutBindings.push_back(
+        // Binding 0 : RBG Noise Image
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+            0));
+    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+        setLayoutBindings.size());
+    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        &descriptorLayout,
+        nullptr,
+        &m_rtDescriptorSetLayouts.set6AuxImage));
+
     // Ray Tracing Pipeline Layout
     // Push constant to pass path tracer parameters
     VkPushConstantRange rtPushConstantRange
@@ -298,13 +314,14 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
                 | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
             sizeof(PathTracerParameters),
             0);
-    std::array<VkDescriptorSetLayout, 6> rayTracingSetLayouts
+    std::array<VkDescriptorSetLayout, 7> rayTracingSetLayouts
         = { m_rtDescriptorSetLayouts.set0AccelerationStructure,
               m_rtDescriptorSetLayouts.set1Scene,
               m_rtDescriptorSetLayouts.set2Geometry,
               m_rtDescriptorSetLayouts.set3Materials,
               m_rtDescriptorSetLayouts.set4Lights,
-              m_rtDescriptorSetLayouts.set5ResultImage };
+              m_rtDescriptorSetLayouts.set5ResultImage,
+              m_rtDescriptorSetLayouts.set6AuxImage };
 
     VkPipelineLayoutCreateInfo rayTracingPipelineLayoutCreateInfo
         = initializers::pipelineLayoutCreateInfo(rayTracingSetLayouts.data(),
@@ -354,10 +371,25 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
         nullptr,
         &m_postprocessDescriptorSetLayouts.set1InputImage));
 
+    // Set 2 Postprocess: Convolution Kernel
+    setLayoutBindings.clear();
+    setLayoutBindings.push_back(
+        // Binding 0 : Layer 1
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            VK_SHADER_STAGE_FRAGMENT_BIT,
+            0));
+    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+        setLayoutBindings.size());
+    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        &descriptorLayout,
+        nullptr,
+        &m_postprocessDescriptorSetLayouts.set2ConvolutionKernels));
+
     // Postprocess Pipeline Layout
-    std::array<VkDescriptorSetLayout, 2> postprocessSetLayouts
+    std::array<VkDescriptorSetLayout, 3> postprocessSetLayouts
         = { m_postprocessDescriptorSetLayouts.set0Scene,
-              m_postprocessDescriptorSetLayouts.set1InputImage };
+              m_postprocessDescriptorSetLayouts.set1InputImage,
+              m_postprocessDescriptorSetLayouts.set2ConvolutionKernels };
     VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
         = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
             postprocessSetLayouts.size());
@@ -367,7 +399,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
         &m_pipelineLayouts.postProcess))
 }
 
-void MonteCarloRTApp::createPostprocessPipeline()
+void DenoiserApp::createPostprocessPipeline()
 {
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyState
         = initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
@@ -429,7 +461,7 @@ void MonteCarloRTApp::createPostprocessPipeline()
         &m_pipelines.postProcess))
 }
 
-void MonteCarloRTApp::createRTPipeline()
+void DenoiserApp::createRTPipeline()
 {
     std::array<VkPipelineShaderStageCreateInfo, 6> shaderStages {};
     shaderStages[SBT_MC_RAY_GEN_INDEX]
@@ -492,7 +524,7 @@ void MonteCarloRTApp::createRTPipeline()
         &m_pipelines.rayTracing));
 }
 
-void MonteCarloRTApp::assignPushConstants()
+void DenoiserApp::assignPushConstants()
 {
     m_pathTracerParams = {
         m_ray_tracer_depth, // Max depth
@@ -500,7 +532,7 @@ void MonteCarloRTApp::assignPushConstants()
     };
 }
 
-void MonteCarloRTApp::createDescriptorSets()
+void DenoiserApp::createDescriptorSets()
 {
     // Set 0: Acceleration Structure descriptor
     VkDescriptorSetAllocateInfo set0AllocInfo
@@ -661,6 +693,25 @@ void MonteCarloRTApp::createDescriptorSets()
     VKM_CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_rtDescriptorSets.set5ResultImage));
 
+    // Set 6: Aux image descriptor
+    VkDescriptorSetAllocateInfo set6AllocInfo
+        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+            &m_rtDescriptorSetLayouts.set6AuxImage,
+            1);
+    VKM_CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &set6AllocInfo, &m_rtDescriptorSets.set6AuxImage));
+    VkWriteDescriptorSet auxImagesRGBNoiseWrite
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set6AuxImage,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            0,
+            &m_auxImages.rgbNoise.descriptor);
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet6 = { auxImagesRGBNoiseWrite };
+    vkUpdateDescriptorSets(m_device,
+        static_cast<uint32_t>(writeDescriptorSet6.size()),
+        writeDescriptorSet6.data(),
+        0,
+        VK_NULL_HANDLE);
+
     // Postprocess input scene descriptor set, set 0
     std::vector<VkDescriptorSetLayout> postprocessSet0Layouts(m_swapChain.imageCount,
         m_postprocessDescriptorSetLayouts.set0Scene);
@@ -696,10 +747,30 @@ void MonteCarloRTApp::createDescriptorSets()
         &inputImageAllocateInfo,
         &m_postprocessDescriptorSets.set1InputImage));
 
+    // Postprocess input image descriptor set, set 2
+    VkDescriptorSetAllocateInfo convolutionKernelAllocateInfo
+        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+            &m_postprocessDescriptorSetLayouts.set2ConvolutionKernels,
+            1);
+    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+        &convolutionKernelAllocateInfo,
+        &m_postprocessDescriptorSets.set2ConvolutionKernels));
+    VkWriteDescriptorSet convolutionKernelsWrite
+        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set2ConvolutionKernels,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            0,
+            &m_convolutionKernels.layer1.descriptor);
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet2Postprocess = { convolutionKernelsWrite };
+    vkUpdateDescriptorSets(m_device,
+        static_cast<uint32_t>(writeDescriptorSet2Postprocess.size()),
+        writeDescriptorSet2Postprocess.data(),
+        0,
+        VK_NULL_HANDLE);
+
     updateResultImageDescriptorSets();
 }
 
-void MonteCarloRTApp::updateResultImageDescriptorSets()
+void DenoiserApp::updateResultImageDescriptorSets()
 {
     VkWriteDescriptorSet resultImageWrite
         = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
@@ -711,8 +782,13 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             1,
             &m_storageImage.depthMap.descriptor);
+    VkWriteDescriptorSet resultFirstSampleWrite
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            2,
+            &m_storageImage.firstSample.descriptor);
     std::vector<VkWriteDescriptorSet> writeDescriptorSet5
-        = { resultImageWrite, resultDepthMapWrite };
+        = { resultImageWrite, resultDepthMapWrite, resultFirstSampleWrite };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet5.size()),
         writeDescriptorSet5.data(),
@@ -729,8 +805,13 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             1,
             &m_storageImage.depthMap.descriptor);
+    VkWriteDescriptorSet inputFirstSampleWrite
+        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            2,
+            &m_storageImage.firstSample.descriptor);
     std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess
-        = { inputImageWrite, inputDepthMapWrite };
+        = { inputImageWrite, inputDepthMapWrite, inputFirstSampleWrite };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet1Postprocess.size()),
         writeDescriptorSet1Postprocess.data(),
@@ -738,13 +819,13 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
         VK_NULL_HANDLE);
 }
 
-void MonteCarloRTApp::updateUniformBuffers(uint32_t t_currentImage)
+void DenoiserApp::updateUniformBuffers(uint32_t t_currentImage)
 {
     memcpy(m_sceneBuffers[t_currentImage].mapped, &m_sceneUniformData, sizeof(UniformData));
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
-void MonteCarloRTApp::createUniformBuffers()
+void DenoiserApp::createUniformBuffers()
 {
     // Scene uniform
     VkDeviceSize bufferSize = sizeof(UniformData);
@@ -783,8 +864,25 @@ void MonteCarloRTApp::createUniformBuffers()
 /*
     Set up a storage image that the ray generation shader will be writing to
 */
-void MonteCarloRTApp::createStorageImages()
+void DenoiserApp::createStorageImages()
 {
+    // Unused
+    m_auxImages.rgbNoise.loadFromFile("assets/other/rgbNoise.png",
+        VK_FORMAT_B8G8R8A8_UNORM,
+        m_vulkanDevice,
+        m_queue,
+        VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL,
+        false);
+
+    m_storageImage.firstSample.fromNothing(m_swapChain.colorFormat,
+        m_width,
+        m_height,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
     // NOTE: I RGBA32f is used because of the accumulation feature in order to avoid losing quality
     // over frames for "real-time" frames you may want to change the format to a more efficient one,
     // like the swapchain image format "m_swapChain.colorFormat"
@@ -806,7 +904,56 @@ void MonteCarloRTApp::createStorageImages()
         VK_IMAGE_LAYOUT_GENERAL);
 }
 
-void MonteCarloRTApp::createShaderRTBindingTable()
+void DenoiserApp::createConvolutionKernels()
+{
+    const auto w = 5, h = 5, bpp = 32;
+    const auto size = w * h * bpp;
+    std::allocator<glm::float32_t> alloc;
+    glm::float32_t* kernel = alloc.allocate(size);
+    kernel[0] = 0.00390625f;
+    kernel[1] = 0.015625f;
+    kernel[2] = 0.0234375f;
+    kernel[3] = 0.015625f;
+    kernel[4] = 0.00390625f;
+
+    kernel[5] = 0.015625f;
+    kernel[6] = 0.0625f;
+    kernel[7] = 0.09375f;
+    kernel[8] = 0.0625f;
+    kernel[9] = 0.015625f;
+
+    kernel[10] = 0.0234375f;
+    kernel[11] = 0.09375f;
+    kernel[12] = 0.140625f;
+    kernel[13] = 0.09375f;
+    kernel[14] = 0.0234375f;
+
+    kernel[15] = 0.015625f;
+    kernel[16] = 0.0625f;
+    kernel[17] = 0.09375f;
+    kernel[18] = 0.0625f;
+    kernel[19] = 0.015625f;
+
+    kernel[20] = 0.00390625f;
+    kernel[21] = 0.015625f;
+    kernel[22] = 0.0234375f;
+    kernel[23] = 0.015625f;
+    kernel[24] = 0.00390625f;
+
+    m_convolutionKernels.layer1.fromBuffer(kernel,
+        size,
+        VK_FORMAT_R32_SFLOAT,
+        w,
+        h,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+    alloc.destroy(kernel);
+}
+
+void DenoiserApp::createShaderRTBindingTable()
 {
     // Create buffer for the shader binding table
     const uint32_t sbtSize
@@ -838,12 +985,13 @@ void MonteCarloRTApp::createShaderRTBindingTable()
     m_shaderBindingTable.unmap();
 }
 
-void MonteCarloRTApp::prepare()
+void DenoiserApp::prepare()
 {
     BaseRTProject::prepare();
     BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
 
     createStorageImages();
+    createConvolutionKernels();
     createUniformBuffers();
     createDescriptorSetsLayout();
     assignPushConstants();
@@ -856,7 +1004,7 @@ void MonteCarloRTApp::prepare()
     m_prepared = true;
 }
 
-void MonteCarloRTApp::render()
+void DenoiserApp::render()
 {
     if (!m_prepared) {
         return;
@@ -868,7 +1016,7 @@ void MonteCarloRTApp::render()
     std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
 }
 
-MonteCarloRTApp::~MonteCarloRTApp()
+DenoiserApp::~DenoiserApp()
 {
     vkDestroyPipeline(m_device, m_pipelines.postProcess, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.rayTracing, nullptr);
@@ -879,6 +1027,9 @@ MonteCarloRTApp::~MonteCarloRTApp()
         m_postprocessDescriptorSetLayouts.set1InputImage,
         nullptr);
     vkDestroyDescriptorSetLayout(m_device,
+        m_postprocessDescriptorSetLayouts.set2ConvolutionKernels,
+        nullptr);
+    vkDestroyDescriptorSetLayout(m_device,
         m_rtDescriptorSetLayouts.set0AccelerationStructure,
         nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set1Scene, nullptr);
@@ -886,8 +1037,12 @@ MonteCarloRTApp::~MonteCarloRTApp()
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5ResultImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set6AuxImage, nullptr);
     m_storageImage.color.destroy();
     m_storageImage.depthMap.destroy();
+    m_storageImage.firstSample.destroy();
+    m_auxImages.rgbNoise.destroy();
+    m_convolutionKernels.layer1.destroy();
 
     m_shaderBindingTable.destroy();
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
@@ -899,7 +1054,7 @@ MonteCarloRTApp::~MonteCarloRTApp()
     m_scene->destroy();
 }
 
-void MonteCarloRTApp::viewChanged()
+void DenoiserApp::viewChanged()
 {
     auto camera = m_scene->getCamera();
     m_sceneUniformData.projInverse = glm::inverse(camera->matrices.perspective);
@@ -907,16 +1062,18 @@ void MonteCarloRTApp::viewChanged()
     m_sceneUniformData.frameIteration = 0;
 }
 
-void MonteCarloRTApp::onSwapChainRecreation()
+void DenoiserApp::onSwapChainRecreation()
 {
     // Recreate the result image to fit the new extent size
+    m_storageImage.firstSample.destroy();
     m_storageImage.color.destroy();
     m_storageImage.depthMap.destroy();
+    m_auxImages.rgbNoise.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();
 }
 
-void MonteCarloRTApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods)
+void DenoiserApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods)
 {
     switch (t_key) {
     case GLFW_KEY_J:
@@ -931,7 +1088,7 @@ void MonteCarloRTApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_
         break;
     }
 }
-void MonteCarloRTApp::windowResized()
+void DenoiserApp::windowResized()
 {
     BaseRTProject::windowResized();
     m_sceneUniformData.frameChanged = 1;

@@ -3,16 +3,16 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-#ifndef MANUEME_MONTE_CARLO_RAY_TRACING_H
-#define MANUEME_MONTE_CARLO_RAY_TRACING_H
+#ifndef MANUEME_DENOISER_H
+#define MANUEME_DENOISER_H
 
 #include "base_rt_project.h"
 #include "core/texture.h"
 
-class MonteCarloRTApp : public BaseRTProject {
+class DenoiserApp : public BaseRTProject {
 public:
-    MonteCarloRTApp();
-    ~MonteCarloRTApp();
+    DenoiserApp();
+    ~DenoiserApp();
 
 private:
     struct {
@@ -31,6 +31,7 @@ private:
         VkDescriptorSet set3Materials;
         VkDescriptorSet set4Lights;
         VkDescriptorSet set5ResultImage;
+        VkDescriptorSet set6AuxImage;
     } m_rtDescriptorSets;
     struct {
         VkDescriptorSetLayout set0AccelerationStructure;
@@ -39,14 +40,17 @@ private:
         VkDescriptorSetLayout set3Materials;
         VkDescriptorSetLayout set4Lights;
         VkDescriptorSetLayout set5ResultImage;
+        VkDescriptorSetLayout set6AuxImage;
     } m_rtDescriptorSetLayouts;
     struct {
         std::vector<VkDescriptorSet> set0Scene;
         VkDescriptorSet set1InputImage;
+        VkDescriptorSet set2ConvolutionKernels;
     } m_postprocessDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1InputImage;
+        VkDescriptorSetLayout set2ConvolutionKernels;
     } m_postprocessDescriptorSetLayouts;
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
@@ -56,7 +60,17 @@ private:
     struct {
         VulkanTexture2D color;
         VulkanTexture2D depthMap;
+        VulkanTexture2D firstSample;
     } m_storageImage;
+
+    // Unused for now
+    struct {
+        VulkanTexture2D rgbNoise;
+    } m_auxImages;
+
+    struct {
+        VulkanTexture2D layer1;
+    } m_convolutionKernels;
 
     struct UniformData {
         glm::mat4 viewInverse { glm::mat4(0.0) };
@@ -93,6 +107,7 @@ private:
     void buildCommandBuffers() override;
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
     void createStorageImages();
+    void createConvolutionKernels();
     void createDescriptorPool();
     void createDescriptorSetsLayout();
     void assignPushConstants();
@@ -106,4 +121,4 @@ private:
     void getEnabledFeatures() override;
 };
 
-#endif // MANUEME_MONTE_CARLO_RAY_TRACING_H
+#endif // MANUEME_DENOISER_H
