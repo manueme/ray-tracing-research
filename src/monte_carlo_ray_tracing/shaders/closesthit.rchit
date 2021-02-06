@@ -27,7 +27,7 @@ layout(binding = 0, set = 1) uniform _SceneProperties
     vec4 overrideSunDirection;
     int frameIteration;
     int frame;
-    bool frameChanged;
+    int frameChanged;
 }
 scene;
 layout(binding = 0, set = 3) uniform sampler2D textures[];

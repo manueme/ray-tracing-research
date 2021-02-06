@@ -41,7 +41,7 @@ layout(binding = 0, set = 1) uniform _SceneProperties
     vec4 overrideSunDirection;
     int frameIteration;
     int frame;
-    bool frameChanged;
+    int frameChanged;
 }
 scene;
 
@@ -74,7 +74,7 @@ const float CAMERA_DEFAULT_FOCAL_DEPTH = RAY_DISTANCE / 3.0f;
 float estimateFocalDepth()
 {
 #ifdef STORE_DEPTH_MAP
-    if (!scene.frameChanged) { // use the depth map of the previous frame
+    if (scene.frameChanged != 1) { // use the depth map of the previous frame
         vec2 sensorSize = gl_LaunchSizeEXT.xy / 128.0f;
         vec2 screenCenter = gl_LaunchSizeEXT.xy / 2.0f;
         float samp = imageLoad(imageDepth, ivec2(screenCenter.x, screenCenter.y - sensorSize.y)).r;
