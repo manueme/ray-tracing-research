@@ -17,15 +17,22 @@ layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(location = RT_PAYLOAD_LOCATION) rayPayloadEXT RayPayload rayPayloadBRDF;
 
 // #define SAMPLE_PRIMARY
-// #define DEPTH_OF_FIELD
-#define USE_DEPTH_MAP
-#define SHOW_NANS
+#define DEPTH_OF_FIELD
+#define STORE_DEPTH_MAP
+// #define STORE_NORMAL_MAP
+// #define STORE_ALBEDO_MAP
+// #define SHOW_NANS
 
-layout(binding = 0, set = 5, rgba32f) uniform image2D imageColor;
-#ifdef USE_DEPTH_MAP
+layout(binding = 0, set = 5, rgba32f) uniform image2D imageResult;
+#ifdef STORE_DEPTH_MAP
 layout(binding = 1, set = 5, r32f) uniform image2D imageDepth;
 #endif
-layout(binding = 2, set = 5, rgba8) uniform image2D imageFirstSample;
+#ifdef STORE_NORMAL_MAP
+layout(binding = 2, set = 5, rgba32f) uniform image2D imageNormal;
+#endif
+#ifdef STORE_ALBEDO_MAP
+layout(binding = 3, set = 5, rgba32f) uniform image2D imageAlbedo;
+#endif
 
 layout(binding = 0, set = 1) uniform _SceneProperties
 {
@@ -34,7 +41,7 @@ layout(binding = 0, set = 1) uniform _SceneProperties
     vec4 overrideSunDirection;
     int frameIteration;
     int frame;
-    int frameChanged;
+    bool frameChanged;
 }
 scene;
 
@@ -66,8 +73,8 @@ const float CAMERA_DEFAULT_FOCAL_DEPTH = RAY_DISTANCE / 3.0f;
 
 float estimateFocalDepth()
 {
-#ifdef USE_DEPTH_MAP
-    if (scene.frameChanged != 1) { // use the depth map of the previous frame
+#ifdef STORE_DEPTH_MAP
+    if (!scene.frameChanged) { // use the depth map of the previous frame
         vec2 sensorSize = gl_LaunchSizeEXT.xy / 128.0f;
         vec2 screenCenter = gl_LaunchSizeEXT.xy / 2.0f;
         float samp = imageLoad(imageDepth, ivec2(screenCenter.x, screenCenter.y - sensorSize.y)).r;
@@ -86,6 +93,8 @@ void main()
 {
     vec3 result = vec3(0.0f);
     vec3 hitDistance = vec3(0.0f);
+    vec3 hitNormal = vec3(0.0f);
+    vec3 hitAlbedo = vec3(0.0f);
 #ifdef DEPTH_OF_FIELD
     const float focalLength = estimateFocalDepth();
 #endif
@@ -159,8 +168,15 @@ void main()
         }
         // End Direct Illum ---
 
-#ifdef USE_DEPTH_MAP
+#ifdef STORE_DEPTH_MAP
         hitDistance += resultDistance / RAY_DISTANCE;
+#endif
+#ifdef STORE_ALBEDO_MAP
+        hitAlbedo
+            += min(rayPayloadBRDF.surfaceEmissive + rayPayloadBRDF.surfaceAttenuation, vec3(1.0f));
+#endif
+#ifdef STORE_NORMAL_MAP
+        hitNormal += rayPayloadBRDF.surfaceNormal;
 #endif
 
         // Indirect Illum
@@ -191,9 +207,17 @@ void main()
     }
 #ifdef SAMPLE_PRIMARY
     result /= float(samples);
-#ifdef USE_DEPTH_MAP
+
+#ifdef STORE_DEPTH_MAP
     hitDistance /= float(samples);
 #endif
+#ifdef STORE_ALBEDO_MAP
+    hitAlbedo /= float(samples);
+#endif
+#ifdef STORE_NORMAL_MAP
+    hitNormal /= float(samples);
+#endif
+
 #endif
 
 #ifdef SHOW_NANS
@@ -203,15 +227,25 @@ void main()
     }
 #endif
 
-    // Do accumulation (imageColor should be rgba32f to avoid losing precision)
     if (scene.frameIteration > 0) {
+        // Do accumulation (imageResult should be rgba32f to avoid losing precision)
         const float a = 1.0f / float(scene.frameIteration);
-        const vec3 oldColor = imageLoad(imageColor, ivec2(gl_LaunchIDEXT.xy)).xyz;
-        imageStore(imageColor, ivec2(gl_LaunchIDEXT.xy), vec4(mix(oldColor, result, a), 1.0f));
+        const vec3 oldColor = imageLoad(imageResult, ivec2(gl_LaunchIDEXT.xy)).xyz;
+        imageStore(imageResult, ivec2(gl_LaunchIDEXT.xy), vec4(mix(oldColor, result, a), 1.0f));
     } else {
-        imageStore(imageColor, ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0f));
-    }
-#ifdef USE_DEPTH_MAP
-    imageStore(imageDepth, ivec2(gl_LaunchIDEXT.xy), vec4(hitDistance, 1.0f));
+        imageStore(imageResult, ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0f));
+
+        // Don't need accumulation on albedo, normal, and depth,
+        // storing these on every frame can be avoided:
+#ifdef STORE_ALBEDO_MAP
+        imageStore(imageAlbedo, ivec2(gl_LaunchIDEXT.xy), vec4(hitAlbedo, 1.0f));
 #endif
+#ifdef STORE_DEPTH_MAP
+        imageStore(imageDepth, ivec2(gl_LaunchIDEXT.xy), vec4(hitDistance, 1.0f));
+#endif
+#ifdef STORE_NORMAL_MAP
+        imageStore(imageNormal, ivec2(gl_LaunchIDEXT.xy), vec4(hitNormal, 1.0f));
+#endif
+        //---
+    }
 }

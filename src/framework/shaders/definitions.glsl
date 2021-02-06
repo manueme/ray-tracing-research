@@ -7,6 +7,7 @@ struct RayPayload {
     vec3 surfaceEmissive;
     vec3 surfaceRadiance;
     vec3 surfaceAttenuation;
+    vec3 surfaceNormal;
     vec3 nextRayOrigin;
     vec3 nextRayDirection;
     uint seed;

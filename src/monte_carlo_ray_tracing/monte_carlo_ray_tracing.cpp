@@ -147,10 +147,6 @@ void MonteCarloRTApp::createDescriptorPool()
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Result images
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-        // Aux images
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-        // Convolution Kernel
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
     };
     // Calculate max set for pool
     const auto asSets = 1;
@@ -159,11 +155,9 @@ void MonteCarloRTApp::createDescriptorPool()
     const auto textures = 1;
     const auto materials = 1;
     const auto lights = 1;
-    const auto resultImages = 3;
-    const auto auxImages = 1;
-    const auto convolutionKernel = 1;
-    uint32_t maxSetsForPool = asSets + sceneSets + vertexAndIndexes + textures + materials + lights
-        + resultImages + auxImages + convolutionKernel;
+    const auto resultImages = 4;
+    uint32_t maxSetsForPool
+        = asSets + sceneSets + vertexAndIndexes + textures + materials + lights + resultImages;
     // ---
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo
@@ -279,10 +273,15 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             1));
     setLayoutBindings.push_back(
-        // Binding 2 : Result Image
+        // Binding 2 : Result Image Normal Map
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             2));
+    setLayoutBindings.push_back(
+        // Binding  3: Result Image Albedo
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+            3));
 
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
@@ -337,16 +336,6 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_FRAGMENT_BIT,
             0));
-    setLayoutBindings.push_back(
-        // Binding 1 : Result Image Depth Map
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            1));
-    setLayoutBindings.push_back(
-        // Binding 2 : Result Image First Sample
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            2));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
     VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
@@ -705,14 +694,24 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
         = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             0,
-            &m_storageImage.color.descriptor);
+            &m_storageImage.result.descriptor);
     VkWriteDescriptorSet resultDepthMapWrite
         = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             1,
             &m_storageImage.depthMap.descriptor);
+    VkWriteDescriptorSet resultNormalMapWrite
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            2,
+            &m_storageImage.normalMap.descriptor);
+    VkWriteDescriptorSet resultAlbedoWrite
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            3,
+            &m_storageImage.albedo.descriptor);
     std::vector<VkWriteDescriptorSet> writeDescriptorSet5
-        = { resultImageWrite, resultDepthMapWrite };
+        = { resultImageWrite, resultDepthMapWrite, resultNormalMapWrite, resultAlbedoWrite };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet5.size()),
         writeDescriptorSet5.data(),
@@ -723,14 +722,8 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
         = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
-            &m_storageImage.color.descriptor);
-    VkWriteDescriptorSet inputDepthMapWrite
-        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            1,
-            &m_storageImage.depthMap.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess
-        = { inputImageWrite, inputDepthMapWrite };
+            &m_storageImage.result.descriptor);
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess = { inputImageWrite };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet1Postprocess.size()),
         writeDescriptorSet1Postprocess.data(),
@@ -785,10 +778,30 @@ void MonteCarloRTApp::createUniformBuffers()
 */
 void MonteCarloRTApp::createStorageImages()
 {
-    // NOTE: I RGBA32f is used because of the accumulation feature in order to avoid losing quality
-    // over frames for "real-time" frames you may want to change the format to a more efficient one,
-    // like the swapchain image format "m_swapChain.colorFormat"
-    m_storageImage.color.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+    // NOTE: For the result RGBA32f is used because of the accumulation feature in order to avoid
+    // losing quality over frames for "real-time" frames you may want to change the format to a more
+    // efficient one, like the swapchain image format "m_swapChain.colorFormat"
+    m_storageImage.result.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+
+    // For normals and depth map 32 bits per channel is less negotiable by the denoiser, maybe 16 if
+    // I use Tensor Cores, albedo could be 8 bits but I'll also use 32 to be consistent for now...
+    // TODO: to try 8 bits for albedo and 16 bits for depth and normals
+    m_storageImage.normalMap.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+    m_storageImage.albedo.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
         m_width,
         m_height,
         m_vulkanDevice,
@@ -861,11 +874,12 @@ void MonteCarloRTApp::render()
     if (!m_prepared) {
         return;
     }
-    m_sceneUniformData.frameIteration++;
-    m_sceneUniformData.frame++;
-    m_sceneUniformData.frameChanged = 0;
-    BaseRTProject::renderFrame();
-    std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+    if (BaseRTProject::renderFrame() == VK_SUCCESS) {
+        m_sceneUniformData.frameChanged = 0;
+        m_sceneUniformData.frameIteration++;
+        m_sceneUniformData.frame++;
+        std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+    }
 }
 
 MonteCarloRTApp::~MonteCarloRTApp()
@@ -886,8 +900,10 @@ MonteCarloRTApp::~MonteCarloRTApp()
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5ResultImage, nullptr);
-    m_storageImage.color.destroy();
+    m_storageImage.result.destroy();
     m_storageImage.depthMap.destroy();
+    m_storageImage.normalMap.destroy();
+    m_storageImage.albedo.destroy();
 
     m_shaderBindingTable.destroy();
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
@@ -910,8 +926,10 @@ void MonteCarloRTApp::viewChanged()
 void MonteCarloRTApp::onSwapChainRecreation()
 {
     // Recreate the result image to fit the new extent size
-    m_storageImage.color.destroy();
+    m_storageImage.result.destroy();
     m_storageImage.depthMap.destroy();
+    m_storageImage.normalMap.destroy();
+    m_storageImage.albedo.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();
 }

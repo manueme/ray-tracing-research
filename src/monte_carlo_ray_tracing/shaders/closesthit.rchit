@@ -106,6 +106,9 @@ void main()
         shadingNormal = -shadingNormal;
         inside = true;
     };
+    // #### Store hitNormal ####
+    rayPayload.surfaceNormal = shadingNormal;
+    // ####
 
     // ####  Compute surface albedo ####
     vec4 surfaceAlbedo;

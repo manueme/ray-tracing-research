@@ -22,4 +22,5 @@ void main()
     rayPayloadBRDF.done = 1;
     rayPayloadBRDF.hitDistance = RAY_MAX_HIT;
     rayPayloadBRDF.rayType = RAY_TYPE_MISS;
+    rayPayloadBRDF.surfaceNormal = vec3(0.0f);
 }

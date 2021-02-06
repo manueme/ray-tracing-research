@@ -26,9 +26,10 @@ void HybridPipelineRT::render()
     if (!m_prepared) {
         return;
     }
-    m_sceneUniformData.frame++;
-    BaseRTProject::renderFrame();
-    std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+    if (BaseRTProject::renderFrame() == VK_SUCCESS) {
+        m_sceneUniformData.frame++;
+        std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+    }
 }
 
 void HybridPipelineRT::buildCommandBuffers()

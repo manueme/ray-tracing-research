@@ -1009,11 +1009,12 @@ void DenoiserApp::render()
     if (!m_prepared) {
         return;
     }
-    m_sceneUniformData.frameIteration++;
-    m_sceneUniformData.frame++;
-    m_sceneUniformData.frameChanged = 0;
-    BaseRTProject::renderFrame();
-    std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+    if (BaseRTProject::renderFrame() == VK_SUCCESS) {
+        m_sceneUniformData.frameChanged = 0;
+        m_sceneUniformData.frameIteration++;
+        m_sceneUniformData.frame++;
+        std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+    }
 }
 
 DenoiserApp::~DenoiserApp()

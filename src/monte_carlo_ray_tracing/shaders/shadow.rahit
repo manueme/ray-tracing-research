@@ -46,7 +46,7 @@ void main()
     if (transparency >= 1.0) {
         rayPayloadShadow.shadowAmount = 1.0;
     } else {
-        rayPayloadShadow.shadowAmount += transparency;
+        rayPayloadShadow.shadowAmount = min(1.0, rayPayloadShadow.shadowAmount + transparency);
         ignoreIntersectionEXT;
     }
 }

@@ -17,8 +17,6 @@ layout(set = 0, binding = 0) uniform _SceneProperties
 }
 scene;
 layout(set = 1, binding = 0) uniform sampler2D rtInputColor;
-// layout(set = 1, binding = 1) uniform sampler2D rtInputNormal;
-// layout(set = 2, binding = 0, r32f) uniform image2D convLayer1;
 
 in vec4 gl_FragCoord;
 

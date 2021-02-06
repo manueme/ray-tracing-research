@@ -65,7 +65,7 @@ VkResult BaseProject::createInstance(bool t_enableValidation)
     return vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance);
 }
 
-void BaseProject::renderFrame()
+VkResult BaseProject::renderFrame()
 {
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     // Acquire the next image from the swap chain
@@ -116,6 +116,7 @@ void BaseProject::renderFrame()
         VKM_CHECK_RESULT(result)
     }
     m_currentFrame = (m_currentFrame + 1) % max_frames_in_flight;
+    return result;
 }
 
 void BaseProject::createCommandBuffers()

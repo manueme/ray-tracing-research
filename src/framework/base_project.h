@@ -235,7 +235,7 @@ protected:
 
     /** @brief (Virtual) Default image acquire + submission and command buffer
      * submission function */
-    virtual void renderFrame();
+    virtual VkResult renderFrame();
 
     /** @brief (Virtual) Called once per frame */
     virtual void updateUniformBuffers(uint32_t t_currentImage);
