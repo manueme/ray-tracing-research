@@ -245,7 +245,7 @@ void BaseRTProject::createRTScene(const std::string& t_modelPath, SceneVertexLay
     std::thread loadSceneThread(&Scene::loadFromFile, m_scene, t_modelPath, t_vertexLayout, &modelCreateInfo, m_vulkanDevice, m_queue);
     loadSceneThread.detach();
     while (!m_scene->isLoaded()) {
-        glfwWaitEvents();
+        glfwWaitEventsTimeout(1);
     }
     std::cout << "\nGenerating acceleration structure..." << std::endl;
     auto camera = m_scene->getCamera();
