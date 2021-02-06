@@ -12,7 +12,9 @@ set(SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.frag.spv
         )
 
-file(GLOB SOURCE ${FRAMEWORK_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+set(MONTE_CARLO_APP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../monte_carlo_ray_tracing)
+set(MONTE_CARLO_APP_SOURCE ${MONTE_CARLO_APP_DIR}/monte_carlo_ray_tracing.cpp)
+file(GLOB SOURCE ${FRAMEWORK_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp ${MONTE_CARLO_APP_SOURCE})
 set(MAIN_CPP main.cpp)
 add_executable(${SUB_PROJECT_NAME} ${MAIN_CPP} ${SOURCE})
 target_link_libraries(${SUB_PROJECT_NAME} ${TARGET_LIBRARIES})
