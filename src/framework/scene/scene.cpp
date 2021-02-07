@@ -5,13 +5,6 @@
 
 #include "scene.h"
 
-SceneVertexLayout::SceneVertexLayout(std::vector<Component> t_components)
-{
-    this->components = std::move(t_components);
-}
-
-SceneVertexLayout::~SceneVertexLayout() = default;
-
 uint32_t SceneVertexLayout::stride()
 {
     uint32_t res = 0;
@@ -171,7 +164,7 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
                         vertexBuffer.push_back(pTexCoord->y * uvscale.t);
                         break;
                     case VERTEX_COMPONENT_TANGENT:
-                        if (isnan(pTangent->x) || isnan(pTangent->y) || isnan(pTangent->z)) {
+                        if (std::isnan(pTangent->x) || std::isnan(pTangent->y) || std::isnan(pTangent->z)) {
                             vertexBuffer.push_back(1.f);
                             vertexBuffer.push_back(1.f);
                             vertexBuffer.push_back(1.f);

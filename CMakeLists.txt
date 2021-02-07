@@ -3,6 +3,8 @@ project(ray_tracing_research)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS=1)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
 # Determine platform architecture
 IF (CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -81,7 +83,7 @@ include_directories(${EXTERNAL_SOURCES}/glm)
 # ############
 
 set(ASSETS_FOLDER assets)
-set(TARGET_LIBRARIES ${FREEIMAGE_LIBRARIES} ${GLFW_LIBRARIES} ${ASSIMP_LIBRARIES} Vulkan::Vulkan)
+set(TARGET_LIBRARIES ${FREEIMAGE_LIBRARIES} ${GLFW_LIBRARIES} ${ASSIMP_LIBRARIES} Vulkan::Vulkan Threads::Threads)
 set(FRAMEWORK_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/framework/*.*pp ${CMAKE_CURRENT_SOURCE_DIR}/src/framework/*/*.*pp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/framework)
 

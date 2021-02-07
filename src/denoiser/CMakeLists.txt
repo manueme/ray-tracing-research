@@ -39,7 +39,7 @@ ELSEIF (UNIX)
     add_custom_command(
             TARGET ${SUB_PROJECT_NAME}
             POST_BUILD
-            COMMAND make -f shaders/Makefile build-shaders
+            COMMAND make -f ${CMAKE_CURRENT_SOURCE_DIR}/shaders/Makefile build-shaders
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
             COMMAND ${CMAKE_COMMAND} -E copy ${SHADERS}
             ${CMAKE_CURRENT_BINARY_DIR}/shaders

@@ -17,7 +17,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-using SwapChainBuffer = struct {
+struct SwapChainBuffer {
     VkImage image;
     VkImageView view;
 };

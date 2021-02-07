@@ -7,6 +7,7 @@
 #define MANUEME_DEBUG_H
 
 #include "vulkan/vulkan.h"
+#include <cmath>
 #include <iostream>
 
 namespace debug {

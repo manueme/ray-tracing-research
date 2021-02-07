@@ -32,7 +32,7 @@
 #include "vulkan/vulkan.h"
 
 /** @brief Vertex layout components */
-using Component = enum {
+enum Component {
     VERTEX_COMPONENT_POSITION = 0x0,
     VERTEX_COMPONENT_NORMAL = 0x1,
     VERTEX_COMPONENT_UV = 0x2,
@@ -46,10 +46,11 @@ using Component = enum {
  * input and attribute bindings  */
 class SceneVertexLayout {
 public:
-    std::vector<Component> components;
-    explicit SceneVertexLayout(std::vector<Component> t_components);
-    ~SceneVertexLayout();
+    explicit SceneVertexLayout(std::vector<Component> t_components)
+        : components(std::move(t_components)) {};
+    ~SceneVertexLayout() = default;
     uint32_t stride();
+    std::vector<Component> components;
 };
 
 /** @brief Used to parametrize model loading */
