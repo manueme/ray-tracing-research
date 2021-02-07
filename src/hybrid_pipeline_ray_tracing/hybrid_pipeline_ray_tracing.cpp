@@ -780,21 +780,21 @@ void HybridPipelineRT::createStorageImages()
 {
     m_offscreenImages.resize(m_swapChain.imageCount);
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
-        m_offscreenImages[i].offscreenColor.colorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_offscreenImages[i].offscreenColor.toColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenNormals.colorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_offscreenImages[i].offscreenNormals.toColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenReflectRefractMap.colorAttachment(
+        m_offscreenImages[i].offscreenReflectRefractMap.toColorAttachment(
             VK_FORMAT_R32G32B32A32_SFLOAT,
             m_width,
             m_height,
@@ -802,7 +802,7 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_offscreenImages[i].offscreenDepth.depthAttachment(VK_FORMAT_D32_SFLOAT,
+        m_offscreenImages[i].offscreenDepth.toDepthAttachment(VK_FORMAT_D32_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,

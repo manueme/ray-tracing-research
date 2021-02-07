@@ -54,13 +54,10 @@ private:
 
     // Images used to store ray traced image
     struct {
-        VulkanTexture2D result;
-        // - Normal map, Depth Map and Albedo are used by the denoiser in the denoiser app,
-        // can be removed if you don't need them.
-        // - The depth map is also used for the DOF effect
-        VulkanTexture2D depthMap;
-        VulkanTexture2D normalMap;
-        VulkanTexture2D albedo;
+        Texture result;
+        Texture depthMap;
+        Texture normalMap;
+        Texture albedo;
     } m_storageImage;
 
     struct UniformData {

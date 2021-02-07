@@ -84,7 +84,7 @@ public:
 
     std::vector<Instance> instances;
     std::vector<Mesh> meshes;
-    std::vector<VulkanTexture2D> textures;
+    std::vector<Texture> textures;
 
     struct Dimension {
         glm::vec3 min = glm::vec3(FLT_MAX);

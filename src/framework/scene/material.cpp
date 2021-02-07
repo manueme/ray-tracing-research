@@ -75,7 +75,7 @@ Material::Material(Device* t_device, VkQueue t_copyQueue, Scene* t_parent, const
         t_aiMaterial->GetTexture(aiTextureType_DIFFUSE, 0, &textureFile);
         if (auto texture = t_scene->GetEmbeddedTexture(textureFile.C_Str())) {
             VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
-            VulkanTexture2D texture2D;
+            Texture texture2D;
             texture2D.loadFromAssimp(texture, format, t_device, t_copyQueue);
             material.diffuseMapIndex = static_cast<int>(t_parent->textures.size());
             t_parent->textures.push_back(texture2D);
@@ -86,7 +86,7 @@ Material::Material(Device* t_device, VkQueue t_copyQueue, Scene* t_parent, const
         t_aiMaterial->GetTexture(aiTextureType_NORMALS, 0, &textureFile);
         if (auto texture = t_scene->GetEmbeddedTexture(textureFile.C_Str())) {
             VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
-            VulkanTexture2D texture2D;
+            Texture texture2D;
             texture2D.loadFromAssimp(texture, format, t_device, t_copyQueue);
             material.normalMapIndex = static_cast<int>(t_parent->textures.size());
             t_parent->textures.push_back(texture2D);
@@ -97,7 +97,7 @@ Material::Material(Device* t_device, VkQueue t_copyQueue, Scene* t_parent, const
         t_aiMaterial->GetTexture(aiTextureType_EMISSIVE, 0, &textureFile);
         if (auto texture = t_scene->GetEmbeddedTexture(textureFile.C_Str())) {
             VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
-            VulkanTexture2D texture2D;
+            Texture texture2D;
             texture2D.loadFromAssimp(texture, format, t_device, t_copyQueue);
             material.emissiveMapIndex = static_cast<int>(t_parent->textures.size());
             t_parent->textures.push_back(texture2D);

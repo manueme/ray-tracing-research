@@ -50,7 +50,7 @@ VkImageView Texture::getImageView() { return m_view; }
 
 VkImage Texture::getImage() { return m_image; }
 
-void VulkanTexture2D::loadFromFile(const std::string& t_filename, VkFormat t_format,
+void Texture::loadFromFile(const std::string& t_filename, VkFormat t_format,
     Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
     VkImageLayout t_imageLayout, bool t_forceLinear, VkImageTiling t_tiling)
 {
@@ -66,7 +66,7 @@ void VulkanTexture2D::loadFromFile(const std::string& t_filename, VkFormat t_for
     FreeImage_Unload(fibitmap);
 }
 
-void VulkanTexture2D::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_format,
+void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_format,
     uint32_t t_texWidth, uint32_t t_texHeight, Device* t_device, VkQueue t_copyQueue,
     VkFilter t_filter, VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout)
 {
@@ -226,7 +226,7 @@ void VulkanTexture2D::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFo
     updateDescriptor();
 }
 
-void VulkanTexture2D::loadFromAssimp(const aiTexture* t_texture, VkFormat t_format,
+void Texture::loadFromAssimp(const aiTexture* t_texture, VkFormat t_format,
     Device* t_device, VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags,
     VkImageLayout t_imageLayout, bool t_forceLinear, VkImageTiling t_tiling)
 {
@@ -257,7 +257,7 @@ void VulkanTexture2D::loadFromAssimp(const aiTexture* t_texture, VkFormat t_form
     FreeImage_CloseMemory(fiMemory);
 }
 
-void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* t_device,
+void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* t_device,
     VkQueue t_copyQueue, VkImageUsageFlags t_imageUsageFlags, VkImageLayout t_imageLayout,
     bool t_forceLinear, VkImageTiling t_tiling)
 {
@@ -533,7 +533,7 @@ void VulkanTexture2D::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, 
     updateDescriptor();
 }
 
-void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
+void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
     Device* t_device, VkQueue t_copyQueue, VkFilter t_filter, VkImageUsageFlags t_imageUsageFlags,
     VkImageLayout t_imageLayout, VkImageAspectFlags t_aspectFlags)
 {
@@ -623,7 +623,7 @@ void VulkanTexture2D::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32
     updateDescriptor();
 }
 
-void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
+void Texture::toDepthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
     Device* t_device, VkQueue t_copyQueue, VkSampleCountFlagBits t_samples, VkImageUsageFlags t_imageUsageFlags)
 {
     this->m_device = t_device;
@@ -705,7 +705,7 @@ void VulkanTexture2D::depthAttachment(VkFormat t_format, uint32_t t_texWidth, ui
     updateDescriptor();
 }
 
-void VulkanTexture2D::colorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
+void Texture::toColorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
     Device* t_device, VkQueue t_copyQueue, VkSampleCountFlagBits t_samples, VkImageUsageFlags t_imageUsageFlags)
 {
     this->m_device = t_device;
@@ -787,10 +787,3 @@ void VulkanTexture2D::colorAttachment(VkFormat t_format, uint32_t t_texWidth, ui
     // descriptor sets
     updateDescriptor();
 }
-
-VulkanTexture2D::VulkanTexture2D()
-    : Texture()
-{
-}
-
-VulkanTexture2D::~VulkanTexture2D() = default;

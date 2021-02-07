@@ -75,11 +75,11 @@ private:
 
     // Images used to store ray traced image
     struct OffscreenImages {
-        VulkanTexture2D offscreenColor;
-        VulkanTexture2D offscreenNormals;
-        VulkanTexture2D offscreenDepth;
-        VulkanTexture2D offscreenReflectRefractMap;
-        VulkanTexture2D rtResultImage;
+        Texture offscreenColor;
+        Texture offscreenNormals;
+        Texture offscreenDepth;
+        Texture offscreenReflectRefractMap;
+        Texture rtResultImage;
     };
     // we will have one set of images per swap image
     std::vector<OffscreenImages> m_offscreenImages;
