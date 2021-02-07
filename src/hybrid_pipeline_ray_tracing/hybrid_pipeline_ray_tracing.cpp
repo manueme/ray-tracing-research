@@ -812,6 +812,7 @@ void HybridPipelineRT::createStorageImages()
         m_offscreenImages[i].rtResultImage.fromNothing(VK_FORMAT_R8G8B8A8_UNORM,
             m_width,
             m_height,
+            1,
             m_vulkanDevice,
             m_queue,
             VK_FILTER_LINEAR,

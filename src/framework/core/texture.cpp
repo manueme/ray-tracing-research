@@ -533,7 +533,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
     updateDescriptor();
 }
 
-void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
+void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight, uint32_t t_texDepth,
     Device* t_device, VkQueue t_copyQueue, VkFilter t_filter, VkImageUsageFlags t_imageUsageFlags,
     VkImageLayout t_imageLayout, VkImageAspectFlags t_aspectFlags)
 {
@@ -544,13 +544,13 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
 
     VkImageCreateInfo image = {};
     image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image.imageType = VK_IMAGE_TYPE_2D;
+    image.imageType = t_texDepth == 1 ? VK_IMAGE_TYPE_2D : VK_IMAGE_TYPE_3D;
     image.format = t_format;
     image.extent.width = t_texWidth;
     image.extent.height = t_texHeight;
-    image.extent.depth = 1;
+    image.extent.depth = t_texDepth;
     image.mipLevels = 1;
-    image.arrayLayers = 1;
+    image.arrayLayers = t_texDepth;
     image.samples = VK_SAMPLE_COUNT_1_BIT;
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     image.usage = t_imageUsageFlags;
@@ -570,7 +570,7 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
 
     VkImageViewCreateInfo colorImageView = {};
     colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    colorImageView.viewType = t_texDepth == 1 ? VK_IMAGE_VIEW_TYPE_2D : VK_IMAGE_VIEW_TYPE_3D;
     colorImageView.format = t_format;
     colorImageView.components = { VK_COMPONENT_SWIZZLE_R,
         VK_COMPONENT_SWIZZLE_G,
@@ -581,7 +581,7 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
     colorImageView.subresourceRange.baseMipLevel = 0;
     colorImageView.subresourceRange.levelCount = 1;
     colorImageView.subresourceRange.baseArrayLayer = 0;
-    colorImageView.subresourceRange.layerCount = 1;
+    colorImageView.subresourceRange.layerCount = t_texDepth;
     colorImageView.image = m_image;
     VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view))
 

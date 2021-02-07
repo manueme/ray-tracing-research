@@ -22,8 +22,8 @@ hitAttributeEXT vec3 attribs;
 
 layout(push_constant) uniform Constants
 {
-    int maxDepth;
-    int samples;
+    uint maxDepth;
+    uint samples;
 };
 
 void main()

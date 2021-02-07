@@ -11,9 +11,9 @@ layout(set = 0, binding = 0) uniform _SceneProperties
 {
     mat4 viewInverse;
     mat4 projInverse;
-    int frameIteration;
-    int frame;
-    int frameChanged;
+    uint frameIteration;
+    uint frame;
+    uint frameChanged;
 }
 scene;
 layout(set = 1, binding = 0) uniform sampler2D rtInputColor;

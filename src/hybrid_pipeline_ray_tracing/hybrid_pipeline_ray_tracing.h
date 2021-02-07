@@ -96,7 +96,7 @@ private:
         glm::mat4 viewInverse { glm::mat4(1.0) };
         glm::mat4 projInverse { glm::mat4(1.0) };
         glm::vec4 overrideSunDirection { glm::vec4(0.0) };
-        int frame { 0 }; // Current frame
+        uint32_t frame { 0 }; // Current frame
     } m_sceneUniformData;
     // one for each swap chain image, the scene can change on every frame
     std::vector<Buffer> m_sceneBuffers;
@@ -110,12 +110,12 @@ private:
 
     Buffer m_shaderBindingTable;
 
-    const int m_ray_tracer_depth = 8;
-    const int m_ray_tracer_samples = 1;
+    const uint32_t m_ray_tracer_depth = 8;
+    const uint32_t m_ray_tracer_samples = 1;
     // Push constant sent to the path tracer
     struct PathTracerParameters {
-        int maxDepth; // Max depth
-        int samples; // samples per frame
+        uint32_t maxDepth; // Max depth
+        uint32_t samples; // samples per frame
     } m_pathTracerParams;
 
     void render() override;

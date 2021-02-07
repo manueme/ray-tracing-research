@@ -26,8 +26,8 @@ layout(binding = 0, set = 6, rgba8) uniform image2D resultImage;
 
 layout(push_constant) uniform Constants
 {
-    int maxDepth;
-    int samples;
+    uint maxDepth;
+    uint samples;
 };
 
 float get_hit_depth(vec2 inUV)
