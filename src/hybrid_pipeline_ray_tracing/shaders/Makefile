@@ -10,4 +10,5 @@ build-shaders:
 	glslc $(SHADERS_DIR)/offscreen.vert -o $(SHADERS_DIR)/offscreen.vert.spv
 	glslc $(SHADERS_DIR)/offscreen.frag -o $(SHADERS_DIR)/offscreen.frag.spv
 	glslc $(SHADERS_DIR)/postprocess.vert -o $(SHADERS_DIR)/postprocess.vert.spv
-    glslc $(SHADERS_DIR)/postprocess.frag -o $(SHADERS_DIR)/postprocess.frag.spv
+	glslc $(SHADERS_DIR)/postprocess.frag -o $(SHADERS_DIR)/postprocess.frag.spv
+
