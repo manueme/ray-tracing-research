@@ -4,7 +4,7 @@
  */
 
 #include "base_rt_project.h"
-#include "shaders/constants.h"
+#include "shaders/shared_constants.h"
 #include <thread>
 
 BaseRTProject::BaseRTProject(
@@ -242,7 +242,13 @@ void BaseRTProject::createRTScene(const std::string& t_modelPath, SceneVertexLay
     SceneCreateInfo modelCreateInfo(glm::vec3(1.0f), glm::vec3(1.0f), glm::vec3(0.0f));
     modelCreateInfo.memoryPropertyFlags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     m_scene = new Scene();
-    std::thread loadSceneThread(&Scene::loadFromFile, m_scene, t_modelPath, t_vertexLayout, &modelCreateInfo, m_vulkanDevice, m_queue);
+    std::thread loadSceneThread(&Scene::loadFromFile,
+        m_scene,
+        t_modelPath,
+        t_vertexLayout,
+        &modelCreateInfo,
+        m_vulkanDevice,
+        m_queue);
     loadSceneThread.detach();
     while (!m_scene->isLoaded()) {
         glfwWaitEventsTimeout(1);

@@ -7,19 +7,19 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_ray_tracing : require
 
-#include "../../framework/shaders/common.glsl"
-#include "../../framework/shaders/constants.h"
-#include "../../framework/shaders/definitions.glsl"
+#include "app_definitions.glsl"
 
-layout(location = RT_PAYLOAD_LOCATION) rayPayloadInEXT RayPayload rayPayloadBRDF;
+#include "../../framework/shaders/utils.glsl"
+
+layout(location = RT_PAYLOAD_LOCATION) rayPayloadInEXT RayPayload rayInPayload;
 
 void main()
 {
     vec3 color = sky_ray(-gl_WorldRayDirectionEXT);
-    rayPayloadBRDF.surfaceRadiance = color;
-    rayPayloadBRDF.surfaceEmissive = vec3(0.0f);
-    rayPayloadBRDF.surfaceAttenuation = vec3(1.0f);
-    rayPayloadBRDF.done = 1;
-    rayPayloadBRDF.hitDistance = RAY_MAX_HIT;
-    rayPayloadBRDF.rayType = RAY_TYPE_MISS;
+    rayInPayload.surfaceRadiance = color;
+    rayInPayload.surfaceEmissive = vec3(0.0f);
+    rayInPayload.surfaceAttenuation = vec3(1.0f);
+    rayInPayload.done = 1;
+    rayInPayload.hitDistance = RAY_MAX_HIT;
+    rayInPayload.rayType = RAY_TYPE_MISS;
 }

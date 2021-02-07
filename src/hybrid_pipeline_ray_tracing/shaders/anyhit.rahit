@@ -9,27 +9,23 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "../../framework/shaders/constants.h"
-#include "../../framework/shaders/definitions.glsl"
-#include "../../framework/shaders/vertex.glsl"
+#include "app_definitions.glsl"
+
+#include "../../framework/shaders/ray_tracing_apps/materials.glsl"
+#include "../../framework/shaders/ray_tracing_apps/vertex.glsl"
 
 hitAttributeEXT vec3 attribs;
-
-layout(binding = 0, set = 3) uniform sampler2D textures[];
-layout(binding = 1, set = 3) buffer _Materials { MaterialProperties m[]; }
-materials;
 
 void main()
 {
     const Surface hitSurface = get_surface_instance(gl_InstanceID, gl_PrimitiveID, attribs.xy);
     const uint materialIndex = instanceInfo.i[gl_InstanceID].materialIndex;
     const MaterialProperties material = materials.m[materialIndex];
-    const int diffuseMapIndex = material.diffuseMapIndex;
     bool ignore = false;
-    if (diffuseMapIndex >= 0) {
+    if (material.diffuseMapIndex >= 0) {
         // We don't consider refractive materials in the hybrid pipeline
         const vec2 uv = get_surface_uv(hitSurface);
-        ignore = texture(textures[nonuniformEXT(diffuseMapIndex)], uv).w == 0;
+        ignore = texture(textures[nonuniformEXT(material.diffuseMapIndex)], uv).w == 0;
     } else {
         ignore = material.opacity == 0;
     }

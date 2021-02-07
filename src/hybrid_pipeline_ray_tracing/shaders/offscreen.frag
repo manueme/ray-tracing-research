@@ -7,10 +7,9 @@
 #extension GL_GOOGLE_include_directive : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "../../framework/shaders/common.glsl"
-#include "../../framework/shaders/constants.h"
-#include "../../framework/shaders/definitions.glsl"
-#include "./hybrid_constants.h"
+#include "app_definitions.glsl"
+
+#include "../../framework/shaders/utils.glsl"
 
 layout(binding = 0, set = 1) uniform sampler2D textures[];
 layout(binding = 1, set = 1) buffer _Materials { MaterialProperties m[]; }
@@ -110,7 +109,7 @@ void main()
     vec3 diffuse = vec3(0.0);
     vec3 specular = vec3(0.0);
     vec3 emissive = surfaceEmissive;
-    float ambient = AMBIENT_WEIGHT;
+    vec3 ambient = vec3(AMBIENT_WEIGHT);
     for (int i = 0; i < lighting.l.length(); ++i) {
         const LightProperties light = lighting.l[i];
         vec3 lightDir = vec3(0.0f);
@@ -125,7 +124,10 @@ void main()
             continue;
         }
         const float cosThetaLight = dot(shadingNormal, -lightDir);
-        diffuse += lightIntensity * max(cosThetaLight, ambient);
+        if (cosThetaLight <= 0) {
+            continue;
+        }
+        diffuse += lightIntensity * cosThetaLight;
         if (material.shininessStrength == 0) {
             continue;
         }
@@ -138,5 +140,5 @@ void main()
     outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
         surfaceAlbedo.a); // transform them back to view space
     outFragReflectRefractMap = vec4(reflectPercent, refractPercent, ior, alphaWithoutRefractives);
-    outFragColor = vec4((diffuse + specular) * surfaceAlbedo.rgb, emissive.r);
+    outFragColor = vec4((max(diffuse, ambient) + specular) * surfaceAlbedo.rgb, emissive.r);
 }

@@ -9,17 +9,14 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "../../framework/shaders/common.glsl"
-#include "../../framework/shaders/constants.h"
-#include "../../framework/shaders/definitions.glsl"
-#include "./hybrid_constants.h"
+#include "app_definitions.glsl"
+#include "app_scene.glsl"
 
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(location = RT_PAYLOAD_SHADOW_LOCATION) rayPayloadEXT RayPayloadShadow rayPayloadShadow;
-layout(location = RT_PAYLOAD_LOCATION) rayPayloadEXT RayPayload rayPayload;
-
-layout(binding = 0, set = 4) buffer _Lights { LightProperties l[]; }
-lighting;
+#include "../../framework/shaders/ray_tracing_apps/acc_structure.glsl"
+#include "../../framework/shaders/ray_tracing_apps/lights.glsl"
+#include "../../framework/shaders/ray_tracing_apps/trace_ray.glsl"
+#include "../../framework/shaders/ray_tracing_apps/trace_shadow_ray.glsl"
+#include "../../framework/shaders/utils.glsl"
 
 layout(binding = 0, set = 5) uniform sampler2D inputColor;
 layout(binding = 1, set = 5) uniform sampler2D inputNormals;
@@ -27,57 +24,11 @@ layout(binding = 2, set = 5) uniform sampler2D inputReflectRefractMap;
 layout(binding = 3, set = 5) uniform sampler2D inputDepth;
 layout(binding = 0, set = 6, rgba8) uniform image2D resultImage;
 
-layout(binding = 0, set = 1) uniform _SceneProperties
-{
-    mat4 projection;
-    mat4 model;
-    mat4 view;
-    mat4 viewInverse;
-    mat4 projInverse;
-    vec4 overrideSunDirection;
-    int frame;
-}
-scene;
-
 layout(push_constant) uniform Constants
 {
     int maxDepth;
     int samples;
 };
-
-float trace_shadow_ray(vec3 origin, vec3 direction, float maxDistance)
-{
-    const uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT;
-    rayPayloadShadow.shadowAmount = 0.0f;
-    traceRayEXT(topLevelAS,
-        rayFlags,
-        AS_FLAG_EVERYTHING,
-        SBT_MC_SHADOW_HIT_GROUP /*sbtRecordOffset*/,
-        0 /*sbtRecordStride*/,
-        SBT_MC_SHADOW_MISS_INDEX /*missIndex*/,
-        origin,
-        0.0f,
-        direction,
-        maxDistance,
-        RT_PAYLOAD_SHADOW_LOCATION);
-    return rayPayloadShadow.shadowAmount;
-}
-
-void trace_ray(vec3 origin, vec3 direction)
-{
-    uint rayFlags = gl_RayFlagsNoneEXT;
-    traceRayEXT(topLevelAS,
-        rayFlags,
-        AS_FLAG_EVERYTHING,
-        SBT_MC_HIT_GROUP /*sbtRecordOffset*/,
-        0 /*sbtRecordStride*/,
-        SBT_MC_MISS_INDEX /*missIndex*/,
-        origin,
-        0.0f,
-        direction,
-        CAMERA_FAR,
-        RT_PAYLOAD_LOCATION);
-}
 
 float get_hit_depth(vec2 inUV)
 {
@@ -98,20 +49,23 @@ void reset_payload()
     rayPayload.rayType = RAY_TYPE_UNDEFINED;
 }
 
+const float RAY_DISTANCE = CAMERA_FAR - CAMERA_NEAR;
+
 void main()
 {
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5f);
     const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
-
     const vec2 thetaOut = inUV * 2.0f - 1.0f;
     const vec4 target = scene.projInverse * vec4(thetaOut.x, thetaOut.y, 1.0f, 1.0f);
     vec3 direction = (scene.viewInverse * vec4(normalize(target.xyz / target.w), 0.0f)).xyz;
     const float hitDepth = get_hit_depth(inUV);
 
     vec4 result;
-    if (hitDepth < CAMERA_FAR - CAMERA_NEAR) {
+    if (hitDepth < RAY_DISTANCE) {
         vec3 origin = (scene.viewInverse * vec4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+        // CAMERA_NEAR is substracted to the depht to be consistent with the depth map:
         const vec3 hitPoint = origin + direction * (hitDepth - CAMERA_NEAR);
+        // ---
         vec3 shadingNormal = texture(inputNormals, inUV).xyz;
         const vec4 reflectRefractData = texture(inputReflectRefractMap, inUV).xyzw;
         float alphaWithoutRefractives = reflectRefractData.w;
@@ -129,9 +83,8 @@ void main()
             vec3 refractionPoint = hitPoint;
             if (!is_zero(refractionRayDirection)) {
                 reset_payload();
-                trace_ray(refractionPoint, refractionRayDirection);
-                refractions = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance)
-                    * refractionPercent;
+                trace_ray(refractionPoint, refractionRayDirection, 0.0f, CAMERA_FAR);
+                refractions = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance);
             } else {
                 refractionPercent = 0.0f;
             }
@@ -141,17 +94,21 @@ void main()
             vec3 reflectionRayDirection = reflect(direction, shadingNormal);
             vec3 reflectionPoint = hitPoint;
             reset_payload();
-            trace_ray(reflectionPoint, reflectionRayDirection);
-            reflections
-                = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance) * reflectionPercent;
+            trace_ray(reflectionPoint, reflectionRayDirection, 0.0f, CAMERA_FAR);
+            reflections = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance);
         }
         reset_payload();
 
-        vec3 reflectRefractResult = reflections + refractions;
-        const float refractReflectComplement = (1.0f - (reflectionPercent + refractionPercent));
+        vec3 reflectRefractResult
+            = reflections * reflectionPercent + refractions * refractionPercent;
+        float surfacePercent = (1.0f - (reflectionPercent + refractionPercent));
 
-        if (refractReflectComplement > 0.0f) {
+        if (surfacePercent > 0.0f) {
             float lightAmmount = AMBIENT_WEIGHT;
+            // Shadows need more precision,
+            // the further the hit was, the less prcise the depth map is:
+            const vec3 shadowHitPoint
+                = origin + direction * (hitDepth - CAMERA_NEAR * (hitDepth / RAY_DISTANCE));
             for (int i = 0; i < lighting.l.length(); ++i) {
                 const LightProperties light = lighting.l[i];
                 vec3 lightDir = vec3(0.0f);
@@ -162,12 +119,11 @@ void main()
                     continue;
                 }
                 const float lightVisibility
-                    = 1.0f - trace_shadow_ray(hitPoint, -lightDir, maxHitDistance);
+                    = 1.0f - trace_shadow_ray(shadowHitPoint, -lightDir, 0.0f, maxHitDistance);
                 lightAmmount += lightVisibility;
             }
-            lightAmmount = min(lightAmmount, 1.0f);
             surfaceColor = vec4(
-                surfaceColor.xyz * lightAmmount * refractReflectComplement + reflectRefractResult,
+                surfaceColor.xyz * min(lightAmmount, 1.0f) * surfacePercent + reflectRefractResult,
                 surfaceColor.w);
         } else {
             surfaceColor = vec4(reflectRefractResult, 1.0f);

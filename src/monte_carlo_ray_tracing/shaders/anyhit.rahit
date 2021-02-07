@@ -9,15 +9,12 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "../../framework/shaders/constants.h"
-#include "../../framework/shaders/definitions.glsl"
-#include "../../framework/shaders/vertex.glsl"
+#include "app_definitions.glsl"
+
+#include "../../framework/shaders/ray_tracing_apps/materials.glsl"
+#include "../../framework/shaders/ray_tracing_apps/vertex.glsl"
 
 hitAttributeEXT vec3 attribs;
-
-layout(binding = 0, set = 3) uniform sampler2D textures[];
-layout(binding = 1, set = 3) buffer _Materials { MaterialProperties m[]; }
-materials;
 
 void main()
 {

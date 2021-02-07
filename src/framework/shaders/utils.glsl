@@ -1,10 +1,10 @@
-
 /*
  * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
  * (http://opensource.org/licenses/MIT)
  */
 
-#include "../../framework/shaders/constants.h" // to get M_PIf
+#ifndef UTILS_GLSL
+#define UTILS_GLSL
 
 vec3 sky_ray(vec3 dir)
 {
@@ -128,3 +128,31 @@ float fresnel(const vec3 incident, vec3 normal, float etaI, float etaT)
         = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
     return (rParl * rParl + rPerp * rPerp) / 2;
 }
+
+void get_reflect_refract_percent(const MaterialProperties material, const vec3 hitDirection,
+    const vec4 surfaceAlbedo, const vec3 shadingNormal, bool inside, out float reflectPercent,
+    out float refractPercent, out float surfacePercent, out float ior)
+{
+    const float reflectivity = material.reflectivity;
+    float endRefractIdx;
+    float startRefractIdx;
+    if (inside) {
+        startRefractIdx = material.refractIdx;
+        endRefractIdx = 1.0f;
+    } else {
+        startRefractIdx = 1.0f;
+        endRefractIdx = material.refractIdx;
+    }
+    ior = startRefractIdx / endRefractIdx;
+    reflectPercent = 0.0f;
+    refractPercent = 0.0f;
+    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
+        reflectPercent = fresnel(hitDirection, shadingNormal, startRefractIdx, endRefractIdx);
+        refractPercent = 1.0 - reflectPercent - surfaceAlbedo.a;
+    } else if (reflectivity != NOT_REFLECTVE_IDX) {
+        reflectPercent = reflectivity;
+    }
+    surfacePercent = max(0.0f, 1.0f - reflectPercent - refractPercent);
+}
+
+#endif // UTILS_GLSL

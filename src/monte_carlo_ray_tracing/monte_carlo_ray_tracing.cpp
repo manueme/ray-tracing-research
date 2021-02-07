@@ -4,8 +4,7 @@
  */
 
 #include "monte_carlo_ray_tracing.h"
-
-#include "shaders/constants.h"
+#include "constants.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -32,6 +31,7 @@ void MonteCarloRTApp::buildCommandBuffers()
     clearValues[0].color = m_default_clear_color;
     clearValues[1].depthStencil = { 1.0f, 0 };
     VkRenderPassBeginInfo renderPassBeginInfo = {};
+
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassBeginInfo.renderPass = m_renderPass;
     renderPassBeginInfo.renderArea.offset.x = 0;
@@ -421,22 +421,22 @@ void MonteCarloRTApp::createPostprocessPipeline()
 void MonteCarloRTApp::createRTPipeline()
 {
     std::array<VkPipelineShaderStageCreateInfo, 6> shaderStages {};
-    shaderStages[SBT_MC_RAY_GEN_INDEX]
+    shaderStages[SBT_RAY_GEN_INDEX]
         = loadShader("./shaders/raygen.rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
-    shaderStages[SBT_MC_MISS_INDEX]
+    shaderStages[SBT_MISS_INDEX]
         = loadShader("./shaders/miss.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
-    shaderStages[SBT_MC_SHADOW_MISS_INDEX]
+    shaderStages[SBT_SHADOW_MISS_INDEX]
         = loadShader("./shaders/shadow.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR);
-    shaderStages[SBT_MC_ANY_HIT_INDEX]
+    shaderStages[SBT_ANY_HIT_INDEX]
         = loadShader("./shaders/anyhit.rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
-    shaderStages[SBT_MC_CLOSEST_HIT_INDEX]
+    shaderStages[SBT_CLOSEST_HIT_INDEX]
         = loadShader("./shaders/closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
-    shaderStages[SBT_MC_SHADOW_ANY_HIT_INDEX]
+    shaderStages[SBT_SHADOW_ANY_HIT_INDEX]
         = loadShader("./shaders/shadow.rahit.spv", VK_SHADER_STAGE_ANY_HIT_BIT_KHR);
     /*
       Setup ray tracing shader groups
     */
-    std::array<VkRayTracingShaderGroupCreateInfoKHR, SBT_MC_NUM_SHADER_GROUPS> groups {};
+    std::array<VkRayTracingShaderGroupCreateInfoKHR, SBT_NUM_SHADER_GROUPS> groups {};
     for (auto& group : groups) {
         // Init all groups with some default values
         group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
@@ -448,21 +448,21 @@ void MonteCarloRTApp::createRTPipeline()
 
     // Links shaders and types to ray tracing shader groups
     // Ray generation shader group
-    groups[SBT_MC_RAY_GEN_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-    groups[SBT_MC_RAY_GEN_GROUP].generalShader = SBT_MC_RAY_GEN_INDEX;
+    groups[SBT_RAY_GEN_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    groups[SBT_RAY_GEN_GROUP].generalShader = SBT_RAY_GEN_INDEX;
     // Scene miss shader group
-    groups[SBT_MC_MISS_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-    groups[SBT_MC_MISS_GROUP].generalShader = SBT_MC_MISS_INDEX;
+    groups[SBT_MISS_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    groups[SBT_MISS_GROUP].generalShader = SBT_MISS_INDEX;
     // Shadow miss shader group
-    groups[SBT_MC_SHADOW_MISS_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-    groups[SBT_MC_SHADOW_MISS_GROUP].generalShader = SBT_MC_SHADOW_MISS_INDEX;
+    groups[SBT_SHADOW_MISS_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+    groups[SBT_SHADOW_MISS_GROUP].generalShader = SBT_SHADOW_MISS_INDEX;
     // Any hit shader group and closest hit shader group
-    groups[SBT_MC_HIT_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-    groups[SBT_MC_HIT_GROUP].anyHitShader = SBT_MC_ANY_HIT_INDEX;
-    groups[SBT_MC_HIT_GROUP].closestHitShader = SBT_MC_CLOSEST_HIT_INDEX;
+    groups[SBT_HIT_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    groups[SBT_HIT_GROUP].anyHitShader = SBT_ANY_HIT_INDEX;
+    groups[SBT_HIT_GROUP].closestHitShader = SBT_CLOSEST_HIT_INDEX;
     // Shadow closest hit shader group
-    groups[SBT_MC_SHADOW_HIT_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-    groups[SBT_MC_SHADOW_HIT_GROUP].anyHitShader = SBT_MC_SHADOW_ANY_HIT_INDEX;
+    groups[SBT_SHADOW_HIT_GROUP].type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+    groups[SBT_SHADOW_HIT_GROUP].anyHitShader = SBT_SHADOW_ANY_HIT_INDEX;
 
     VkRayTracingPipelineCreateInfoKHR rayPipelineInfo {};
     rayPipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
@@ -823,7 +823,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
 {
     // Create buffer for the shader binding table
     const uint32_t sbtSize
-        = m_rayTracingPipelineProperties.shaderGroupHandleSize * SBT_MC_NUM_SHADER_GROUPS;
+        = m_rayTracingPipelineProperties.shaderGroupHandleSize * SBT_NUM_SHADER_GROUPS;
     m_shaderBindingTable.create(m_vulkanDevice,
         VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -834,20 +834,16 @@ void MonteCarloRTApp::createShaderRTBindingTable()
     VKM_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(m_device,
         m_pipelines.rayTracing,
         0,
-        SBT_MC_NUM_SHADER_GROUPS,
+        SBT_NUM_SHADER_GROUPS,
         sbtSize,
         shaderHandleStorage));
     auto* data = static_cast<uint8_t*>(m_shaderBindingTable.mapped);
     // Copy the shader identifiers to the shader binding table
-    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_RAY_GEN_GROUP);
-    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_MISS_GROUP);
-    data += BaseRTProject::copyRTShaderIdentifier(data,
-        shaderHandleStorage,
-        SBT_MC_SHADOW_MISS_GROUP);
-    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MC_HIT_GROUP);
-    data += BaseRTProject::copyRTShaderIdentifier(data,
-        shaderHandleStorage,
-        SBT_MC_SHADOW_HIT_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_RAY_GEN_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_MISS_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_SHADOW_MISS_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_HIT_GROUP);
+    data += BaseRTProject::copyRTShaderIdentifier(data, shaderHandleStorage, SBT_SHADOW_HIT_GROUP);
     m_shaderBindingTable.unmap();
 }
 

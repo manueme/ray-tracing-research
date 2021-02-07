@@ -3,6 +3,9 @@
  * (http://opensource.org/licenses/MIT)
  */
 
+#ifndef SHARED_DEFINITIONS_GLSL
+#define SHARED_DEFINITIONS_GLSL
+
 struct RayPayload {
     vec3 surfaceEmissive;
     vec3 surfaceRadiance;
@@ -59,3 +62,5 @@ struct LightProperties {
 };
 
 const vec3 SUN_POWER = vec3(1.0, 0.9, 0.7);
+
+#endif // SHARED_DEFINITIONS_GLSL

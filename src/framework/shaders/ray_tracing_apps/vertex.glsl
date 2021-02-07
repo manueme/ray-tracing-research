@@ -3,13 +3,14 @@
  * (http://opensource.org/licenses/MIT)
  */
 
-// #define FLAT_SHADING
+#ifndef VERTEX_GLSL
+#define VERTEX_GLSL
 
-layout(binding = 0, set = 2) buffer Vertices { vec4 v[]; }
+layout(binding = 0, set = VERTEX_SET) buffer Vertices { vec4 v[]; }
 vertices;
-layout(binding = 1, set = 2) buffer _Indices { uint i[]; }
+layout(binding = 1, set = VERTEX_SET) buffer _Indices { uint i[]; }
 indices;
-layout(binding = 2, set = 2) readonly buffer _Instances { ShaderMeshInstance i[]; }
+layout(binding = 2, set = VERTEX_SET) readonly buffer _Instances { ShaderMeshInstance i[]; }
 instanceInfo;
 
 struct Vertex {
@@ -73,6 +74,16 @@ vec3 get_surface_tangent(const Surface s)
         + s.v2.tangent * s.barycentricCoords.z);
 }
 
+void get_surface_tangent_space(
+    const Surface s, out vec3 normal, out vec3 tangent, out vec3 bitangent)
+{
+    normal = get_surface_normal(s);
+    tangent = get_surface_tangent(s);
+    // re-orthogonalize T with respect to N
+    tangent = normalize(tangent - dot(tangent, normal) * normal);
+    bitangent = normalize(cross(normal, tangent));
+}
+
 vec3 get_surface_pos(const Surface s)
 {
     return s.v0.pos * s.barycentricCoords.x + s.v1.pos * s.barycentricCoords.y
@@ -89,3 +100,5 @@ float get_surface_area(const Surface s)
 {
     return 0.5f * length(cross(s.v1.pos.xyz - s.v0.pos.xyz, s.v2.pos.xyz - s.v0.pos.xyz));
 }
+
+#endif // VERTEX_GLSL
