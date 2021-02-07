@@ -1,0 +1,36 @@
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_ray_tracing : require
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
+
+#include "app_definitions.glsl"
+
+#include "../../framework/shaders/ray_tracing_apps/materials.glsl"
+#include "../../framework/shaders/ray_tracing_apps/vertex.glsl"
+
+hitAttributeEXT vec3 attribs;
+
+void main()
+{
+    const Surface hitSurface = get_surface_instance(gl_InstanceID, gl_PrimitiveID, attribs.xy);
+    const uint materialIndex = instanceInfo.i[gl_InstanceID].materialIndex;
+    const MaterialProperties material = materials.m[materialIndex];
+    bool ignore = false;
+    // #### ignore if it is transparent ####
+    if (material.diffuseMapIndex >= 0) {
+        const vec2 uv = get_surface_uv(hitSurface);
+        ignore = texture(textures[nonuniformEXT(material.diffuseMapIndex)], uv).w == 0
+            && material.refractIdx == NOT_REFRACTIVE_IDX;
+    } else {
+        ignore = material.opacity == 0 && material.refractIdx == NOT_REFRACTIVE_IDX;
+    }
+    if (ignore) {
+        ignoreIntersectionEXT;
+    }
+}

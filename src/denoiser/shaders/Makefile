@@ -1,5 +1,4 @@
 SHADERS_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-MONTE_CARLO_APP_SHADERS_DIR:=$($(SHADERS_DIR)/../../monte_carlo_ray_tracing/shaders)
 
 build-shaders:
 	glslc $(SHADERS_DIR)/closesthit.rchit -o $(SHADERS_DIR)/closesthit.rchit.spv --target-env=vulkan1.2
