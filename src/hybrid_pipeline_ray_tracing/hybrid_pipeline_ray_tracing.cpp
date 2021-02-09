@@ -68,7 +68,7 @@ void HybridPipelineRT::buildCommandBuffers()
     for (int32_t i = 0; i < m_drawCmdBuffers.size(); ++i) {
         rasterPassBeginInfo.framebuffer = m_offscreenFramebuffers[i];
 
-        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
+        CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
 
         // Offscreen render pass
         vkCmdBeginRenderPass(m_drawCmdBuffers[i], &rasterPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -180,7 +180,7 @@ void HybridPipelineRT::buildCommandBuffers()
         vkCmdEndRenderPass(m_drawCmdBuffers[i]);
         // End of Postprocess section --
 
-        VKM_CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
+        CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
     }
 }
 
@@ -219,7 +219,7 @@ void HybridPipelineRT::createDescriptorPool()
         = initializers::descriptorPoolCreateInfo(poolSizes.size(),
             poolSizes.data(),
             maxSetsForPool);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateDescriptorPool(m_device, &descriptorPoolInfo, nullptr, &m_descriptorPool))
 }
 
@@ -237,7 +237,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VkDescriptorSetLayoutCreateInfo descriptorLayout
             = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
                 setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rasterDescriptorSetLayouts.set0Scene))
@@ -257,7 +257,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 1));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rasterDescriptorSetLayouts.set1Materials))
@@ -272,7 +272,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 1));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rasterDescriptorSetLayouts.set2Lights))
@@ -288,7 +288,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
             = initializers::pushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(uint32_t), 0);
         pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
         pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-        VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
             &pipelineLayoutCreateInfo,
             nullptr,
             &m_pipelineLayouts.raster))
@@ -307,7 +307,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VkDescriptorSetLayoutCreateInfo descriptorLayout
             = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
                 setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set0AccelerationStructure))
@@ -323,7 +323,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         };
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set1Scene))
@@ -346,7 +346,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         };
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set2Geometry))
@@ -366,7 +366,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 1));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set3Materials))
@@ -382,7 +382,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 1));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set4Lights))
@@ -411,7 +411,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 3));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set5OffscreenImages))
@@ -425,7 +425,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 0));
         descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_rtDescriptorSetLayouts.set6StorageImages))
@@ -451,7 +451,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
                 rayTracingSetLayouts.size());
         rayTracingPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
         rayTracingPipelineLayoutCreateInfo.pPushConstantRanges = &rtPushConstantRange;
-        VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
             &rayTracingPipelineLayoutCreateInfo,
             nullptr,
             &m_pipelineLayouts.rayTracing))
@@ -469,7 +469,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VkDescriptorSetLayoutCreateInfo descriptorLayout
             = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
                 setLayoutBindings.size());
-        VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
             &m_postProcessDescriptorSetLayouts.set0StorageImages))
@@ -479,7 +479,7 @@ void HybridPipelineRT::createDescriptorSetLayout()
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo
             = initializers::pipelineLayoutCreateInfo(setLayouts.data(), setLayouts.size());
 
-        VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
             &pipelineLayoutCreateInfo,
             nullptr,
             &m_pipelineLayouts.postProcess))
@@ -499,7 +499,7 @@ void HybridPipelineRT::createDescriptorSets()
                 layouts.data(),
                 m_swapChain.imageCount);
         m_rasterDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &allocInfo, m_rasterDescriptorSets.set0Scene.data()))
         for (size_t i = 0; i < m_swapChain.imageCount; i++) {
             std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
@@ -522,7 +522,7 @@ void HybridPipelineRT::createDescriptorSets()
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
                 &m_rasterDescriptorSetLayouts.set1Materials,
                 1);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &textureAllocInfo,
             &m_rasterDescriptorSets.set1Materials))
 
@@ -558,7 +558,7 @@ void HybridPipelineRT::createDescriptorSets()
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
                 &m_rasterDescriptorSetLayouts.set2Lights,
                 1);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rasterDescriptorSets.set2Lights))
         VkWriteDescriptorSet writeLightsDescriptorSet
             = initializers::writeDescriptorSet(m_rasterDescriptorSets.set2Lights,
@@ -582,7 +582,7 @@ void HybridPipelineRT::createDescriptorSets()
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
                 &m_rtDescriptorSetLayouts.set0AccelerationStructure,
                 1);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &set0AllocInfo,
             &m_rtDescriptorSets.set0AccelerationStructure))
 
@@ -617,7 +617,7 @@ void HybridPipelineRT::createDescriptorSets()
                 set1Layouts.data(),
                 m_swapChain.imageCount);
         m_rtDescriptorSets.set1Scene.resize(m_swapChain.imageCount);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_rtDescriptorSets.set1Scene.data()))
         for (size_t i = 0; i < m_swapChain.imageCount; i++) {
             VkWriteDescriptorSet uniformBufferWrite
@@ -638,7 +638,7 @@ void HybridPipelineRT::createDescriptorSets()
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
                 &m_rtDescriptorSetLayouts.set2Geometry,
                 1);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry))
 
         VkDescriptorBufferInfo vertexBufferDescriptor {};
@@ -677,7 +677,7 @@ void HybridPipelineRT::createDescriptorSets()
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
                 &m_rtDescriptorSetLayouts.set3Materials,
                 1);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials))
 
         std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = {};
@@ -713,7 +713,7 @@ void HybridPipelineRT::createDescriptorSets()
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
                 &m_rtDescriptorSetLayouts.set4Lights,
                 1);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights))
         VkWriteDescriptorSet writeLightsDescriptorSet
             = initializers::writeDescriptorSet(m_rtDescriptorSets.set4Lights,
@@ -737,7 +737,7 @@ void HybridPipelineRT::createDescriptorSets()
                     storageImageLayouts.data(),
                     m_swapChain.imageCount);
             m_rtDescriptorSets.set5OffscreenImages.resize(m_swapChain.imageCount);
-            VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            CHECK_RESULT(vkAllocateDescriptorSets(m_device,
                 &set5AllocInfo,
                 m_rtDescriptorSets.set5OffscreenImages.data()))
         }
@@ -750,7 +750,7 @@ void HybridPipelineRT::createDescriptorSets()
                     storageImageLayouts.data(),
                     m_swapChain.imageCount);
             m_rtDescriptorSets.set6StorageImages.resize(m_swapChain.imageCount);
-            VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            CHECK_RESULT(vkAllocateDescriptorSets(m_device,
                 &set6AllocInfo,
                 m_rtDescriptorSets.set6StorageImages.data()))
         }
@@ -767,7 +767,7 @@ void HybridPipelineRT::createDescriptorSets()
                 storageImageLayouts.data(),
                 m_swapChain.imageCount);
         m_postProcessDescriptorSets.set0StorageImages.resize(m_swapChain.imageCount);
-        VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &storageImageAllocInfo,
             m_postProcessDescriptorSets.set0StorageImages.data()))
     }
@@ -913,7 +913,7 @@ void HybridPipelineRT::createOffscreenRenderPass()
     renderPassInfo.pSubpasses = &subpassDescription;
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
-    VKM_CHECK_RESULT(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_offscreenRenderPass))
+    CHECK_RESULT(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_offscreenRenderPass))
 }
 
 void HybridPipelineRT::createOffscreenFramebuffers()
@@ -934,7 +934,7 @@ void HybridPipelineRT::createOffscreenFramebuffers()
         framebufferCreateInfo.width = m_width;
         framebufferCreateInfo.height = m_height;
         framebufferCreateInfo.layers = 1;
-        VKM_CHECK_RESULT(vkCreateFramebuffer(m_device,
+        CHECK_RESULT(vkCreateFramebuffer(m_device,
             &framebufferCreateInfo,
             nullptr,
             &m_offscreenFramebuffers[i]))
@@ -1034,7 +1034,7 @@ void HybridPipelineRT::createUniformBuffers()
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             bufferSize);
-        VKM_CHECK_RESULT(m_sceneBuffers[i].map())
+        CHECK_RESULT(m_sceneBuffers[i].map())
     }
     // Instances Information uniform
     bufferSize = sizeof(ShaderMeshInstance) * m_scene->getInstancesCount();
@@ -1151,7 +1151,7 @@ void HybridPipelineRT::createRasterPipeline()
     // Default mesh rendering pipeline
     shaderStages[0] = loadShader("shaders/offscreen.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
     shaderStages[1] = loadShader("shaders/offscreen.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-    VKM_CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
+    CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
         m_pipelineCache,
         1,
         &pipelineCreateInfo,
@@ -1213,7 +1213,7 @@ void HybridPipelineRT::createPostprocessPipeline()
     pipelineCreateInfo.stageCount = shaderStages.size();
     pipelineCreateInfo.pStages = shaderStages.data();
     pipelineCreateInfo.pVertexInputState = &vertexInputState;
-    VKM_CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
+    CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
         m_pipelineCache,
         1,
         &pipelineCreateInfo,
@@ -1241,7 +1241,7 @@ void HybridPipelineRT::createShaderRTBindingTable()
     m_shaderBindingTable.map();
     auto shaderHandleStorage = new uint8_t[sbtSize];
     // Get shader identifiers
-    VKM_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(m_device,
+    CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(m_device,
         m_pipelines.rayTracing,
         0,
         SBT_NUM_SHADER_GROUPS,
@@ -1311,7 +1311,7 @@ void HybridPipelineRT::createRTPipeline()
     rayPipelineInfo.pGroups = groups.data();
     rayPipelineInfo.maxPipelineRayRecursionDepth = m_pathTracerParams.maxDepth;
     rayPipelineInfo.layout = m_pipelineLayouts.rayTracing;
-    VKM_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(m_device,
+    CHECK_RESULT(vkCreateRayTracingPipelinesKHR(m_device,
         VK_NULL_HANDLE,
         VK_NULL_HANDLE,
         1,

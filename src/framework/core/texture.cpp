@@ -94,7 +94,7 @@ void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_f
     bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateBuffer(t_device->logicalDevice, &bufferCreateInfo, nullptr, &stagingBuffer));
 
     // Get memory requirements for the staging buffer (alignment, memory type
@@ -106,13 +106,13 @@ void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_f
     memAllocInfo.memoryTypeIndex = t_device->getMemoryType(memReqs.memoryTypeBits,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateMemory(t_device->logicalDevice, &memAllocInfo, nullptr, &stagingMemory));
-    VKM_CHECK_RESULT(vkBindBufferMemory(t_device->logicalDevice, stagingBuffer, stagingMemory, 0));
+    CHECK_RESULT(vkBindBufferMemory(t_device->logicalDevice, stagingBuffer, stagingMemory, 0));
 
     // Copy texture data into staging buffer
     uint8_t* data;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkMapMemory(t_device->logicalDevice, stagingMemory, 0, memReqs.size, 0, (void**)&data));
     memcpy(data, t_buffer, t_bufferSize);
     vkUnmapMemory(t_device->logicalDevice, stagingMemory);
@@ -144,7 +144,7 @@ void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_f
     if (!(imageCreateInfo.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)) {
         imageCreateInfo.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
-    VKM_CHECK_RESULT(vkCreateImage(t_device->logicalDevice, &imageCreateInfo, nullptr, &m_image));
+    CHECK_RESULT(vkCreateImage(t_device->logicalDevice, &imageCreateInfo, nullptr, &m_image));
 
     vkGetImageMemoryRequirements(t_device->logicalDevice, m_image, &memReqs);
 
@@ -152,9 +152,9 @@ void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_f
 
     memAllocInfo.memoryTypeIndex
         = t_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateMemory(t_device->logicalDevice, &memAllocInfo, nullptr, &m_deviceMemory));
-    VKM_CHECK_RESULT(vkBindImageMemory(t_device->logicalDevice, m_image, m_deviceMemory, 0));
+    CHECK_RESULT(vkBindImageMemory(t_device->logicalDevice, m_image, m_deviceMemory, 0));
 
     VkImageSubresourceRange subresourceRange = {};
     subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -207,7 +207,7 @@ void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_f
     samplerCreateInfo.minLod = 0.0f;
     samplerCreateInfo.maxLod = 0.0f;
     samplerCreateInfo.maxAnisotropy = 1.0f;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateSampler(t_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
 
     // Create image view
@@ -219,7 +219,7 @@ void Texture::fromBuffer(void* t_buffer, VkDeviceSize t_bufferSize, VkFormat t_f
     viewCreateInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
     viewCreateInfo.subresourceRange.levelCount = 1;
     viewCreateInfo.image = m_image;
-    VKM_CHECK_RESULT(vkCreateImageView(t_device->logicalDevice, &viewCreateInfo, nullptr, &m_view));
+    CHECK_RESULT(vkCreateImageView(t_device->logicalDevice, &viewCreateInfo, nullptr, &m_view));
 
     // Update descriptor image info member that can be used for setting up
     // descriptor sets
@@ -297,7 +297,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
         bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkCreateBuffer(t_device->logicalDevice, &bufferCreateInfo, nullptr, &stagingBuffer));
 
         // Get memory requirements for the staging buffer (alignment, memory type
@@ -309,14 +309,14 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
         memAllocInfo.memoryTypeIndex = t_device->getMemoryType(memReqs.memoryTypeBits,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateMemory(t_device->logicalDevice, &memAllocInfo, nullptr, &stagingMemory));
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkBindBufferMemory(t_device->logicalDevice, stagingBuffer, stagingMemory, 0));
 
         // Copy texture data into staging buffer
         uint8_t* data;
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkMapMemory(t_device->logicalDevice, stagingMemory, 0, memReqs.size, 0, (void**)&data));
         memcpy(data, FreeImage_GetBits(t_fibitmap), imageSize);
         vkUnmapMemory(t_device->logicalDevice, stagingMemory);
@@ -353,7 +353,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
         if (!(imageCreateInfo.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)) {
             imageCreateInfo.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         }
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkCreateImage(t_device->logicalDevice, &imageCreateInfo, nullptr, &m_image));
 
         vkGetImageMemoryRequirements(t_device->logicalDevice, m_image, &memReqs);
@@ -362,9 +362,9 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
 
         memAllocInfo.memoryTypeIndex
             = t_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateMemory(t_device->logicalDevice, &memAllocInfo, nullptr, &m_deviceMemory));
-        VKM_CHECK_RESULT(vkBindImageMemory(t_device->logicalDevice, m_image, m_deviceMemory, 0));
+        CHECK_RESULT(vkBindImageMemory(t_device->logicalDevice, m_image, m_deviceMemory, 0));
 
         VkImageSubresourceRange subresourceRange = {};
         subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -427,7 +427,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
         imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
         // Load mip map level 0 to linear tiling image
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkCreateImage(t_device->logicalDevice, &imageCreateInfo, nullptr, &mappableImage));
 
         // Get memory requirements for this image
@@ -441,11 +441,11 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
         // Allocate host memory
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkAllocateMemory(t_device->logicalDevice, &memAllocInfo, nullptr, &mappableMemory));
 
         // Bind allocated image for use
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkBindImageMemory(t_device->logicalDevice, mappableImage, mappableMemory, 0));
 
         // Get sub resource layout
@@ -462,7 +462,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
         vkGetImageSubresourceLayout(t_device->logicalDevice, mappableImage, &subRes, &subResLayout);
 
         // Map image memory
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkMapMemory(t_device->logicalDevice, mappableMemory, 0, memReqs.size, 0, &data));
 
         // Copy image data into memory
@@ -506,7 +506,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
         : 1.0f;
     samplerCreateInfo.anisotropyEnable = t_device->enabledFeatures.samplerAnisotropy;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateSampler(t_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
 
     // Create image view
@@ -526,7 +526,7 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
     // Only set mip map count if optimal tiling is used
     viewCreateInfo.subresourceRange.levelCount = 1;
     viewCreateInfo.image = m_image;
-    VKM_CHECK_RESULT(vkCreateImageView(t_device->logicalDevice, &viewCreateInfo, nullptr, &m_view));
+    CHECK_RESULT(vkCreateImageView(t_device->logicalDevice, &viewCreateInfo, nullptr, &m_view));
 
     // Update descriptor image info member that can be used for setting up
     // descriptor sets
@@ -555,7 +555,7 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     image.usage = t_imageUsageFlags;
     image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VKM_CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
+    CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
 
     VkMemoryRequirements memReqs;
     vkGetImageMemoryRequirements(m_device->logicalDevice, m_image, &memReqs);
@@ -564,9 +564,9 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
     memoryAllocateInfo.allocationSize = memReqs.size;
     memoryAllocateInfo.memoryTypeIndex
         = m_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateMemory(m_device->logicalDevice, &memoryAllocateInfo, nullptr, &m_deviceMemory));
-    VKM_CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
+    CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
 
     VkImageViewCreateInfo colorImageView = {};
     colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -583,7 +583,7 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = t_texDepth;
     colorImageView.image = m_image;
-    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view))
+    CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view))
 
     // Create a defaultsampler
     VkSamplerCreateInfo samplerCreateInfo = {};
@@ -606,7 +606,7 @@ void Texture::fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_tex
         : 1.0f;
     samplerCreateInfo.anisotropyEnable = m_device->enabledFeatures.samplerAnisotropy;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateSampler(m_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
 
     VkCommandBuffer cmdBuffer
@@ -644,7 +644,7 @@ void Texture::toDepthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | t_imageUsageFlags;
     image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VKM_CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
+    CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
 
     VkMemoryRequirements memReqs;
     vkGetImageMemoryRequirements(m_device->logicalDevice, m_image, &memReqs);
@@ -653,9 +653,9 @@ void Texture::toDepthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     memoryAllocateInfo.allocationSize = memReqs.size;
     memoryAllocateInfo.memoryTypeIndex
         = m_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateMemory(m_device->logicalDevice, &memoryAllocateInfo, nullptr, &m_deviceMemory));
-    VKM_CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
+    CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
 
     VkImageViewCreateInfo colorImageView = {};
     colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -668,7 +668,7 @@ void Texture::toDepthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = 1;
     colorImageView.image = m_image;
-    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
+    CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
 
     // Create a defaultsampler
     VkSamplerCreateInfo samplerCreateInfo = {};
@@ -688,7 +688,7 @@ void Texture::toDepthAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     samplerCreateInfo.maxAnisotropy = 1.0f;
     samplerCreateInfo.anisotropyEnable = VK_FALSE;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateSampler(m_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
 
     VkCommandBuffer cmdBuffer
@@ -726,7 +726,7 @@ void Texture::toColorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     image.tiling = VK_IMAGE_TILING_OPTIMAL;
     image.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | t_imageUsageFlags;
     image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VKM_CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
+    CHECK_RESULT(vkCreateImage(m_device->logicalDevice, &image, nullptr, &m_image));
 
     VkMemoryRequirements memReqs;
     vkGetImageMemoryRequirements(m_device->logicalDevice, m_image, &memReqs);
@@ -735,9 +735,9 @@ void Texture::toColorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     memoryAllocateInfo.allocationSize = memReqs.size;
     memoryAllocateInfo.memoryTypeIndex
         = m_device->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateMemory(m_device->logicalDevice, &memoryAllocateInfo, nullptr, &m_deviceMemory));
-    VKM_CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
+    CHECK_RESULT(vkBindImageMemory(m_device->logicalDevice, m_image, m_deviceMemory, 0));
 
     VkImageViewCreateInfo colorImageView = {};
     colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -750,7 +750,7 @@ void Texture::toColorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     colorImageView.subresourceRange.baseArrayLayer = 0;
     colorImageView.subresourceRange.layerCount = 1;
     colorImageView.image = m_image;
-    VKM_CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
+    CHECK_RESULT(vkCreateImageView(m_device->logicalDevice, &colorImageView, nullptr, &m_view));
 
     // Create a defaultsampler
     VkSamplerCreateInfo samplerCreateInfo = {};
@@ -771,7 +771,7 @@ void Texture::toColorAttachment(VkFormat t_format, uint32_t t_texWidth, uint32_t
     samplerCreateInfo.maxAnisotropy = 1.0f;
     samplerCreateInfo.anisotropyEnable = m_device->enabledFeatures.samplerAnisotropy;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateSampler(m_device->logicalDevice, &samplerCreateInfo, nullptr, &m_sampler));
 
     VkCommandBuffer cmdBuffer

@@ -24,7 +24,7 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.usage = t_usageFlags;
     bufferCreateInfo.size = t_size;
-    VKM_CHECK_RESULT(vkCreateBuffer(this->device, &bufferCreateInfo, nullptr, &this->buffer));
+    CHECK_RESULT(vkCreateBuffer(this->device, &bufferCreateInfo, nullptr, &this->buffer));
 
     // Create the memory backing up the buffer handle
     VkMemoryRequirements memReqs;
@@ -41,7 +41,7 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     // Find a memory type index that fits the properties of the buffer
     memAlloc.memoryTypeIndex
         = t_device->getMemoryType(memReqs.memoryTypeBits, t_memoryPropertyFlags);
-    VKM_CHECK_RESULT(vkAllocateMemory(this->device, &memAlloc, nullptr, &this->memory));
+    CHECK_RESULT(vkAllocateMemory(this->device, &memAlloc, nullptr, &this->memory));
 
     this->alignment = memReqs.alignment;
     this->size = t_size;
@@ -51,7 +51,7 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     // If a pointer to the buffer data has been passed, map the buffer and copy
     // over the data
     if (t_data != nullptr) {
-        VKM_CHECK_RESULT(this->map());
+        CHECK_RESULT(this->map());
         memcpy(this->mapped, t_data, t_size);
         if ((t_memoryPropertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0) {
             this->flush();
@@ -64,7 +64,7 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     this->setupDescriptor();
 
     // Attach the memory to the buffer object
-    VKM_CHECK_RESULT(this->bind());
+    CHECK_RESULT(this->bind());
 }
 
 VkResult Buffer::map(VkDeviceSize t_size, VkDeviceSize t_offset)

@@ -77,7 +77,7 @@ VkResult BaseProject::renderFrame()
     if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
         handleWindowResize();
     } else {
-        VKM_CHECK_RESULT(result)
+        CHECK_RESULT(result)
     }
 
     // Check if a previous frame is using this image (i.e. there is its fence to
@@ -107,13 +107,13 @@ VkResult BaseProject::renderFrame()
 
     vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
 
-    VKM_CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
+    CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
     result = m_swapChain.queuePresent(m_queue, imageIndex, signalSemaphores.data());
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
         m_framebufferResized = false;
         handleWindowResize();
     } else if (result != VK_SUCCESS) {
-        VKM_CHECK_RESULT(result)
+        CHECK_RESULT(result)
     }
     m_currentFrame = (m_currentFrame + 1) % max_frames_in_flight;
     return result;
@@ -130,7 +130,7 @@ void BaseProject::createCommandBuffers()
     cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(m_drawCmdBuffers.size());
 
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateCommandBuffers(m_device, &cmdBufAllocateInfo, m_drawCmdBuffers.data()))
 }
 
@@ -146,7 +146,7 @@ void BaseProject::createPipelineCache()
 {
     VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
     pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache))
 }
 
@@ -274,13 +274,13 @@ bool BaseProject::initVulkan()
             = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
         // Additional flags include performance info, loader and layer debug
         // messages, etc.
-        VKM_CHECK_RESULT(debug::setupDebugging(m_instance, debugReportFlags, VK_NULL_HANDLE))
+        CHECK_RESULT(debug::setupDebugging(m_instance, debugReportFlags, VK_NULL_HANDLE))
     }
 
     // Physical device
     uint32_t gpuCount = 0;
     // Get number of available physical devices
-    VKM_CHECK_RESULT(vkEnumeratePhysicalDevices(m_instance, &gpuCount, nullptr))
+    CHECK_RESULT(vkEnumeratePhysicalDevices(m_instance, &gpuCount, nullptr))
     assert(gpuCount > 0);
     // Enumerate devices
     std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
@@ -345,15 +345,15 @@ void BaseProject::createSynchronizationPrimitives()
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     for (size_t i = 0; i < max_frames_in_flight; i++) {
-        VKM_CHECK_RESULT(vkCreateSemaphore(m_device,
+        CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
             nullptr,
             &m_imageAvailableSemaphores[i]))
-        VKM_CHECK_RESULT(vkCreateSemaphore(m_device,
+        CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
             nullptr,
             &m_renderFinishedSemaphores[i]))
-        VKM_CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_inFlightFences[i]))
+        CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_inFlightFences[i]))
     }
 }
 
@@ -363,7 +363,7 @@ void BaseProject::createCommandPool()
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolInfo.queueFamilyIndex = m_swapChain.queueNodeIndex;
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    VKM_CHECK_RESULT(vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, &m_cmdPool))
+    CHECK_RESULT(vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, &m_cmdPool))
 }
 
 void BaseProject::setupDepthStencil()
@@ -379,7 +379,7 @@ void BaseProject::setupDepthStencil()
     imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-    VKM_CHECK_RESULT(vkCreateImage(m_device, &imageCI, nullptr, &m_depthStencil.image))
+    CHECK_RESULT(vkCreateImage(m_device, &imageCI, nullptr, &m_depthStencil.image))
     VkMemoryRequirements memReqs {};
     vkGetImageMemoryRequirements(m_device, m_depthStencil.image, &memReqs);
 
@@ -388,8 +388,8 @@ void BaseProject::setupDepthStencil()
     memAlloc.allocationSize = memReqs.size;
     memAlloc.memoryTypeIndex = m_vulkanDevice->getMemoryType(memReqs.memoryTypeBits,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VKM_CHECK_RESULT(vkAllocateMemory(m_device, &memAlloc, nullptr, &m_depthStencil.mem))
-    VKM_CHECK_RESULT(vkBindImageMemory(m_device, m_depthStencil.image, m_depthStencil.mem, 0))
+    CHECK_RESULT(vkAllocateMemory(m_device, &memAlloc, nullptr, &m_depthStencil.mem))
+    CHECK_RESULT(vkBindImageMemory(m_device, m_depthStencil.image, m_depthStencil.mem, 0))
 
     VkImageViewCreateInfo imageViewCI {};
     imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -406,7 +406,7 @@ void BaseProject::setupDepthStencil()
     if (m_depthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
         imageViewCI.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
     }
-    VKM_CHECK_RESULT(vkCreateImageView(m_device, &imageViewCI, nullptr, &m_depthStencil.view))
+    CHECK_RESULT(vkCreateImageView(m_device, &imageViewCI, nullptr, &m_depthStencil.view))
 }
 
 void BaseProject::setupFrameBuffer()
@@ -430,7 +430,7 @@ void BaseProject::setupFrameBuffer()
     m_frameBuffers.resize(m_swapChain.imageCount);
     for (uint32_t i = 0; i < m_frameBuffers.size(); i++) {
         attachments[0] = m_swapChain.buffers[i].view;
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]))
     }
 }
@@ -506,7 +506,7 @@ void BaseProject::setupRenderPass()
     renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
 
-    VKM_CHECK_RESULT(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass))
+    CHECK_RESULT(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass))
 }
 
 void BaseProject::getEnabledFeatures()

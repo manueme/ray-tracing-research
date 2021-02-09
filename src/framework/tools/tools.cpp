@@ -226,7 +226,7 @@ VkShaderModule loadShader(const char* t_fileName, VkDevice t_device)
         moduleCreateInfo.codeSize = size;
         moduleCreateInfo.pCode = reinterpret_cast<uint32_t*>(shaderCode);
 
-        VKM_CHECK_RESULT(vkCreateShaderModule(t_device, &moduleCreateInfo, nullptr, &shaderModule));
+        CHECK_RESULT(vkCreateShaderModule(t_device, &moduleCreateInfo, nullptr, &shaderModule));
 
         delete[] shaderCode;
 

@@ -232,7 +232,7 @@ VkCommandPool Device::createCommandPool(
     cmdPoolInfo.queueFamilyIndex = t_queueFamilyIndex;
     cmdPoolInfo.flags = t_createFlags;
     VkCommandPool cmdPool;
-    VKM_CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool))
+    CHECK_RESULT(vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool))
     return cmdPool;
 }
 
@@ -246,12 +246,12 @@ VkCommandBuffer Device::createCommandBuffer(
     cmdBufAllocateInfo.commandBufferCount = 1;
 
     VkCommandBuffer cmdBuffer;
-    VKM_CHECK_RESULT(vkAllocateCommandBuffers(logicalDevice, &cmdBufAllocateInfo, &cmdBuffer))
+    CHECK_RESULT(vkAllocateCommandBuffers(logicalDevice, &cmdBufAllocateInfo, &cmdBuffer))
     // If requested, also start recording for the new command buffer
     if (t_begin) {
         VkCommandBufferBeginInfo cmdBufInfo = {};
         cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        VKM_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo))
+        CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &cmdBufInfo))
     }
     return cmdBuffer;
 }
@@ -268,14 +268,14 @@ void Device::flushCommandBuffer(
         return;
     }
 
-    VKM_CHECK_RESULT(vkEndCommandBuffer(t_commandBuffer))
+    CHECK_RESULT(vkEndCommandBuffer(t_commandBuffer))
 
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &t_commandBuffer;
-    VKM_CHECK_RESULT(vkQueueSubmit(t_queue, 1, &submitInfo, VK_NULL_HANDLE))
-    VKM_CHECK_RESULT(vkQueueWaitIdle(t_queue))
+    CHECK_RESULT(vkQueueSubmit(t_queue, 1, &submitInfo, VK_NULL_HANDLE))
+    CHECK_RESULT(vkQueueWaitIdle(t_queue))
     if (t_free) {
         vkFreeCommandBuffers(logicalDevice, t_pool, 1, &t_commandBuffer);
     }

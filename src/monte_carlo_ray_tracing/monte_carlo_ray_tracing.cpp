@@ -44,7 +44,7 @@ void MonteCarloRTApp::buildCommandBuffers()
 
     for (int32_t i = 0; i < m_drawCmdBuffers.size();
          ++i) { // This must be the same size as the swap chain image vector
-        VKM_CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
+        CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
 
         /*
             Dispatch the ray tracing commands
@@ -127,7 +127,7 @@ void MonteCarloRTApp::buildCommandBuffers()
         vkCmdEndRenderPass(m_drawCmdBuffers[i]);
         // End of Postprocess section --
 
-        VKM_CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
+        CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
     }
 }
 
@@ -164,7 +164,7 @@ void MonteCarloRTApp::createDescriptorPool()
         = initializers::descriptorPoolCreateInfo(poolSizes.size(),
             poolSizes.data(),
             maxSetsForPool);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 }
 
@@ -181,7 +181,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VkDescriptorSetLayoutCreateInfo descriptorLayout
         = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_rtDescriptorSetLayouts.set0AccelerationStructure));
@@ -197,7 +197,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     };
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_rtDescriptorSetLayouts.set1Scene));
@@ -220,7 +220,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     };
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_rtDescriptorSetLayouts.set2Geometry));
@@ -240,7 +240,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             1));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_rtDescriptorSetLayouts.set3Materials));
@@ -255,7 +255,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             1));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_rtDescriptorSetLayouts.set4Lights));
@@ -285,7 +285,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
 
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_rtDescriptorSetLayouts.set5ResultImage));
@@ -310,7 +310,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             rayTracingSetLayouts.size());
     rayTracingPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
     rayTracingPipelineLayoutCreateInfo.pPushConstantRanges = &rtPushConstantRange;
-    VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
+    CHECK_RESULT(vkCreatePipelineLayout(m_device,
         &rayTracingPipelineLayoutCreateInfo,
         nullptr,
         &m_pipelineLayouts.rayTracing));
@@ -324,7 +324,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             0));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_postprocessDescriptorSetLayouts.set0Scene));
@@ -338,7 +338,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             0));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
-    VKM_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
         &descriptorLayout,
         nullptr,
         &m_postprocessDescriptorSetLayouts.set1InputImage));
@@ -350,7 +350,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
         = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
             postprocessSetLayouts.size());
-    VKM_CHECK_RESULT(vkCreatePipelineLayout(m_device,
+    CHECK_RESULT(vkCreatePipelineLayout(m_device,
         &postprocessPipelineLayoutCreateInfo,
         nullptr,
         &m_pipelineLayouts.postProcess))
@@ -410,7 +410,7 @@ void MonteCarloRTApp::createPostprocessPipeline()
     pipelineCreateInfo.stageCount = shaderStages.size();
     pipelineCreateInfo.pStages = shaderStages.data();
     pipelineCreateInfo.pVertexInputState = &vertexInputState;
-    VKM_CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
+    CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
         m_pipelineCache,
         1,
         &pipelineCreateInfo,
@@ -472,7 +472,7 @@ void MonteCarloRTApp::createRTPipeline()
     rayPipelineInfo.pGroups = groups.data();
     rayPipelineInfo.maxPipelineRayRecursionDepth = m_pathTracerParams.maxDepth;
     rayPipelineInfo.layout = m_pipelineLayouts.rayTracing;
-    VKM_CHECK_RESULT(vkCreateRayTracingPipelinesKHR(m_device,
+    CHECK_RESULT(vkCreateRayTracingPipelinesKHR(m_device,
         VK_NULL_HANDLE,
         VK_NULL_HANDLE,
         1,
@@ -496,7 +496,7 @@ void MonteCarloRTApp::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_rtDescriptorSetLayouts.set0AccelerationStructure,
             1);
-    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+    CHECK_RESULT(vkAllocateDescriptorSets(m_device,
         &set0AllocInfo,
         &m_rtDescriptorSets.set0AccelerationStructure));
 
@@ -531,7 +531,7 @@ void MonteCarloRTApp::createDescriptorSets()
             set1Layouts.data(),
             m_swapChain.imageCount);
     m_rtDescriptorSets.set1Scene.resize(m_swapChain.imageCount);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_rtDescriptorSets.set1Scene.data()));
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
         VkWriteDescriptorSet uniformBufferWrite
@@ -552,7 +552,7 @@ void MonteCarloRTApp::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_rtDescriptorSetLayouts.set2Geometry,
             1);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry));
 
     VkDescriptorBufferInfo vertexBufferDescriptor {};
@@ -591,7 +591,7 @@ void MonteCarloRTApp::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_rtDescriptorSetLayouts.set3Materials,
             1);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials));
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = {};
@@ -627,7 +627,7 @@ void MonteCarloRTApp::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_rtDescriptorSetLayouts.set4Lights,
             1);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights));
     VkWriteDescriptorSet writeLightsDescriptorSet
         = initializers::writeDescriptorSet(m_rtDescriptorSets.set4Lights,
@@ -647,7 +647,7 @@ void MonteCarloRTApp::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_rtDescriptorSetLayouts.set5ResultImage,
             1);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_rtDescriptorSets.set5ResultImage));
 
     // Postprocess input scene descriptor set, set 0
@@ -658,7 +658,7 @@ void MonteCarloRTApp::createDescriptorSets()
             postprocessSet0Layouts.data(),
             m_swapChain.imageCount);
     m_postprocessDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
-    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+    CHECK_RESULT(vkAllocateDescriptorSets(m_device,
         &allocInfo,
         m_postprocessDescriptorSets.set0Scene.data()));
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
@@ -681,7 +681,7 @@ void MonteCarloRTApp::createDescriptorSets()
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
             &m_postprocessDescriptorSetLayouts.set1InputImage,
             1);
-    VKM_CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+    CHECK_RESULT(vkAllocateDescriptorSets(m_device,
         &inputImageAllocateInfo,
         &m_postprocessDescriptorSets.set1InputImage));
 
@@ -747,7 +747,7 @@ void MonteCarloRTApp::createUniformBuffers()
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             bufferSize);
-        VKM_CHECK_RESULT(m_sceneBuffers[i].map());
+        CHECK_RESULT(m_sceneBuffers[i].map());
     }
     // Instances Information uniform
     bufferSize = sizeof(ShaderMeshInstance) * m_scene->getInstancesCount();
@@ -835,7 +835,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
     m_shaderBindingTable.map();
     auto shaderHandleStorage = new uint8_t[sbtSize];
     // Get shader identifiers
-    VKM_CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(m_device,
+    CHECK_RESULT(vkGetRayTracingShaderGroupHandlesKHR(m_device,
         m_pipelines.rayTracing,
         0,
         SBT_NUM_SHADER_GROUPS,

@@ -9,7 +9,7 @@ SwapChain::~SwapChain() = default;
 
 void SwapChain::initSurface(GLFWwindow* t_window)
 {
-    VKM_CHECK_RESULT(glfwCreateWindowSurface(m_instance, t_window, nullptr, &m_surface))
+    CHECK_RESULT(glfwCreateWindowSurface(m_instance, t_window, nullptr, &m_surface))
     // Get available queue family properties
     uint32_t queueCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueCount, nullptr);
@@ -67,12 +67,12 @@ void SwapChain::initSurface(GLFWwindow* t_window)
 
     // Get list of supported surface formats
     uint32_t formatCount = 0;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, nullptr))
     assert(formatCount > 0);
 
     std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
-    VKM_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
+    CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice,
         m_surface,
         &formatCount,
         surfaceFormats.data()))
@@ -119,19 +119,19 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
 
     // Get physical device surface properties and formats
     VkSurfaceCapabilitiesKHR surfCaps;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &surfCaps))
 
     // Get available present modes
     uint32_t presentModeCount = 0;
-    VKM_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
+    CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
         m_surface,
         &presentModeCount,
         nullptr))
     assert(presentModeCount > 0);
 
     std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    VKM_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
+    CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice,
         m_surface,
         &presentModeCount,
         presentModes.data()))
@@ -233,7 +233,7 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
         swapChainCI.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     }
 
-    VKM_CHECK_RESULT(vkCreateSwapchainKHR(m_device, &swapChainCI, nullptr, &swapChain))
+    CHECK_RESULT(vkCreateSwapchainKHR(m_device, &swapChainCI, nullptr, &swapChain))
 
     // If an existing swap chain is re-created, destroy the old swap chain
     // This also cleans up all the presentable images
@@ -243,11 +243,11 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
         }
         vkDestroySwapchainKHR(m_device, oldSwapChain, nullptr);
     }
-    VKM_CHECK_RESULT(vkGetSwapchainImagesKHR(m_device, swapChain, &imageCount, nullptr))
+    CHECK_RESULT(vkGetSwapchainImagesKHR(m_device, swapChain, &imageCount, nullptr))
 
     // Get the swap chain images
     images.resize(imageCount);
-    VKM_CHECK_RESULT(vkGetSwapchainImagesKHR(m_device, swapChain, &imageCount, images.data()))
+    CHECK_RESULT(vkGetSwapchainImagesKHR(m_device, swapChain, &imageCount, images.data()))
 
     // Get the swap chain buffers containing the image and imageview
     buffers.resize(imageCount);
@@ -272,7 +272,7 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
 
         colorAttachmentView.image = buffers[i].image;
 
-        VKM_CHECK_RESULT(
+        CHECK_RESULT(
             vkCreateImageView(m_device, &colorAttachmentView, nullptr, &buffers[i].view))
     }
 }

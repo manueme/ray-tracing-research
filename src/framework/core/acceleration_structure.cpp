@@ -18,7 +18,7 @@ AccelerationStructure::AccelerationStructure(Device* t_device,
     bufferCreateInfo.size = t_buildSizeInfo.accelerationStructureSize;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
         | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkCreateBuffer(t_device->logicalDevice, &bufferCreateInfo, nullptr, &m_buffer));
     VkMemoryRequirements memoryRequirements {};
     vkGetBufferMemoryRequirements(t_device->logicalDevice, m_buffer, &memoryRequirements);
@@ -31,9 +31,9 @@ AccelerationStructure::AccelerationStructure(Device* t_device,
     memoryAllocateInfo.allocationSize = memoryRequirements.size;
     memoryAllocateInfo.memoryTypeIndex = t_device->getMemoryType(memoryRequirements.memoryTypeBits,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    VKM_CHECK_RESULT(
+    CHECK_RESULT(
         vkAllocateMemory(t_device->logicalDevice, &memoryAllocateInfo, nullptr, &m_memory));
-    VKM_CHECK_RESULT(vkBindBufferMemory(t_device->logicalDevice, m_buffer, m_memory, 0));
+    CHECK_RESULT(vkBindBufferMemory(t_device->logicalDevice, m_buffer, m_memory, 0));
     // Acceleration structure
     VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo {};
     accelerationStructureCreateInfo.sType

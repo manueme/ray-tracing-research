@@ -27,7 +27,7 @@
 // Default fence timeout in nanoseconds
 #define DEFAULT_FENCE_TIMEOUT 100000000000
 
-#define VKM_CHECK_RESULT(f)                                                                        \
+#define CHECK_RESULT(f)                                                                        \
     {                                                                                              \
         VkResult res = (f);                                                                        \
         if (res != VK_SUCCESS) {                                                                   \
