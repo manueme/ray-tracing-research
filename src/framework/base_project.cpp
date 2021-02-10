@@ -115,7 +115,7 @@ VkResult BaseProject::renderFrame()
     } else if (result != VK_SUCCESS) {
         CHECK_RESULT(result)
     }
-    m_currentFrame = (m_currentFrame + 1) % max_frames_in_flight;
+    m_currentFrame = (m_currentFrame + 1) % m_maxFramesInFlight;
     return result;
 }
 
@@ -238,7 +238,7 @@ BaseProject::~BaseProject()
 
     vkDestroyCommandPool(m_device, m_cmdPool, nullptr);
 
-    for (size_t i = 0; i < max_frames_in_flight; i++) {
+    for (size_t i = 0; i < m_maxFramesInFlight; i++) {
         vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
@@ -335,16 +335,16 @@ void BaseProject::buildCommandBuffers() { }
 void BaseProject::createSynchronizationPrimitives()
 {
     // Create synchronization objects
-    m_imageAvailableSemaphores.resize(max_frames_in_flight);
-    m_renderFinishedSemaphores.resize(max_frames_in_flight);
-    m_inFlightFences.resize(max_frames_in_flight);
+    m_imageAvailableSemaphores.resize(m_maxFramesInFlight);
+    m_renderFinishedSemaphores.resize(m_maxFramesInFlight);
+    m_inFlightFences.resize(m_maxFramesInFlight);
     m_imagesInFlight.resize(m_swapChain.imageCount, VK_NULL_HANDLE);
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (size_t i = 0; i < max_frames_in_flight; i++) {
+    for (size_t i = 0; i < m_maxFramesInFlight; i++) {
         CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
             nullptr,

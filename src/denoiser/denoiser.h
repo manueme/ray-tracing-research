@@ -18,15 +18,24 @@ private:
     struct {
         VkPipeline rayTracing;
         VkPipeline postProcess;
+        VkPipeline trainDenoise;
     } m_pipelines;
     struct {
         VkPipelineLayout rayTracing;
         VkPipelineLayout postProcess;
+        VkPipelineLayout trainDenoise;
     } m_pipelineLayouts;
 
     struct {
+        VkQueue queue;
+        VkCommandPool commandPool;
+        VkCommandBuffer commandBuffer;
+        VkFence fence;
+    } m_compute;
+
+    struct {
         VkDescriptorSet set0AccelerationStructure;
-        std::vector<VkDescriptorSet> set1Scene;
+        VkDescriptorSet set1Scene;
         VkDescriptorSet set2Geometry;
         VkDescriptorSet set3Materials;
         VkDescriptorSet set4Lights;
@@ -41,13 +50,24 @@ private:
         VkDescriptorSetLayout set5ResultImage;
     } m_rtDescriptorSetLayouts;
     struct {
-        std::vector<VkDescriptorSet> set0Scene;
+        VkDescriptorSet set0Scene;
         VkDescriptorSet set1InputImage;
     } m_postprocessDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1InputImage;
     } m_postprocessDescriptorSetLayouts;
+    struct {
+        VkDescriptorSet set0Scene;
+        VkDescriptorSet set1InputImage;
+        VkDescriptorSet set2Minibatch;
+    } m_trainDenoiseDescriptorSets;
+    struct {
+        VkDescriptorSetLayout set0Scene;
+        VkDescriptorSetLayout set1InputImage;
+        VkDescriptorSetLayout set2Minibatch;
+    } m_trainDenoiseDescriptorSetLayouts;
+
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
@@ -63,8 +83,8 @@ private:
     // Denoiser minibatch storage image
     const uint32_t m_minibatch_size = 8;
     struct {
-        Texture result;
-        Texture currentSample;
+        Texture accumulatedSample;
+        Texture rawSample;
         Texture depthMap;
         Texture normalMap;
         Texture albedo;
@@ -78,7 +98,7 @@ private:
         uint32_t frame { 0 }; // Current frame
         uint32_t frameChanged { 1 }; // Current frame changed size
     } m_sceneUniformData;
-    std::vector<Buffer> m_sceneBuffers;
+    Buffer m_sceneBuffer;
 
     const uint32_t m_ray_tracer_depth = 8;
     const uint32_t m_ray_tracer_samples = 1;
@@ -95,6 +115,12 @@ private:
         VERTEX_COMPONENT_DUMMY_FLOAT });
 
     Buffer m_shaderBindingTable;
+
+    // Prepare compute
+    void prepareCompute();
+    void createComputeCommandBuffers();
+    void freeComputeCommandBuffers();
+    // ---
 
     void render() override;
     void prepare() override;
@@ -114,6 +140,7 @@ private:
     void createRTPipeline();
     void createShaderRTBindingTable();
     void createPostprocessPipeline();
+    void createComputeDenoisePipelines();
 
     void getEnabledFeatures() override;
 };

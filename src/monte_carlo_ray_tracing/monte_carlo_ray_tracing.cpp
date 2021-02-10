@@ -17,6 +17,7 @@ MonteCarloRTApp::MonteCarloRTApp()
     : BaseRTProject("Monte Carlo Ray Tracing", "Monte Carlo Ray Tracing App", true)
 {
     m_settings.vsync = false;
+    m_maxFramesInFlight = 1;
 }
 
 void MonteCarloRTApp::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }

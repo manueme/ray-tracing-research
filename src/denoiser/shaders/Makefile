@@ -9,3 +9,4 @@ build-shaders:
 	glslc $(SHADERS_DIR)/shadow.rahit -o $(SHADERS_DIR)/shadow.rahit.spv --target-env=vulkan1.2
 	glslc $(SHADERS_DIR)/postprocess.vert -o $(SHADERS_DIR)/postprocess.vert.spv
 	glslc $(SHADERS_DIR)/postprocess.frag -o $(SHADERS_DIR)/postprocess.frag.spv
+	glslc $(SHADERS_DIR)/train_denoiser.comp -o $(SHADERS_DIR)/train_denoiser.comp.spv
