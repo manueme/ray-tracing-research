@@ -48,12 +48,6 @@ void main()
     rayInPayload.nextRayOrigin = hitPoint;
     // ####
 
-    // Reset payload
-    rayInPayload.surfaceAttenuation = vec3(1.0f);
-    rayInPayload.surfaceRadiance = vec3(0.0f);
-    rayInPayload.surfaceEmissive = vec3(0.0f);
-    // ---
-
     vec3 shadingNormal = get_surface_normal(material, hitNormal, TBN, hitUV);
     bool inside = false;
     if (dot(hitDirection, shadingNormal) > 0) {
@@ -85,12 +79,22 @@ void main()
         ior);
     const float splittingIndex = rnd(rayInPayload.seed);
     if (splittingIndex < reflectPercent) { // REFLECT RAY
+        // Reset payload
+        rayInPayload.surfaceAttenuation = vec3(1.0f);
+        rayInPayload.surfaceRadiance = vec3(0.0f);
+        rayInPayload.surfaceEmissive = vec3(0.0f);
+        // ---
         rayInPayload.nextRayDirection = reflect(hitDirection, shadingNormal);
         rayInPayload.rayType = RAY_TYPE_REFLECTION;
         return;
     }
     if (splittingIndex < refractPercent + reflectPercent) { // REFRACT RAY
         const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
+        // Reset payload
+        rayInPayload.surfaceAttenuation = vec3(1.0f);
+        rayInPayload.surfaceRadiance = vec3(0.0f);
+        rayInPayload.surfaceEmissive = vec3(0.0f);
+        // ---
         if (!is_zero(refractionRayDirection)) {
             rayInPayload.nextRayDirection = refractionRayDirection;
             rayInPayload.rayType = RAY_TYPE_REFRACTION;

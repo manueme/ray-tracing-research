@@ -75,7 +75,7 @@ void main()
             refractPercent,
             surfacePercent,
             ior);
-        if (refractPercent > 0) { // REFRACT RAY
+        if (refractPercent > 0.0f) { // REFRACT RAY
             const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
             if (!is_zero(refractionRayDirection)) {
                 rayPayload.surfaceRadiance = vec3(0.0);
@@ -89,7 +89,7 @@ void main()
                 reflectPercent += refractPercent;
             }
         }
-        if (reflectPercent > 0) { // REFLECT RAY
+        if (reflectPercent > 0.0f) { // REFLECT RAY
             vec3 reflectDirection = reflect(hitDirection, shadingNormal);
             rayPayload.surfaceRadiance = vec3(0.0);
             rayPayload.surfaceEmissive = vec3(0.0);

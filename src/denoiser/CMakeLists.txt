@@ -9,6 +9,7 @@ set(SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/anyhit.rahit.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rahit.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.vert.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.frag.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/train_denoiser.comp.spv
         )
 

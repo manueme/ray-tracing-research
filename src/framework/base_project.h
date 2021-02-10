@@ -169,7 +169,7 @@ protected:
     SwapChain m_swapChain;
 
     // Synchronization
-    int m_maxFramesInFlight = 3;
+    uint32_t m_maxFramesInFlight = 3;
     std::vector<VkSemaphore> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::vector<VkFence> m_inFlightFences;

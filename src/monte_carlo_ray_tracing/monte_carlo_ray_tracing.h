@@ -73,7 +73,7 @@ private:
     } m_sceneUniformData;
     Buffer m_sceneBuffer;
 
-    const uint32_t m_ray_tracer_depth = 8;
+    const uint32_t m_ray_tracer_depth = 4;
     const uint32_t m_ray_tracer_samples = 1;
     // Push constant sent to the path tracer
     struct PathTracerParameters {

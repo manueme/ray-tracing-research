@@ -143,12 +143,16 @@ void get_reflect_refract_percent(const MaterialProperties material, const vec3 h
         startRefractIdx = 1.0f;
         endRefractIdx = material.refractIdx;
     }
-    ior = startRefractIdx / endRefractIdx;
+    if (endRefractIdx != 0) {
+        ior = startRefractIdx / endRefractIdx;
+    } else {
+        ior = 1.0f;
+    }
     reflectPercent = 0.0f;
     refractPercent = 0.0f;
-    if (endRefractIdx != NOT_REFRACTIVE_IDX) {
+    if (material.refractIdx != NOT_REFRACTIVE_IDX) {
         reflectPercent = fresnel(hitDirection, shadingNormal, startRefractIdx, endRefractIdx);
-        refractPercent = 1.0 - reflectPercent - surfaceAlbedo.a;
+        refractPercent = 1.0f - reflectPercent - surfaceAlbedo.a;
     } else if (reflectivity != NOT_REFLECTVE_IDX) {
         reflectPercent = reflectivity;
     }

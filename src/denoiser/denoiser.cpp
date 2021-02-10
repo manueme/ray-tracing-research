@@ -180,7 +180,7 @@ void DenoiserApp::createDescriptorPool()
     };
     // Calculate max set for pool
     const auto asSets = 1;
-    const auto sceneSets = 1 * m_swapChain.imageCount;
+    const auto sceneSets = 1;
     const auto vertexAndIndexes = 3;
     const auto textures = 1;
     const auto materials = 1;
