@@ -17,6 +17,8 @@ MonteCarloRTApp::MonteCarloRTApp()
     : BaseRTProject("Monte Carlo Ray Tracing", "Monte Carlo Ray Tracing App", true)
 {
     m_settings.vsync = false;
+    // Make sure no more than 1 frame is processed at the same time to
+    // avoid issues in the accumulated image
     m_maxFramesInFlight = 1;
 }
 
@@ -55,7 +57,7 @@ void MonteCarloRTApp::buildCommandBuffers()
             m_pipelines.rayTracing);
         std::vector<VkDescriptorSet> rtDescriptorSets
             = { m_rtDescriptorSets.set0AccelerationStructure,
-                  m_rtDescriptorSets.set1Scene[i],
+                  m_rtDescriptorSets.set1Scene,
                   m_rtDescriptorSets.set2Geometry,
                   m_rtDescriptorSets.set3Materials,
                   m_rtDescriptorSets.set4Lights,
@@ -110,8 +112,7 @@ void MonteCarloRTApp::buildCommandBuffers()
         VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
         vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
         std::vector<VkDescriptorSet> postprocessDescriptorSets
-            = { m_postprocessDescriptorSets.set0Scene[i],
-                  m_postprocessDescriptorSets.set1InputImage };
+            = { m_postprocessDescriptorSets.set0Scene, m_postprocessDescriptorSets.set1InputImage };
         vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_pipelineLayouts.postProcess,
@@ -151,7 +152,7 @@ void MonteCarloRTApp::createDescriptorPool()
     };
     // Calculate max set for pool
     const auto asSets = 1;
-    const auto sceneSets = 1 * m_swapChain.imageCount;
+    const auto sceneSets = 1;
     const auto vertexAndIndexes = 3;
     const auto textures = 1;
     const auto materials = 1;
@@ -525,28 +526,22 @@ void MonteCarloRTApp::createDescriptorSets()
         VK_NULL_HANDLE);
 
     // Set 1: Scene descriptor
-    std::vector<VkDescriptorSetLayout> set1Layouts(m_swapChain.imageCount,
-        m_rtDescriptorSetLayouts.set1Scene);
     VkDescriptorSetAllocateInfo set1AllocInfo
         = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            set1Layouts.data(),
-            m_swapChain.imageCount);
-    m_rtDescriptorSets.set1Scene.resize(m_swapChain.imageCount);
-    CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_rtDescriptorSets.set1Scene.data()));
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
-        VkWriteDescriptorSet uniformBufferWrite
-            = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene[i],
-                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                0,
-                &m_sceneBuffers[i].descriptor);
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
-        vkUpdateDescriptorSets(m_device,
-            static_cast<uint32_t>(writeDescriptorSet1.size()),
-            writeDescriptorSet1.data(),
+            &m_rtDescriptorSetLayouts.set1Scene,
+            1);
+    CHECK_RESULT(vkAllocateDescriptorSets(m_device, &set1AllocInfo, &m_rtDescriptorSets.set1Scene));
+    VkWriteDescriptorSet uniformBufferWrite
+        = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             0,
-            VK_NULL_HANDLE);
-    }
+            &m_sceneBuffer.descriptor);
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
+    vkUpdateDescriptorSets(m_device,
+        static_cast<uint32_t>(writeDescriptorSet1.size()),
+        writeDescriptorSet1.data(),
+        0,
+        VK_NULL_HANDLE);
 
     // Set 2: Geometry descriptor
     VkDescriptorSetAllocateInfo set2AllocInfo
@@ -651,40 +646,37 @@ void MonteCarloRTApp::createDescriptorSets()
     CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_rtDescriptorSets.set5ResultImage));
 
-    // Postprocess input scene descriptor set, set 0
-    std::vector<VkDescriptorSetLayout> postprocessSet0Layouts(m_swapChain.imageCount,
-        m_postprocessDescriptorSetLayouts.set0Scene);
-    VkDescriptorSetAllocateInfo allocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            postprocessSet0Layouts.data(),
-            m_swapChain.imageCount);
-    m_postprocessDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-        &allocInfo,
-        m_postprocessDescriptorSets.set0Scene.data()));
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+    // Postprocess
+    {
+        // Postprocess input scene descriptor set, set 0
+        VkDescriptorSetAllocateInfo allocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_postprocessDescriptorSetLayouts.set0Scene,
+                1);
+        CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &allocInfo, &m_postprocessDescriptorSets.set0Scene));
         std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
             // Binding 0 : Vertex shader uniform buffer
-            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set0Scene[i],
+            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set0Scene,
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 0,
-                &m_sceneBuffers[i].descriptor),
+                &m_sceneBuffer.descriptor),
         };
         vkUpdateDescriptorSets(m_device,
             writeDescriptorSet0.size(),
             writeDescriptorSet0.data(),
             0,
             VK_NULL_HANDLE);
-    }
 
-    // Postprocess input image descriptor set, set 1
-    VkDescriptorSetAllocateInfo inputImageAllocateInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_postprocessDescriptorSetLayouts.set1InputImage,
-            1);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-        &inputImageAllocateInfo,
-        &m_postprocessDescriptorSets.set1InputImage));
+        // Postprocess input image descriptor set, set 1
+        VkDescriptorSetAllocateInfo inputImageAllocateInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_postprocessDescriptorSetLayouts.set1InputImage,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &inputImageAllocateInfo,
+            &m_postprocessDescriptorSets.set1InputImage));
+    }
 
     updateResultImageDescriptorSets();
 }
@@ -734,7 +726,9 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
 
 void MonteCarloRTApp::updateUniformBuffers(uint32_t t_currentImage)
 {
-    memcpy(m_sceneBuffers[t_currentImage].mapped, &m_sceneUniformData, sizeof(UniformData));
+    // As long as we use accumulation in one single image it doesnt make sense to have multiple
+    // scene buffers to update, m_maxFramesInFlight has to be 1 for this application
+    memcpy(m_sceneBuffer.mapped, &m_sceneUniformData, sizeof(UniformData));
 }
 
 // Prepare and initialize uniform buffer containing shader uniforms
@@ -742,14 +736,11 @@ void MonteCarloRTApp::createUniformBuffers()
 {
     // Scene uniform
     VkDeviceSize bufferSize = sizeof(UniformData);
-    m_sceneBuffers.resize(m_swapChain.imageCount);
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
-        m_sceneBuffers[i].create(m_vulkanDevice,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            bufferSize);
-        CHECK_RESULT(m_sceneBuffers[i].map());
-    }
+    m_sceneBuffer.create(m_vulkanDevice,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        bufferSize);
+    CHECK_RESULT(m_sceneBuffer.map());
     // Instances Information uniform
     bufferSize = sizeof(ShaderMeshInstance) * m_scene->getInstancesCount();
     m_instancesBuffer.create(m_vulkanDevice,
@@ -907,9 +898,7 @@ MonteCarloRTApp::~MonteCarloRTApp()
     m_storageImage.albedo.destroy();
 
     m_shaderBindingTable.destroy();
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
-        m_sceneBuffers[i].destroy();
-    }
+    m_sceneBuffer.destroy();
     m_materialsBuffer.destroy();
     m_instancesBuffer.destroy();
     m_lightsBuffer.destroy();

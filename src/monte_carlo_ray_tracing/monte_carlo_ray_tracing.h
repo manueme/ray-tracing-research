@@ -26,7 +26,7 @@ private:
 
     struct {
         VkDescriptorSet set0AccelerationStructure;
-        std::vector<VkDescriptorSet> set1Scene;
+        VkDescriptorSet set1Scene;
         VkDescriptorSet set2Geometry;
         VkDescriptorSet set3Materials;
         VkDescriptorSet set4Lights;
@@ -41,7 +41,7 @@ private:
         VkDescriptorSetLayout set5ResultImage;
     } m_rtDescriptorSetLayouts;
     struct {
-        std::vector<VkDescriptorSet> set0Scene;
+        VkDescriptorSet set0Scene;
         VkDescriptorSet set1InputImage;
     } m_postprocessDescriptorSets;
     struct {
@@ -71,7 +71,7 @@ private:
         uint32_t frame { 0 }; // Current frame
         uint32_t frameChanged { 1 }; // Current frame changed size
     } m_sceneUniformData;
-    std::vector<Buffer> m_sceneBuffers;
+    Buffer m_sceneBuffer;
 
     const uint32_t m_ray_tracer_depth = 8;
     const uint32_t m_ray_tracer_samples = 1;
