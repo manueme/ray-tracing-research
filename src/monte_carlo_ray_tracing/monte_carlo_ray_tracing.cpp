@@ -846,7 +846,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
 void MonteCarloRTApp::prepare()
 {
     BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/sponza/Sponza.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
 
     createStorageImages();
     createUniformBuffers();
@@ -934,6 +934,12 @@ void MonteCarloRTApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_
     case GLFW_KEY_K:
         m_sceneUniformData.overrideSunDirection.x -= 0.05;
         viewChanged();
+        break;
+    case GLFW_KEY_G:
+        m_sceneUniformData.exposure += 0.1;
+        break;
+    case GLFW_KEY_H:
+        m_sceneUniformData.exposure -= 0.1;
         break;
     default:
         break;

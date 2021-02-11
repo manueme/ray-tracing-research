@@ -4,49 +4,24 @@
  */
 
 #version 450
+#extension GL_GOOGLE_include_directive : enable
+
+#define SCENE_SET 0 // override SCENE_SET for this particular case
+#include "app_scene.glsl"
 
 layout(location = 0) out vec4 fragColor;
 
-layout(set = 0, binding = 0) uniform _SceneProperties
-{
-    mat4 viewInverse;
-    mat4 projInverse;
-    uint frameIteration;
-    uint frame;
-    uint frameChanged;
-}
-scene;
 layout(set = 1, binding = 0) uniform sampler2D rtInputColor;
 
 in vec4 gl_FragCoord;
 
-vec4 gaussianFilter()
+float GAMMA = 2.2;
+
+vec3 linear_tone_mapping(vec3 color, float exposure)
 {
-    const vec2 texCoord = gl_FragCoord.xy;
-    vec4 sum = vec4(0.0);
-
-    // Gaussian kernel
-    // 1 2 1
-    // 2 4 2
-    // 1 2 1
-    const float kernel[9] = float[9](1.0f, 2.0f, 1.0f, 2.0f, 4.0f, 2.0f, 1.0f, 2.0f, 1.0f);
-
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x - 1, texCoord.y - 1), 0) * kernel[0];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x - 1, texCoord.y), 0) * kernel[1];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x - 1, texCoord.y + 1), 0) * kernel[2];
-
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x, texCoord.y - 1), 0) * kernel[3];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x, texCoord.y), 0) * kernel[4];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x, texCoord.y + 1), 0) * kernel[5];
-
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x + 1, texCoord.y - 1), 0) * kernel[6];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x + 1, texCoord.y), 0) * kernel[7];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x + 1, texCoord.y + 1), 0) * kernel[8];
-
-    sum /= 16.0;
-    sum.a = 1.0;
-
-    return sum;
+    color = clamp(exposure * color, 0., 1.);
+    color = pow(color, vec3(1. / GAMMA));
+    return color;
 }
 
 void main()
@@ -60,12 +35,10 @@ void main()
     float vignette = smoothstep(4.0, 0.6, length(v));
     // ###
 
-    // Chromatic aberration effect
-    vec2 centerToUv = q - vec2(0.5);
-    vec3 aberr;
-    aberr.x = texelFetch(rtInputColor, ivec2((0.5 + centerToUv * 0.995) * res), 0).x;
-    aberr.y = texelFetch(rtInputColor, ivec2((0.5 + centerToUv * 0.997) * res), 0).y;
-    aberr.z = texelFetch(rtInputColor, ivec2((0.5 + centerToUv) * res), 0).z;
-    fragColor = vec4(pow(vignette * aberr, vec3(0.2 + 1.0 / 2.2)), 1.0);
+    // Tone mapping
+    fragColor = vec4(vignette
+            * linear_tone_mapping(texelFetch(rtInputColor, ivec2(gl_FragCoord.xy), 0).xyz,
+                scene.exposure),
+        1.0);
     // ###
 }

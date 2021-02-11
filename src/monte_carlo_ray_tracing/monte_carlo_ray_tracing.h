@@ -70,6 +70,7 @@ private:
         uint32_t frameIteration { 0 }; // Current frame iteration number
         uint32_t frame { 0 }; // Current frame
         uint32_t frameChanged { 1 }; // Current frame changed size
+        float exposure = { 1.0f };
     } m_sceneUniformData;
     Buffer m_sceneBuffer;
 
