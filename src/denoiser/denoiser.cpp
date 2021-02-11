@@ -18,6 +18,7 @@ DenoiserApp::DenoiserApp()
         "Denoised Monte Carlo Ray Tracing", "Denoised Monte Carlo Ray Tracing App", true)
 {
     m_settings.vsync = false;
+    m_settings.useCompute = true;
     // Make sure no more than 1 frame is processed at the same time to
     // avoid issues in the accumulated image
     m_maxFramesInFlight = 1;
@@ -1076,42 +1077,6 @@ void DenoiserApp::createShaderRTBindingTable()
     m_shaderBindingTable.unmap();
 }
 
-void DenoiserApp::freeComputeCommandBuffers()
-{
-    // Free compute command buffers, the draw buffers are destroyed on the base class
-    // This command buffers will be rebuilt in buildCommandBuffers
-    vkFreeCommandBuffers(m_device, m_compute.commandPool, 1, &m_compute.commandBuffer);
-}
-
-void DenoiserApp::createComputeCommandBuffers()
-{
-    VkCommandBufferAllocateInfo commandBufferAllocateInfo {};
-    commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    commandBufferAllocateInfo.commandPool = m_compute.commandPool;
-    commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    commandBufferAllocateInfo.commandBufferCount = 1;
-    CHECK_RESULT(
-        vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &m_compute.commandBuffer))
-}
-
-void DenoiserApp::prepareCompute()
-{
-    vkGetDeviceQueue(m_device, m_vulkanDevice->queueFamilyIndices.compute, 0, &m_compute.queue);
-
-    VkCommandPoolCreateInfo cmdPoolInfo = {};
-    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolInfo.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.compute;
-    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    CHECK_RESULT(vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, &m_compute.commandPool))
-
-    createComputeCommandBuffers();
-
-    VkFenceCreateInfo fenceCreateInfo {};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fence))
-}
-
 void DenoiserApp::prepare()
 {
     BaseRTProject::prepare();
@@ -1190,9 +1155,6 @@ DenoiserApp::~DenoiserApp()
     m_instancesBuffer.destroy();
     m_lightsBuffer.destroy();
     m_scene->destroy();
-
-    vkDestroyFence(m_device, m_compute.fence, nullptr);
-    vkDestroyCommandPool(m_device, m_compute.commandPool, nullptr);
 }
 
 void DenoiserApp::viewChanged()
@@ -1217,9 +1179,6 @@ void DenoiserApp::onSwapChainRecreation()
     m_minibatch.normalMap.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();
-
-    freeComputeCommandBuffers();
-    createComputeCommandBuffers();
 }
 
 void DenoiserApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods)

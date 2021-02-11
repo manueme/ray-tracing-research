@@ -52,13 +52,6 @@ private:
 
     void initWindow();
     void nextFrame();
-    void createPipelineCache();
-    void createCommandPool();
-    void createSynchronizationPrimitives();
-    void initSwapChain();
-    void setupSwapChain();
-    void createCommandBuffers();
-    void destroyCommandBuffers();
 
     // Callbacks and Event handling
     void setupWindowCallbacks();
@@ -74,7 +67,6 @@ private:
 
 protected:
     // constants
-
     const VkClearColorValue m_default_clear_color = { { 0.0f, 0.0f, 0.0f, 0.0f } };
     const uint32_t api_version = VK_API_VERSION_1_2;
     // --
@@ -176,12 +168,19 @@ protected:
     std::vector<VkFence> m_imagesInFlight;
     size_t m_currentFrame = 0;
 
+    // Separated compute queue, commandPool, fence and buffer
+    struct {
+        VkQueue queue;
+        VkCommandPool commandPool;
+        VkCommandBuffer commandBuffer;
+        VkFence fence;
+    } m_compute;
+
     // Settings
     struct Settings {
-        // Activates validation layers (and message output) when set to true
         bool validation = false;
-        // Set to true if v-sync will be forced for the swapchain
         bool vsync = false;
+        bool useCompute = false;
     } m_settings;
 
     /** @brief Setup the vulkan instance, enable required extensions and connect
@@ -191,24 +190,23 @@ protected:
     /** @brief (Virtual) Creates the application wide Vulkan instance */
     virtual VkResult createInstance(bool t_enableValidation);
 
-    /** @brief (Pure virtual) Render function to be implemented by the sample
-     * application */
+    /** @brief (Pure virtual) Render function to be implemented by the application */
     virtual void render() = 0;
 
     /** @brief (Virtual) Called when the camera view has changed */
     virtual void viewChanged();
 
     /** @brief (Virtual) Called when the window has been resized, can be used by
-     * the sample application to recreate resources (GPU not idle) */
+     * the application to recreate resources (GPU not idle) */
     virtual void windowResized();
 
     /** @brief (Virtual) Called while the swap chain is recreated and the GPU is
-     * idle, can be used by the sample application to recreate resources */
+     * idle, can be used by the application to recreate resources */
     virtual void onSwapChainRecreation();
 
     /** @brief (Virtual) Called when resources have been recreated that require a
      * rebuild of the command buffers (e.g. frame buffer), to be implemente by the
-     * sample application */
+     * application */
     virtual void buildCommandBuffers();
 
     /** @brief (Virtual) Setup default depth and stencil views */
@@ -225,9 +223,20 @@ protected:
      * can be used to set features to enable on the device */
     virtual void getEnabledFeatures();
 
-    /** @brief Prepares all Vulkan resources and functions required to run the
-     * sample */
+    /** @brief Prepares all Vulkan resources and functions required */
     virtual void prepare();
+    void createCommandPool();
+    void createPipelineCache();
+    void createSynchronizationPrimitives();
+    void initSwapChain();
+    void setupSwapChain();
+    void createCommandBuffers();
+    void destroyCommandBuffers();
+
+    /** @brief Prepares all Vulkan resources and functions required for the compute pipeline */
+    void prepareCompute();
+    void createComputeCommandBuffers();
+    void destroyComputeCommandBuffers();
 
     /** @brief Loads a SPIR-V shader file for the given shader stage */
     VkPipelineShaderStageCreateInfo loadShader(

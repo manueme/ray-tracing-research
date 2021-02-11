@@ -130,8 +130,7 @@ void BaseProject::createCommandBuffers()
     cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(m_drawCmdBuffers.size());
 
-    CHECK_RESULT(
-        vkAllocateCommandBuffers(m_device, &cmdBufAllocateInfo, m_drawCmdBuffers.data()))
+    CHECK_RESULT(vkAllocateCommandBuffers(m_device, &cmdBufAllocateInfo, m_drawCmdBuffers.data()))
 }
 
 void BaseProject::destroyCommandBuffers()
@@ -150,6 +149,40 @@ void BaseProject::createPipelineCache()
         vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache))
 }
 
+void BaseProject::destroyComputeCommandBuffers()
+{
+    vkFreeCommandBuffers(m_device, m_compute.commandPool, 1, &m_compute.commandBuffer);
+}
+
+void BaseProject::createComputeCommandBuffers()
+{
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo {};
+    commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    commandBufferAllocateInfo.commandPool = m_compute.commandPool;
+    commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    commandBufferAllocateInfo.commandBufferCount = 1;
+    CHECK_RESULT(
+        vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &m_compute.commandBuffer))
+}
+
+void BaseProject::prepareCompute()
+{
+    vkGetDeviceQueue(m_device, m_vulkanDevice->queueFamilyIndices.compute, 0, &m_compute.queue);
+
+    VkCommandPoolCreateInfo cmdPoolInfo = {};
+    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmdPoolInfo.queueFamilyIndex = m_vulkanDevice->queueFamilyIndices.compute;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    CHECK_RESULT(vkCreateCommandPool(m_device, &cmdPoolInfo, nullptr, &m_compute.commandPool))
+
+    createComputeCommandBuffers();
+
+    VkFenceCreateInfo fenceCreateInfo {};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fence))
+}
+
 void BaseProject::prepare()
 {
     initSwapChain();
@@ -161,6 +194,10 @@ void BaseProject::prepare()
     setupRenderPass();
     createPipelineCache();
     setupFrameBuffer();
+
+    if (m_settings.useCompute) {
+        prepareCompute();
+    }
 }
 
 VkPipelineShaderStageCreateInfo BaseProject::loadShader(
@@ -242,6 +279,11 @@ BaseProject::~BaseProject()
         vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
+    }
+
+    if (m_settings.useCompute) {
+        vkDestroyCommandPool(m_device, m_compute.commandPool, nullptr);
+        vkDestroyFence(m_device, m_compute.fence, nullptr);
     }
 
     delete m_vulkanDevice;
@@ -550,6 +592,10 @@ void BaseProject::handleWindowResize()
     onSwapChainRecreation();
     destroyCommandBuffers();
     createCommandBuffers();
+    if (m_settings.useCompute) {
+        destroyComputeCommandBuffers();
+        createComputeCommandBuffers();
+    }
     buildCommandBuffers();
 
     vkDeviceWaitIdle(m_device);

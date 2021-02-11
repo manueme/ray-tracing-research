@@ -24,7 +24,7 @@
 #define CAMERA_NEAR 0.2f
 #define CAMERA_FAR 800.0f
 
-#define RAY_MIN_HIT 0.01f
+#define RAY_MIN_HIT 0.005f
 #define RAY_MAX_HIT 800.0f
 
 #define AS_FLAG_EVERYTHING 0xFF

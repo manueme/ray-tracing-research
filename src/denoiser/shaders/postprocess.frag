@@ -20,35 +20,6 @@ layout(set = 1, binding = 0) uniform sampler2D rtInputColor;
 
 in vec4 gl_FragCoord;
 
-vec4 gaussianFilter()
-{
-    const vec2 texCoord = gl_FragCoord.xy;
-    vec4 sum = vec4(0.0);
-
-    // Gaussian kernel
-    // 1 2 1
-    // 2 4 2
-    // 1 2 1
-    const float kernel[9] = float[9](1.0f, 2.0f, 1.0f, 2.0f, 4.0f, 2.0f, 1.0f, 2.0f, 1.0f);
-
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x - 1, texCoord.y - 1), 0) * kernel[0];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x - 1, texCoord.y), 0) * kernel[1];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x - 1, texCoord.y + 1), 0) * kernel[2];
-
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x, texCoord.y - 1), 0) * kernel[3];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x, texCoord.y), 0) * kernel[4];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x, texCoord.y + 1), 0) * kernel[5];
-
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x + 1, texCoord.y - 1), 0) * kernel[6];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x + 1, texCoord.y), 0) * kernel[7];
-    sum += texelFetch(rtInputColor, ivec2(texCoord.x + 1, texCoord.y + 1), 0) * kernel[8];
-
-    sum /= 16.0;
-    sum.a = 1.0;
-
-    return sum;
-}
-
 void main()
 {
     vec2 res = textureSize(rtInputColor, 0);

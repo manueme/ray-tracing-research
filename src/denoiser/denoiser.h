@@ -27,13 +27,6 @@ private:
     } m_pipelineLayouts;
 
     struct {
-        VkQueue queue;
-        VkCommandPool commandPool;
-        VkCommandBuffer commandBuffer;
-        VkFence fence;
-    } m_compute;
-
-    struct {
         VkDescriptorSet set0AccelerationStructure;
         VkDescriptorSet set1Scene;
         VkDescriptorSet set2Geometry;
@@ -115,12 +108,6 @@ private:
         VERTEX_COMPONENT_DUMMY_FLOAT });
 
     Buffer m_shaderBindingTable;
-
-    // Prepare compute
-    void prepareCompute();
-    void createComputeCommandBuffers();
-    void freeComputeCommandBuffers();
-    // ---
 
     void render() override;
     void prepare() override;

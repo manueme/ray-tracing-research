@@ -8,8 +8,10 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "app_definitions.glsl"
-
+#undef SCENE_SET
+#define SCENE_SET 0 // override SCENE_SET for this particular case
 #include "../../framework/shaders/utils.glsl"
+#include "app_scene.glsl"
 
 layout(binding = 0, set = 1) uniform sampler2D textures[];
 layout(binding = 1, set = 1) buffer _Materials { MaterialProperties m[]; }
@@ -17,18 +19,6 @@ materials;
 
 layout(binding = 0, set = 2) buffer _Lights { LightProperties l[]; }
 lighting;
-
-layout(binding = 0) uniform SceneProperties
-{
-    mat4 projection;
-    mat4 model;
-    mat4 view;
-    mat4 viewInverse;
-    mat4 projInverse;
-    vec4 overrideSunDirection;
-    int frame;
-}
-scene;
 
 layout(push_constant) uniform Index { int i; }
 materialIndex;
