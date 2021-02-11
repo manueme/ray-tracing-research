@@ -1000,6 +1000,52 @@ void DenoiserApp::createStorageImages()
         VK_FILTER_NEAREST,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
+
+    m_minibatch.normalMap.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_minibatch_size,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+    m_minibatch.albedo.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_minibatch_size,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+    m_minibatch.depthMap.fromNothing(VK_FORMAT_R32_SFLOAT,
+        m_width,
+        m_height,
+        m_minibatch_size,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+    m_minibatch.accumulatedSample.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_minibatch_size,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
+    m_minibatch.rawSample.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_minibatch_size,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void DenoiserApp::createShaderRTBindingTable()
@@ -1030,13 +1076,15 @@ void DenoiserApp::createShaderRTBindingTable()
     m_shaderBindingTable.unmap();
 }
 
-void DenoiserApp::freeComputeCommandBuffers() {
+void DenoiserApp::freeComputeCommandBuffers()
+{
     // Free compute command buffers, the draw buffers are destroyed on the base class
     // This command buffers will be rebuilt in buildCommandBuffers
     vkFreeCommandBuffers(m_device, m_compute.commandPool, 1, &m_compute.commandBuffer);
 }
 
-void DenoiserApp::createComputeCommandBuffers() {
+void DenoiserApp::createComputeCommandBuffers()
+{
     VkCommandBufferAllocateInfo commandBufferAllocateInfo {};
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandBufferAllocateInfo.commandPool = m_compute.commandPool;
@@ -1069,7 +1117,7 @@ void DenoiserApp::prepare()
     BaseRTProject::prepare();
     prepareCompute();
 
-    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/cornellbox/Cornellbox.fbx", m_vertexLayout);
 
     createStorageImages();
     createUniformBuffers();
@@ -1162,6 +1210,11 @@ void DenoiserApp::onSwapChainRecreation()
     m_storageImage.depthMap.destroy();
     m_storageImage.normalMap.destroy();
     m_storageImage.albedo.destroy();
+    m_minibatch.accumulatedSample.destroy();
+    m_minibatch.rawSample.destroy();
+    m_minibatch.depthMap.destroy();
+    m_minibatch.albedo.destroy();
+    m_minibatch.normalMap.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();
 
