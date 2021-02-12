@@ -14,17 +14,14 @@ float get_luma(vec4 color) { return dot(color.xyz, vec3(0.299, 0.587, 0.114)); }
 float gather_average_luminance()
 {
     float lumAvg = 0.0;
-    float sensorSize = 1.0 / 4.0;
-    lumAvg += get_luma(texture(inputColor, vec2(0.5, 0.5 - sensorSize)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5, 0.5 + sensorSize)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5, 0.5)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5 - sensorSize, 0.5)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5 + sensorSize, 0.5)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5 + sensorSize, 0.5 + sensorSize)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5 + sensorSize, 0.5 - sensorSize)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5 - sensorSize, 0.5 - sensorSize)));
-    lumAvg += get_luma(texture(inputColor, vec2(0.5 - sensorSize, 0.5 + sensorSize)));
-    return clamp(lumAvg / 9.0, 0.15, 1.0);
+    uint sample_count = 10;
+    float sensorSize = 1.0 / float(sample_count);
+    for (uint i = 0; i < sample_count; i++) {
+        for (uint j = 0; j < sample_count; j++) {
+            lumAvg += get_luma(texture(inputColor, vec2(sensorSize * i, sensorSize * j)));
+        }
+    }
+    return clamp(lumAvg / float(sample_count * sample_count), 0.15, 1.0);
 }
 
 void main()

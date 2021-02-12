@@ -1046,7 +1046,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
 void MonteCarloRTApp::prepare()
 {
     BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/sponza/Sponza.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
 
     createStorageImages();
     createUniformBuffers();
@@ -1074,7 +1074,7 @@ void MonteCarloRTApp::render()
 
         // The noise can interfere with the luma calculation to set the manualExposureAdjust, wait for some
         // accumulation:
-        if (m_sceneUniformData.frameIteration > 50) {
+        if (m_sceneUniformData.frameIteration > 80) {
             // Submit compute commands
             vkWaitForFences(m_device, 1, &m_compute.fence, VK_TRUE, UINT64_MAX);
             vkResetFences(m_device, 1, &m_compute.fence);

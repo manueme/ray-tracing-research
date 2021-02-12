@@ -36,10 +36,12 @@ void main()
     float vignette = smoothstep(4.0, 0.6, length(v));
     // ###
 
-    // Tone mapping
-    fragColor = vec4(vignette
-            * linear_tone_mapping(texelFetch(rtInputColor, ivec2(gl_FragCoord.xy), 0).xyz,
-                exposureSettings.exposure + scene.manualExposureAdjust),
-        1.0);
+    // Chromatic aberration effect with tone mapping
+    vec2 centerToUv = q - vec2(0.5);
+    vec3 aberr;
+    aberr.x = texelFetch(rtInputColor, ivec2((0.5 + centerToUv * 0.995) * res), 0).x;
+    aberr.y = texelFetch(rtInputColor, ivec2((0.5 + centerToUv * 0.997) * res), 0).y;
+    aberr.z = texelFetch(rtInputColor, ivec2((0.5 + centerToUv) * res), 0).z;
+    fragColor = vec4((vignette * linear_tone_mapping(aberr, exposureSettings.exposure + scene.manualExposureAdjust)), 1.0);
     // ###
 }
