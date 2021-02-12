@@ -17,6 +17,7 @@ MonteCarloRTApp::MonteCarloRTApp()
     : BaseRTProject("Monte Carlo Ray Tracing", "Monte Carlo Ray Tracing App", true)
 {
     m_settings.vsync = false;
+    m_settings.useCompute = true;
     // Make sure no more than 1 frame is processed at the same time to
     // avoid issues in the accumulated image
     m_maxFramesInFlight = 1;
@@ -26,111 +27,140 @@ void MonteCarloRTApp::getEnabledFeatures() { BaseRTProject::getEnabledFeatures()
 
 void MonteCarloRTApp::buildCommandBuffers()
 {
+    // Draw command buffers
+    {
+        VkCommandBufferBeginInfo cmdBufInfo = {};
+        cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        // Postprocess pass info
+        std::array<VkClearValue, 2> clearValues = {};
+        clearValues[0].color = m_default_clear_color;
+        clearValues[1].depthStencil = { 1.0f, 0 };
+        VkRenderPassBeginInfo renderPassBeginInfo = {};
+
+        renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassBeginInfo.renderPass = m_renderPass;
+        renderPassBeginInfo.renderArea.offset.x = 0;
+        renderPassBeginInfo.renderArea.offset.y = 0;
+        renderPassBeginInfo.renderArea.extent.width = m_width;
+        renderPassBeginInfo.renderArea.extent.height = m_height;
+        renderPassBeginInfo.clearValueCount = clearValues.size();
+        renderPassBeginInfo.pClearValues = clearValues.data();
+        // --
+
+        for (int32_t i = 0; i < m_drawCmdBuffers.size();
+             ++i) { // This must be the same size as the swap chain image vector
+            CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
+
+            /*
+                Dispatch the ray tracing commands
+            */
+            vkCmdBindPipeline(m_drawCmdBuffers[i],
+                VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                m_pipelines.rayTracing);
+            std::vector<VkDescriptorSet> rtDescriptorSets
+                = { m_rtDescriptorSets.set0AccelerationStructure,
+                      m_rtDescriptorSets.set1Scene,
+                      m_rtDescriptorSets.set2Geometry,
+                      m_rtDescriptorSets.set3Materials,
+                      m_rtDescriptorSets.set4Lights,
+                      m_rtDescriptorSets.set5ResultImage };
+            vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
+                VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+                m_pipelineLayouts.rayTracing,
+                0,
+                rtDescriptorSets.size(),
+                rtDescriptorSets.data(),
+                0,
+                nullptr);
+            vkCmdPushConstants(m_drawCmdBuffers[i],
+                m_pipelineLayouts.rayTracing,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
+                    | VK_SHADER_STAGE_MISS_BIT_KHR,
+                0,
+                sizeof(PathTracerParameters),
+                &m_pathTracerParams);
+
+            // Calculate shader bindings
+            // TODO: use separated binding tables for rayGen miss and hit
+            const uint32_t handleSizeAligned
+                = tools::alignedSize(m_rayTracingPipelineProperties.shaderGroupHandleSize,
+                    m_rayTracingPipelineProperties.shaderGroupHandleAlignment);
+            VkStridedDeviceAddressRegionKHR rayGenSbtRegion;
+            rayGenSbtRegion.deviceAddress = m_shaderBindingTable.getDeviceAddress();
+            rayGenSbtRegion.stride = handleSizeAligned;
+            rayGenSbtRegion.size = handleSizeAligned;
+            VkStridedDeviceAddressRegionKHR missSbtRegion = rayGenSbtRegion;
+            VkStridedDeviceAddressRegionKHR hitSbtRegion = rayGenSbtRegion;
+            VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
+
+            vkCmdTraceRaysKHR(m_drawCmdBuffers[i],
+                &rayGenSbtRegion,
+                &missSbtRegion,
+                &hitSbtRegion,
+                &emptySbtEntry,
+                m_width,
+                m_height,
+                1);
+
+            // Postprocess section:
+            renderPassBeginInfo.framebuffer = m_frameBuffers[i];
+            vkCmdBeginRenderPass(m_drawCmdBuffers[i],
+                &renderPassBeginInfo,
+                VK_SUBPASS_CONTENTS_INLINE);
+
+            VkViewport viewport = initializers::viewport(static_cast<float>(m_width),
+                static_cast<float>(m_height),
+                0.0f,
+                1.0f);
+            vkCmdSetViewport(m_drawCmdBuffers[i], 0, 1, &viewport);
+            VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
+            vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
+            std::vector<VkDescriptorSet> postprocessDescriptorSets
+                = { m_postprocessDescriptorSets.set0Scene,
+                      m_postprocessDescriptorSets.set1InputImage,
+                      m_postprocessDescriptorSets.set2Exposure };
+            vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                m_pipelineLayouts.postProcess,
+                0,
+                postprocessDescriptorSets.size(),
+                postprocessDescriptorSets.data(),
+                0,
+                nullptr);
+            vkCmdBindPipeline(m_drawCmdBuffers[i],
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                m_pipelines.postProcess);
+            vkCmdDraw(m_drawCmdBuffers[i], 3, 1, 0, 0);
+
+            vkCmdEndRenderPass(m_drawCmdBuffers[i]);
+            // End of Postprocess section --
+
+            CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
+        }
+    }
+    // ---
+    // Compute command buffers
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    // Postprocess pass info
-    std::array<VkClearValue, 2> clearValues = {};
-    clearValues[0].color = m_default_clear_color;
-    clearValues[1].depthStencil = { 1.0f, 0 };
-    VkRenderPassBeginInfo renderPassBeginInfo = {};
-
-    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassBeginInfo.renderPass = m_renderPass;
-    renderPassBeginInfo.renderArea.offset.x = 0;
-    renderPassBeginInfo.renderArea.offset.y = 0;
-    renderPassBeginInfo.renderArea.extent.width = m_width;
-    renderPassBeginInfo.renderArea.extent.height = m_height;
-    renderPassBeginInfo.clearValueCount = clearValues.size();
-    renderPassBeginInfo.pClearValues = clearValues.data();
-    // --
-
-    for (int32_t i = 0; i < m_drawCmdBuffers.size();
-         ++i) { // This must be the same size as the swap chain image vector
-        CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
-
-        /*
-            Dispatch the ray tracing commands
-        */
-        vkCmdBindPipeline(m_drawCmdBuffers[i],
-            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-            m_pipelines.rayTracing);
-        std::vector<VkDescriptorSet> rtDescriptorSets
-            = { m_rtDescriptorSets.set0AccelerationStructure,
-                  m_rtDescriptorSets.set1Scene,
-                  m_rtDescriptorSets.set2Geometry,
-                  m_rtDescriptorSets.set3Materials,
-                  m_rtDescriptorSets.set4Lights,
-                  m_rtDescriptorSets.set5ResultImage };
-        vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
-            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-            m_pipelineLayouts.rayTracing,
-            0,
-            rtDescriptorSets.size(),
-            rtDescriptorSets.data(),
-            0,
-            nullptr);
-        vkCmdPushConstants(m_drawCmdBuffers[i],
-            m_pipelineLayouts.rayTracing,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
-                | VK_SHADER_STAGE_MISS_BIT_KHR,
-            0,
-            sizeof(PathTracerParameters),
-            &m_pathTracerParams);
-
-        // Calculate shader bindings
-        // TODO: use separated binding tables for rayGen miss and hit
-        const uint32_t handleSizeAligned
-            = tools::alignedSize(m_rayTracingPipelineProperties.shaderGroupHandleSize,
-                m_rayTracingPipelineProperties.shaderGroupHandleAlignment);
-        VkStridedDeviceAddressRegionKHR rayGenSbtRegion;
-        rayGenSbtRegion.deviceAddress = m_shaderBindingTable.getDeviceAddress();
-        rayGenSbtRegion.stride = handleSizeAligned;
-        rayGenSbtRegion.size = handleSizeAligned;
-        VkStridedDeviceAddressRegionKHR missSbtRegion = rayGenSbtRegion;
-        VkStridedDeviceAddressRegionKHR hitSbtRegion = rayGenSbtRegion;
-        VkStridedDeviceAddressRegionKHR emptySbtEntry = {};
-
-        vkCmdTraceRaysKHR(m_drawCmdBuffers[i],
-            &rayGenSbtRegion,
-            &missSbtRegion,
-            &hitSbtRegion,
-            &emptySbtEntry,
-            m_width,
-            m_height,
-            1);
-
-        // Postprocess section:
-        renderPassBeginInfo.framebuffer = m_frameBuffers[i];
-        vkCmdBeginRenderPass(m_drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-        VkViewport viewport = initializers::viewport(static_cast<float>(m_width),
-            static_cast<float>(m_height),
-            0.0f,
-            1.0f);
-        vkCmdSetViewport(m_drawCmdBuffers[i], 0, 1, &viewport);
-        VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
-        vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
-        std::vector<VkDescriptorSet> postprocessDescriptorSets
-            = { m_postprocessDescriptorSets.set0Scene, m_postprocessDescriptorSets.set1InputImage };
-        vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            m_pipelineLayouts.postProcess,
-            0,
-            postprocessDescriptorSets.size(),
-            postprocessDescriptorSets.data(),
-            0,
-            nullptr);
-        vkCmdBindPipeline(m_drawCmdBuffers[i],
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            m_pipelines.postProcess);
-        vkCmdDraw(m_drawCmdBuffers[i], 3, 1, 0, 0);
-
-        vkCmdEndRenderPass(m_drawCmdBuffers[i]);
-        // End of Postprocess section --
-
-        CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
-    }
+    CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo))
+    vkCmdBindPipeline(m_compute.commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_pipelines.autoExposure);
+    std::vector<VkDescriptorSet> trainComputeDescriptorSets
+        = { m_autoExposureDescriptorSets.set0InputImage,
+              m_autoExposureDescriptorSets.set1Exposure };
+    vkCmdBindDescriptorSets(m_compute.commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_pipelineLayouts.autoExposure,
+        0,
+        trainComputeDescriptorSets.size(),
+        trainComputeDescriptorSets.data(),
+        0,
+        nullptr);
+    vkCmdDispatch(m_compute.commandBuffer, 1, 1, 1);
+    vkEndCommandBuffer(m_compute.commandBuffer);
+    // ---
 }
 
 void MonteCarloRTApp::createDescriptorPool()
@@ -139,6 +169,8 @@ void MonteCarloRTApp::createDescriptorPool()
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         // Scene description
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+        // Exposure
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Vertex, Index and Material Indexes
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Textures
@@ -172,190 +204,254 @@ void MonteCarloRTApp::createDescriptorPool()
 
 void MonteCarloRTApp::createDescriptorSetsLayout()
 {
-    // Set 0: Acceleration Structure Layout
-    std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-        // Binding 0 : Acceleration structure
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
-                | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
-            0),
-    };
-    VkDescriptorSetLayoutCreateInfo descriptorLayout
-        = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+    // Ray Tracing
+    {
+        // Set 0: Acceleration Structure Layout
+        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+            // Binding 0 : Acceleration structure
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
+                    | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                0),
+        };
+        VkDescriptorSetLayoutCreateInfo descriptorLayout
+            = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+                setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set0AccelerationStructure));
+
+        // Set 1: Scene matrices
+        setLayoutBindings.clear();
+        setLayoutBindings = {
+            // Binding 0 : Scene uniform buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
+                    | VK_SHADER_STAGE_MISS_BIT_KHR,
+                0),
+        };
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
             setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_rtDescriptorSetLayouts.set0AccelerationStructure));
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set1Scene));
 
-    // Set 1: Scene matrices
-    setLayoutBindings.clear();
-    setLayoutBindings = {
-        // Binding 0 : Scene uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR
-                | VK_SHADER_STAGE_MISS_BIT_KHR,
-            0),
-    };
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_rtDescriptorSetLayouts.set1Scene));
+        // Set 2: Geometry data
+        setLayoutBindings.clear();
+        setLayoutBindings = {
+            // Binding 0 : Vertex uniform buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                0),
+            // Binding 1 : Vertex Index uniform buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                1),
+            // Binding 2 : Instance Information uniform buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+                2),
+        };
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set2Geometry));
 
-    // Set 2: Geometry data
-    setLayoutBindings.clear();
-    setLayoutBindings = {
-        // Binding 0 : Vertex uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            0),
-        // Binding 1 : Vertex Index uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            1),
-        // Binding 2 : Instance Information uniform buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
-            2),
-    };
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_rtDescriptorSetLayouts.set2Geometry));
+        // Set 3: Textures data
+        setLayoutBindings.clear();
+        // Texture list binding 0
+        setLayoutBindings.push_back(
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                0,
+                m_scene->textures.size()));
+        // Material list binding 1
+        setLayoutBindings.push_back(
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+                1));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set3Materials));
 
-    // Set 3: Textures data
-    setLayoutBindings.clear();
-    // Texture list binding 0
-    setLayoutBindings.push_back(
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
-            0,
-            m_scene->textures.size()));
-    // Material list binding 1
-    setLayoutBindings.push_back(
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
-            1));
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_rtDescriptorSetLayouts.set3Materials));
+        // Set 4: Lighting data
+        setLayoutBindings.clear();
+        // Light list binding 0
+        setLayoutBindings.push_back(
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                0,
+                1));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set4Lights));
 
-    // Set 4: Lighting data
-    setLayoutBindings.clear();
-    // Light list binding 0
-    setLayoutBindings.push_back(
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-            0,
-            1));
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_rtDescriptorSetLayouts.set4Lights));
+        // Set 5: Result Image
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back(
+            // Binding 0 : Result Image Color
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                0));
+        setLayoutBindings.push_back(
+            // Binding 1 : Result Image Depth Map
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                1));
+        setLayoutBindings.push_back(
+            // Binding 2 : Result Image Normal Map
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                2));
+        setLayoutBindings.push_back(
+            // Binding  3: Result Image Albedo
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+                3));
 
-    // Set 5: Result Image
-    setLayoutBindings.clear();
-    setLayoutBindings.push_back(
-        // Binding 0 : Result Image Color
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            0));
-    setLayoutBindings.push_back(
-        // Binding 1 : Result Image Depth Map
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            1));
-    setLayoutBindings.push_back(
-        // Binding 2 : Result Image Normal Map
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            2));
-    setLayoutBindings.push_back(
-        // Binding  3: Result Image Albedo
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            3));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_rtDescriptorSetLayouts.set5ResultImage));
 
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_rtDescriptorSetLayouts.set5ResultImage));
+        // Ray Tracing Pipeline Layout
+        // Push constant to pass path tracer parameters
+        VkPushConstantRange rtPushConstantRange
+            = initializers::pushConstantRange(VK_SHADER_STAGE_RAYGEN_BIT_KHR
+                    | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
+                sizeof(PathTracerParameters),
+                0);
+        std::array<VkDescriptorSetLayout, 6> rayTracingSetLayouts
+            = { m_rtDescriptorSetLayouts.set0AccelerationStructure,
+                  m_rtDescriptorSetLayouts.set1Scene,
+                  m_rtDescriptorSetLayouts.set2Geometry,
+                  m_rtDescriptorSetLayouts.set3Materials,
+                  m_rtDescriptorSetLayouts.set4Lights,
+                  m_rtDescriptorSetLayouts.set5ResultImage };
 
-    // Ray Tracing Pipeline Layout
-    // Push constant to pass path tracer parameters
-    VkPushConstantRange rtPushConstantRange
-        = initializers::pushConstantRange(VK_SHADER_STAGE_RAYGEN_BIT_KHR
-                | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR,
-            sizeof(PathTracerParameters),
-            0);
-    std::array<VkDescriptorSetLayout, 6> rayTracingSetLayouts
-        = { m_rtDescriptorSetLayouts.set0AccelerationStructure,
-              m_rtDescriptorSetLayouts.set1Scene,
-              m_rtDescriptorSetLayouts.set2Geometry,
-              m_rtDescriptorSetLayouts.set3Materials,
-              m_rtDescriptorSetLayouts.set4Lights,
-              m_rtDescriptorSetLayouts.set5ResultImage };
+        VkPipelineLayoutCreateInfo rayTracingPipelineLayoutCreateInfo
+            = initializers::pipelineLayoutCreateInfo(rayTracingSetLayouts.data(),
+                rayTracingSetLayouts.size());
+        rayTracingPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+        rayTracingPipelineLayoutCreateInfo.pPushConstantRanges = &rtPushConstantRange;
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
+            &rayTracingPipelineLayoutCreateInfo,
+            nullptr,
+            &m_pipelineLayouts.rayTracing));
+    }
 
-    VkPipelineLayoutCreateInfo rayTracingPipelineLayoutCreateInfo
-        = initializers::pipelineLayoutCreateInfo(rayTracingSetLayouts.data(),
-            rayTracingSetLayouts.size());
-    rayTracingPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-    rayTracingPipelineLayoutCreateInfo.pPushConstantRanges = &rtPushConstantRange;
-    CHECK_RESULT(vkCreatePipelineLayout(m_device,
-        &rayTracingPipelineLayoutCreateInfo,
-        nullptr,
-        &m_pipelineLayouts.rayTracing));
+    // Postprocess
+    {
+        // Set 0 Postprocess: Scene information buffer
+        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = { // Binding 0 : Buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                0)
+        };
+        VkDescriptorSetLayoutCreateInfo descriptorLayout
+            = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+                setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_postprocessDescriptorSetLayouts.set0Scene));
 
-    // Set 0 Postprocess: Scene information buffer
-    setLayoutBindings.clear();
-    setLayoutBindings.push_back(
-        // Binding 0 : Buffer
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            0));
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_postprocessDescriptorSetLayouts.set0Scene));
+        // Set 1 Postprocess: Input Image
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back(
+            // Binding 0 : Result Image Color
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                0));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_postprocessDescriptorSetLayouts.set1InputImage));
 
-    // Set 1 Postprocess: Input Image
-    setLayoutBindings.clear();
-    setLayoutBindings.push_back(
-        // Binding 0 : Result Image Color
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_FRAGMENT_BIT,
-            0));
-    descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-        setLayoutBindings.size());
-    CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-        &descriptorLayout,
-        nullptr,
-        &m_postprocessDescriptorSetLayouts.set1InputImage));
+        // Set 2 Postprocess: Exposure buffer
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back( // Binding 0 : Buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                0));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_postprocessDescriptorSetLayouts.set2Exposure));
 
-    // Postprocess Pipeline Layout
-    std::array<VkDescriptorSetLayout, 2> postprocessSetLayouts
-        = { m_postprocessDescriptorSetLayouts.set0Scene,
-              m_postprocessDescriptorSetLayouts.set1InputImage };
-    VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
-        = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
-            postprocessSetLayouts.size());
-    CHECK_RESULT(vkCreatePipelineLayout(m_device,
-        &postprocessPipelineLayoutCreateInfo,
-        nullptr,
-        &m_pipelineLayouts.postProcess))
+        // Postprocess Pipeline Layout
+        std::array<VkDescriptorSetLayout, 3> postprocessSetLayouts
+            = { m_postprocessDescriptorSetLayouts.set0Scene,
+                  m_postprocessDescriptorSetLayouts.set1InputImage,
+                  m_postprocessDescriptorSetLayouts.set2Exposure };
+        VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
+            = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
+                postprocessSetLayouts.size());
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
+            &postprocessPipelineLayoutCreateInfo,
+            nullptr,
+            &m_pipelineLayouts.postProcess))
+    }
+
+    // Train compute layout
+    {
+        // Set 0: Input Image
+        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+            // Binding 0 : Result Image Color
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0)
+        };
+        VkDescriptorSetLayoutCreateInfo descriptorLayout
+            = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+                setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_autoExposureDescriptorSetLayouts.set0InputImage))
+
+        // Set 1 Exposure buffer
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back(
+            // Binding 0 : Scene uniform buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_autoExposureDescriptorSetLayouts.set1Exposure));
+
+        // Train compute Pipeline Layout
+        std::array<VkDescriptorSetLayout, 2> postprocessSetLayouts
+            = { m_autoExposureDescriptorSetLayouts.set0InputImage,
+                  m_autoExposureDescriptorSetLayouts.set1Exposure };
+        VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
+            = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
+                postprocessSetLayouts.size());
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
+            &postprocessPipelineLayoutCreateInfo,
+            nullptr,
+            &m_pipelineLayouts.autoExposure))
+    }
 }
 
 void MonteCarloRTApp::createPostprocessPipeline()
@@ -483,6 +579,22 @@ void MonteCarloRTApp::createRTPipeline()
         &m_pipelines.rayTracing));
 }
 
+void MonteCarloRTApp::createAutoExposurePipeline()
+{
+    VkComputePipelineCreateInfo computePipelineCreateInfo {};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.layout = m_pipelineLayouts.autoExposure;
+    computePipelineCreateInfo.flags = 0;
+    computePipelineCreateInfo.stage
+        = loadShader("./shaders/auto_exposure.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+    CHECK_RESULT(vkCreateComputePipelines(m_device,
+        m_pipelineCache,
+        1,
+        &computePipelineCreateInfo,
+        nullptr,
+        &m_pipelines.autoExposure))
+}
+
 void MonteCarloRTApp::assignPushConstants()
 {
     m_pathTracerParams = {
@@ -493,158 +605,163 @@ void MonteCarloRTApp::assignPushConstants()
 
 void MonteCarloRTApp::createDescriptorSets()
 {
-    // Set 0: Acceleration Structure descriptor
-    VkDescriptorSetAllocateInfo set0AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set0AccelerationStructure,
-            1);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-        &set0AllocInfo,
-        &m_rtDescriptorSets.set0AccelerationStructure));
+    // Ray Tracing
+    {
+        // Set 0: Acceleration Structure descriptor
+        VkDescriptorSetAllocateInfo set0AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_rtDescriptorSetLayouts.set0AccelerationStructure,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &set0AllocInfo,
+            &m_rtDescriptorSets.set0AccelerationStructure));
 
-    VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo {};
-    descriptorAccelerationStructureInfo.sType
-        = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
-    descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-    auto tlasHandle = m_topLevelAS.getHandle();
-    descriptorAccelerationStructureInfo.pAccelerationStructures = &tlasHandle;
+        VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo {};
+        descriptorAccelerationStructureInfo.sType
+            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+        descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+        auto tlasHandle = m_topLevelAS.getHandle();
+        descriptorAccelerationStructureInfo.pAccelerationStructures = &tlasHandle;
 
-    VkWriteDescriptorSet accelerationStructureWrite {};
-    accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    // The specialized acceleration structure descriptor has to be chained
-    accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
-    accelerationStructureWrite.dstSet = m_rtDescriptorSets.set0AccelerationStructure;
-    accelerationStructureWrite.dstBinding = 0;
-    accelerationStructureWrite.descriptorCount = 1;
-    accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        VkWriteDescriptorSet accelerationStructureWrite {};
+        accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // The specialized acceleration structure descriptor has to be chained
+        accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
+        accelerationStructureWrite.dstSet = m_rtDescriptorSets.set0AccelerationStructure;
+        accelerationStructureWrite.dstBinding = 0;
+        accelerationStructureWrite.descriptorCount = 1;
+        accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = { accelerationStructureWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet0.size()),
-        writeDescriptorSet0.data(),
-        0,
-        VK_NULL_HANDLE);
-
-    // Set 1: Scene descriptor
-    VkDescriptorSetAllocateInfo set1AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set1Scene,
-            1);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device, &set1AllocInfo, &m_rtDescriptorSets.set1Scene));
-    VkWriteDescriptorSet uniformBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = { accelerationStructureWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet0.size()),
+            writeDescriptorSet0.data(),
             0,
-            &m_sceneBuffer.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet1.size()),
-        writeDescriptorSet1.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
 
-    // Set 2: Geometry descriptor
-    VkDescriptorSetAllocateInfo set2AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set2Geometry,
-            1);
-    CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry));
-
-    VkDescriptorBufferInfo vertexBufferDescriptor {};
-    vertexBufferDescriptor.buffer = m_scene->vertices.buffer;
-    vertexBufferDescriptor.range = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo indexBufferDescriptor {};
-    indexBufferDescriptor.buffer = m_scene->indices.buffer;
-    indexBufferDescriptor.range = VK_WHOLE_SIZE;
-
-    VkWriteDescriptorSet vertexBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            0,
-            &vertexBufferDescriptor);
-    VkWriteDescriptorSet indexBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            1,
-            &indexBufferDescriptor);
-    VkWriteDescriptorSet materialIndexBufferWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            2,
-            &m_instancesBuffer.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet2
-        = { vertexBufferWrite, indexBufferWrite, materialIndexBufferWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet2.size()),
-        writeDescriptorSet2.data(),
-        0,
-        VK_NULL_HANDLE);
-
-    // Set 3: Materials and Textures descriptor
-    VkDescriptorSetAllocateInfo set3AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set3Materials,
-            1);
-    CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials));
-
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = {};
-    std::vector<VkDescriptorImageInfo> textureDescriptors;
-    VkWriteDescriptorSet writeTextureDescriptorSet;
-    if (!m_scene->textures.empty()) {
-        for (auto& texture : m_scene->textures) {
-            textureDescriptors.push_back(texture.descriptor);
-        }
-        writeTextureDescriptorSet
-            = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        // Set 1: Scene descriptor
+        VkDescriptorSetAllocateInfo set1AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_rtDescriptorSetLayouts.set1Scene,
+                1);
+        CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &set1AllocInfo, &m_rtDescriptorSets.set1Scene));
+        VkWriteDescriptorSet uniformBufferWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 0,
-                textureDescriptors.data(),
-                textureDescriptors.size());
-        writeDescriptorSet3.push_back(writeTextureDescriptorSet);
-    }
-    VkWriteDescriptorSet writeMaterialsDescriptorSet
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            1,
-            &m_materialsBuffer.descriptor);
-    writeDescriptorSet3.push_back(writeMaterialsDescriptorSet);
-
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet3.size()),
-        writeDescriptorSet3.data(),
-        0,
-        nullptr);
-
-    // Set 4: Lighting descriptor
-    VkDescriptorSetAllocateInfo set4AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set4Lights,
-            1);
-    CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights));
-    VkWriteDescriptorSet writeLightsDescriptorSet
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set4Lights,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                &m_sceneBuffer.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet1.size()),
+            writeDescriptorSet1.data(),
             0,
-            &m_lightsBuffer.descriptor);
+            VK_NULL_HANDLE);
 
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet4 = { writeLightsDescriptorSet };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet4.size()),
-        writeDescriptorSet4.data(),
-        0,
-        nullptr);
+        // Set 2: Geometry descriptor
+        VkDescriptorSetAllocateInfo set2AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_rtDescriptorSetLayouts.set2Geometry,
+                1);
+        CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_rtDescriptorSets.set2Geometry));
 
-    // Set 5: Result image descriptor
-    VkDescriptorSetAllocateInfo set5AllocInfo
-        = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_rtDescriptorSetLayouts.set5ResultImage,
-            1);
-    CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_rtDescriptorSets.set5ResultImage));
+        VkDescriptorBufferInfo vertexBufferDescriptor {};
+        vertexBufferDescriptor.buffer = m_scene->vertices.buffer;
+        vertexBufferDescriptor.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo indexBufferDescriptor {};
+        indexBufferDescriptor.buffer = m_scene->indices.buffer;
+        indexBufferDescriptor.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet vertexBufferWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &vertexBufferDescriptor);
+        VkWriteDescriptorSet indexBufferWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                1,
+                &indexBufferDescriptor);
+        VkWriteDescriptorSet materialIndexBufferWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set2Geometry,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                2,
+                &m_instancesBuffer.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet2
+            = { vertexBufferWrite, indexBufferWrite, materialIndexBufferWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet2.size()),
+            writeDescriptorSet2.data(),
+            0,
+            VK_NULL_HANDLE);
+
+        // Set 3: Materials and Textures descriptor
+        VkDescriptorSetAllocateInfo set3AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_rtDescriptorSetLayouts.set3Materials,
+                1);
+        CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_rtDescriptorSets.set3Materials));
+
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet3 = {};
+        std::vector<VkDescriptorImageInfo> textureDescriptors;
+        VkWriteDescriptorSet writeTextureDescriptorSet;
+        if (!m_scene->textures.empty()) {
+            for (auto& texture : m_scene->textures) {
+                textureDescriptors.push_back(texture.descriptor);
+            }
+            writeTextureDescriptorSet
+                = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
+                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    0,
+                    textureDescriptors.data(),
+                    textureDescriptors.size());
+            writeDescriptorSet3.push_back(writeTextureDescriptorSet);
+        }
+        VkWriteDescriptorSet writeMaterialsDescriptorSet
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set3Materials,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                1,
+                &m_materialsBuffer.descriptor);
+        writeDescriptorSet3.push_back(writeMaterialsDescriptorSet);
+
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet3.size()),
+            writeDescriptorSet3.data(),
+            0,
+            nullptr);
+
+        // Set 4: Lighting descriptor
+        VkDescriptorSetAllocateInfo set4AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_rtDescriptorSetLayouts.set4Lights,
+                1);
+        CHECK_RESULT(
+            vkAllocateDescriptorSets(m_device, &set4AllocInfo, &m_rtDescriptorSets.set4Lights));
+        VkWriteDescriptorSet writeLightsDescriptorSet
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set4Lights,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &m_lightsBuffer.descriptor);
+
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet4 = { writeLightsDescriptorSet };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet4.size()),
+            writeDescriptorSet4.data(),
+            0,
+            nullptr);
+
+        // Set 5: Result image descriptor
+        VkDescriptorSetAllocateInfo set5AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_rtDescriptorSetLayouts.set5ResultImage,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &set5AllocInfo,
+            &m_rtDescriptorSets.set5ResultImage));
+    }
 
     // Postprocess
     {
@@ -656,7 +773,7 @@ void MonteCarloRTApp::createDescriptorSets()
         CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &allocInfo, &m_postprocessDescriptorSets.set0Scene));
         std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
-            // Binding 0 : Vertex shader uniform buffer
+            // Binding 0 : Uniform buffer
             initializers::writeDescriptorSet(m_postprocessDescriptorSets.set0Scene,
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 0,
@@ -676,6 +793,58 @@ void MonteCarloRTApp::createDescriptorSets()
         CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &inputImageAllocateInfo,
             &m_postprocessDescriptorSets.set1InputImage));
+
+        // Postprocess input manualExposureAdjust descriptor set, set 2
+        allocInfo = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+            &m_postprocessDescriptorSetLayouts.set2Exposure,
+            1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &allocInfo,
+            &m_postprocessDescriptorSets.set2Exposure));
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet2 = {
+            // Binding 2 : Uniform buffer
+            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set2Exposure,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &m_exposureBuffer.descriptor),
+        };
+        vkUpdateDescriptorSets(m_device,
+            writeDescriptorSet2.size(),
+            writeDescriptorSet2.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
+
+    // Exposure compute
+    {
+        // Set 0: Result image descriptor
+        VkDescriptorSetAllocateInfo set0AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_autoExposureDescriptorSetLayouts.set0InputImage,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &set0AllocInfo,
+            &m_autoExposureDescriptorSets.set0InputImage))
+
+        // Set 1: Exposure descriptor
+        VkDescriptorSetAllocateInfo set1AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_autoExposureDescriptorSetLayouts.set1Exposure,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &set1AllocInfo,
+            &m_autoExposureDescriptorSets.set1Exposure))
+        VkWriteDescriptorSet uniformBufferWrite
+            = initializers::writeDescriptorSet(m_autoExposureDescriptorSets.set1Exposure,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &m_exposureBuffer.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet1.size()),
+            writeDescriptorSet1.data(),
+            0,
+            VK_NULL_HANDLE);
     }
 
     updateResultImageDescriptorSets();
@@ -683,45 +852,66 @@ void MonteCarloRTApp::createDescriptorSets()
 
 void MonteCarloRTApp::updateResultImageDescriptorSets()
 {
-    VkWriteDescriptorSet resultImageWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+    // Ray Tracing
+    {
+        VkWriteDescriptorSet resultImageWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                0,
+                &m_storageImage.result.descriptor);
+        VkWriteDescriptorSet resultDepthMapWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                1,
+                &m_storageImage.depthMap.descriptor);
+        VkWriteDescriptorSet resultNormalMapWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                2,
+                &m_storageImage.normalMap.descriptor);
+        VkWriteDescriptorSet resultAlbedoWrite
+            = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
+                VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                3,
+                &m_storageImage.albedo.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet5
+            = { resultImageWrite, resultDepthMapWrite, resultNormalMapWrite, resultAlbedoWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet5.size()),
+            writeDescriptorSet5.data(),
             0,
-            &m_storageImage.result.descriptor);
-    VkWriteDescriptorSet resultDepthMapWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            1,
-            &m_storageImage.depthMap.descriptor);
-    VkWriteDescriptorSet resultNormalMapWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            2,
-            &m_storageImage.normalMap.descriptor);
-    VkWriteDescriptorSet resultAlbedoWrite
-        = initializers::writeDescriptorSet(m_rtDescriptorSets.set5ResultImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            3,
-            &m_storageImage.albedo.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet5
-        = { resultImageWrite, resultDepthMapWrite, resultNormalMapWrite, resultAlbedoWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet5.size()),
-        writeDescriptorSet5.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
+    }
 
-    VkWriteDescriptorSet inputImageWrite
-        = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+    // Post Process
+    {
+        VkWriteDescriptorSet inputImageWrite
+            = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                0,
+                &m_storageImage.result.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess = { inputImageWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet1Postprocess.size()),
+            writeDescriptorSet1Postprocess.data(),
             0,
-            &m_storageImage.result.descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess = { inputImageWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet1Postprocess.size()),
-        writeDescriptorSet1Postprocess.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
+    }
+
+    // Auto manualExposureAdjust
+    {
+        VkWriteDescriptorSet inputImageWrite
+            = initializers::writeDescriptorSet(m_autoExposureDescriptorSets.set0InputImage,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                0,
+                &m_storageImage.result.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet0AutoExposure = { inputImageWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet0AutoExposure.size()),
+            writeDescriptorSet0AutoExposure.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
 }
 
 void MonteCarloRTApp::updateUniformBuffers(uint32_t t_currentImage)
@@ -763,6 +953,16 @@ void MonteCarloRTApp::createUniformBuffers()
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         bufferSize,
         m_scene->getLightsShaderData().data());
+
+    // Auto Exposure uniform, also set the default data
+    bufferSize = sizeof(ExposureUniformData);
+    m_exposureBuffer.create(m_vulkanDevice,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        bufferSize);
+    CHECK_RESULT(m_exposureBuffer.map())
+    memcpy(m_exposureBuffer.mapped, &m_exposureData, bufferSize);
+    m_exposureBuffer.unmap();
 }
 
 /*
@@ -846,7 +1046,7 @@ void MonteCarloRTApp::createShaderRTBindingTable()
 void MonteCarloRTApp::prepare()
 {
     BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/sponza/Sponza.fbx", m_vertexLayout);
 
     createStorageImages();
     createUniformBuffers();
@@ -855,6 +1055,7 @@ void MonteCarloRTApp::prepare()
     createPostprocessPipeline();
     createRTPipeline();
     createShaderRTBindingTable();
+    createAutoExposurePipeline();
     createDescriptorPool();
     createDescriptorSets();
     buildCommandBuffers();
@@ -870,6 +1071,21 @@ void MonteCarloRTApp::render()
         m_sceneUniformData.frameChanged = 0;
         m_sceneUniformData.frameIteration++;
         m_sceneUniformData.frame++;
+
+        // The noise can interfere with the luma calculation to set the manualExposureAdjust, wait for some
+        // accumulation:
+        if (m_sceneUniformData.frameIteration > 50) {
+            // Submit compute commands
+            vkWaitForFences(m_device, 1, &m_compute.fence, VK_TRUE, UINT64_MAX);
+            vkResetFences(m_device, 1, &m_compute.fence);
+            VkSubmitInfo submitInfo {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &m_compute.commandBuffer;
+            CHECK_RESULT(vkQueueSubmit(m_compute.queue, 1, &submitInfo, m_compute.fence));
+        }
+        // ----
+
         std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
     }
 }
@@ -878,12 +1094,15 @@ MonteCarloRTApp::~MonteCarloRTApp()
 {
     vkDestroyPipeline(m_device, m_pipelines.postProcess, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.rayTracing, nullptr);
+    vkDestroyPipeline(m_device, m_pipelines.autoExposure, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.postProcess, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.rayTracing, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.autoExposure, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_postprocessDescriptorSetLayouts.set1InputImage,
         nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set2Exposure, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_rtDescriptorSetLayouts.set0AccelerationStructure,
         nullptr);
@@ -892,11 +1111,18 @@ MonteCarloRTApp::~MonteCarloRTApp()
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5ResultImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device,
+        m_autoExposureDescriptorSetLayouts.set0InputImage,
+        nullptr);
+    vkDestroyDescriptorSetLayout(m_device,
+        m_autoExposureDescriptorSetLayouts.set1Exposure,
+        nullptr);
     m_storageImage.result.destroy();
     m_storageImage.depthMap.destroy();
     m_storageImage.normalMap.destroy();
     m_storageImage.albedo.destroy();
 
+    m_exposureBuffer.destroy();
     m_shaderBindingTable.destroy();
     m_sceneBuffer.destroy();
     m_materialsBuffer.destroy();
@@ -936,10 +1162,10 @@ void MonteCarloRTApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_
         viewChanged();
         break;
     case GLFW_KEY_G:
-        m_sceneUniformData.exposure += 0.1;
+        m_sceneUniformData.manualExposureAdjust += 0.1;
         break;
     case GLFW_KEY_H:
-        m_sceneUniformData.exposure -= 0.1;
+        m_sceneUniformData.manualExposureAdjust -= 0.1;
         break;
     default:
         break;

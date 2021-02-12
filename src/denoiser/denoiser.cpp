@@ -138,7 +138,7 @@ void DenoiserApp::buildCommandBuffers()
             CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
         }
     }
-    // END Draw command buffers
+    // ---
     // Compute command buffers
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

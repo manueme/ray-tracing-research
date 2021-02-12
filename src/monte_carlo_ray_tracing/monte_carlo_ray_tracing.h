@@ -18,10 +18,12 @@ private:
     struct {
         VkPipeline rayTracing;
         VkPipeline postProcess;
+        VkPipeline autoExposure;
     } m_pipelines;
     struct {
         VkPipelineLayout rayTracing;
         VkPipelineLayout postProcess;
+        VkPipelineLayout autoExposure;
     } m_pipelineLayouts;
 
     struct {
@@ -43,11 +45,21 @@ private:
     struct {
         VkDescriptorSet set0Scene;
         VkDescriptorSet set1InputImage;
+        VkDescriptorSet set2Exposure;
     } m_postprocessDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1InputImage;
+        VkDescriptorSetLayout set2Exposure;
     } m_postprocessDescriptorSetLayouts;
+    struct {
+        VkDescriptorSet set0InputImage;
+        VkDescriptorSet set1Exposure;
+    } m_autoExposureDescriptorSets;
+    struct {
+        VkDescriptorSetLayout set0InputImage;
+        VkDescriptorSetLayout set1Exposure;
+    } m_autoExposureDescriptorSetLayouts;
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
     Buffer m_materialsBuffer;
@@ -70,9 +82,14 @@ private:
         uint32_t frameIteration { 0 }; // Current frame iteration number
         uint32_t frame { 0 }; // Current frame
         uint32_t frameChanged { 1 }; // Current frame changed size
-        float exposure = { 1.0f };
+        float manualExposureAdjust = { 0.0f };
     } m_sceneUniformData;
     Buffer m_sceneBuffer;
+
+    struct ExposureUniformData {
+        float exposure = { 1.0f };
+    } m_exposureData;
+    Buffer m_exposureBuffer;
 
     const uint32_t m_ray_tracer_depth = 4;
     const uint32_t m_ray_tracer_samples = 1;
@@ -108,6 +125,7 @@ private:
     void createRTPipeline();
     void createShaderRTBindingTable();
     void createPostprocessPipeline();
+    void createAutoExposurePipeline();
 
     void getEnabledFeatures() override;
 };

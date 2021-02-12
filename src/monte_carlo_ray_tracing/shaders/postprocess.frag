@@ -10,8 +10,9 @@
 #include "app_scene.glsl"
 
 layout(location = 0) out vec4 fragColor;
-
 layout(set = 1, binding = 0) uniform sampler2D rtInputColor;
+layout(binding = 0, set = 2) readonly buffer _AutoExposure { float exposure; }
+exposureSettings;
 
 in vec4 gl_FragCoord;
 
@@ -38,7 +39,7 @@ void main()
     // Tone mapping
     fragColor = vec4(vignette
             * linear_tone_mapping(texelFetch(rtInputColor, ivec2(gl_FragCoord.xy), 0).xyz,
-                scene.exposure),
+                exposureSettings.exposure + scene.manualExposureAdjust),
         1.0);
     // ###
 }
