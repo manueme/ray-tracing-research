@@ -282,6 +282,7 @@ BaseProject::~BaseProject()
     }
 
     if (m_settings.useCompute) {
+        destroyComputeCommandBuffers();
         vkDestroyCommandPool(m_device, m_compute.commandPool, nullptr);
         vkDestroyFence(m_device, m_compute.fence, nullptr);
     }

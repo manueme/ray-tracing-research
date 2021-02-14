@@ -1086,7 +1086,8 @@ void MonteCarloRTApp::render()
         }
         // ----
 
-        std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+        std::cout << '\r' << "| FPS: " << m_lastFps
+                  << " -- Sample: " << m_sceneUniformData.frameIteration << " | " << std::flush;
     }
 }
 

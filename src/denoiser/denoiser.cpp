@@ -141,48 +141,49 @@ void DenoiserApp::buildCommandBuffers()
     }
     // ---
     // Compute command buffers
-    VkCommandBufferBeginInfo cmdBufInfo = {};
-    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo))
+    {
+        VkCommandBufferBeginInfo cmdBufInfo = {};
+        cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo))
 
-    // Predict denoise:
-    /* Not ready yet
-    vkCmdBindPipeline(m_compute.commandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        m_pipelines.predictDenoise);
-    std::vector<VkDescriptorSet> predictDenoiseComputeDescriptorSets
-        = { m_predictDenoiseDescriptorSets.set0Scene,
-              m_predictDenoiseDescriptorSets.set1InputImage }; // TODO: add also the minibatch set
-    vkCmdBindDescriptorSets(m_compute.commandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        m_pipelineLayouts.predictDenoise,
-        0,
-        predictDenoiseComputeDescriptorSets.size(),
-        predictDenoiseComputeDescriptorSets.data(),
-        0,
-        nullptr);
-    vkCmdDispatch(m_compute.commandBuffer, m_width / 16, m_height / 16, 1);
-    */
-    // ---
-    // Auto exposure
-    vkCmdBindPipeline(m_compute.commandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        m_pipelines.autoExposure);
-    std::vector<VkDescriptorSet> trainComputeDescriptorSets
-        = { m_autoExposureDescriptorSets.set0InputImage,
-              m_autoExposureDescriptorSets.set1Exposure };
-    vkCmdBindDescriptorSets(m_compute.commandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        m_pipelineLayouts.autoExposure,
-        0,
-        trainComputeDescriptorSets.size(),
-        trainComputeDescriptorSets.data(),
-        0,
-        nullptr);
-    vkCmdDispatch(m_compute.commandBuffer, 1, 1, 1);
-    // ---
+        // Predict denoise:
+        /* Not ready yet
+        vkCmdBindPipeline(m_compute.commandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            m_pipelines.predictDenoise);
+        std::vector<VkDescriptorSet> predictDenoiseComputeDescriptorSets
+            = { m_predictDenoiseDescriptorSets.set0Scene,
+                  m_predictDenoiseDescriptorSets.set1InputImage }; // TODO: add also the minibatch
+        set vkCmdBindDescriptorSets(m_compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+            m_pipelineLayouts.predictDenoise,
+            0,
+            predictDenoiseComputeDescriptorSets.size(),
+            predictDenoiseComputeDescriptorSets.data(),
+            0,
+            nullptr);
+        vkCmdDispatch(m_compute.commandBuffer, m_width / 16, m_height / 16, 1);
+        */
+        // ---
+        // Auto exposure
+        vkCmdBindPipeline(m_compute.commandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            m_pipelines.autoExposure);
+        std::vector<VkDescriptorSet> trainComputeDescriptorSets
+            = { m_autoExposureDescriptorSets.set0InputImage,
+                  m_autoExposureDescriptorSets.set1Exposure };
+        vkCmdBindDescriptorSets(m_compute.commandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            m_pipelineLayouts.autoExposure,
+            0,
+            trainComputeDescriptorSets.size(),
+            trainComputeDescriptorSets.data(),
+            0,
+            nullptr);
+        vkCmdDispatch(m_compute.commandBuffer, 1, 1, 1);
+        // ---
 
-    vkEndCommandBuffer(m_compute.commandBuffer);
+        vkEndCommandBuffer(m_compute.commandBuffer);
+    }
     // END Compute command buffers
 }
 
@@ -1258,7 +1259,6 @@ void DenoiserApp::createShaderRTBindingTable()
 void DenoiserApp::prepare()
 {
     BaseRTProject::prepare();
-    prepareCompute();
 
     BaseRTProject::createRTScene("assets/sponza/Sponza.fbx", m_vertexLayout);
 
@@ -1301,8 +1301,8 @@ void DenoiserApp::render()
         }
         // ----
 
-        std::cout << '\r' << "FPS: " << m_lastFps
-                  << " -- Sample: " << m_sceneUniformData.frameIteration << std::flush;
+        std::cout << '\r' << "| FPS: " << m_lastFps
+                  << " -- Sample: " << m_sceneUniformData.frameIteration << " | " << std::flush;
     }
 }
 
