@@ -145,16 +145,16 @@ void DenoiserApp::buildCommandBuffers()
     CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo))
     vkCmdBindPipeline(m_compute.commandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
-        m_pipelines.trainDenoise);
-    std::vector<VkDescriptorSet> trainComputeDescriptorSets
-        = { m_trainDenoiseDescriptorSets.set0Scene,
-              m_trainDenoiseDescriptorSets.set1InputImage }; // TODO: add also the minibatch set
+        m_pipelines.predictDenoise);
+    std::vector<VkDescriptorSet> predictDenoiseComputeDescriptorSets
+        = { m_predictDenoiseDescriptorSets.set0Scene,
+              m_predictDenoiseDescriptorSets.set1InputImage }; // TODO: add also the minibatch set
     vkCmdBindDescriptorSets(m_compute.commandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
-        m_pipelineLayouts.trainDenoise,
+        m_pipelineLayouts.predictDenoise,
         0,
-        trainComputeDescriptorSets.size(),
-        trainComputeDescriptorSets.data(),
+        predictDenoiseComputeDescriptorSets.size(),
+        predictDenoiseComputeDescriptorSets.data(),
         0,
         nullptr);
     vkCmdDispatch(m_compute.commandBuffer, m_width / 16, m_height / 16, 1);
@@ -392,9 +392,9 @@ void DenoiserApp::createDescriptorSetsLayout()
             &m_pipelineLayouts.postProcess))
     }
 
-    // Train compute layout
+    // Predict denoise compute layout
     {
-        // Set 0 Train compute: Scene information buffer
+        // Set 0 Predict denoise compute: Scene information buffer
         std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
             // Binding 0 : Scene uniform buffer
             initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -407,9 +407,9 @@ void DenoiserApp::createDescriptorSetsLayout()
         CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_trainDenoiseDescriptorSetLayouts.set0Scene));
+            &m_predictDenoiseDescriptorSetLayouts.set0Scene));
 
-        // Set 1 Train compute: Input Image
+        // Set 1 Predict denoise compute: Input Image
         setLayoutBindings.clear();
         setLayoutBindings.push_back(
             // Binding 0 : Result Image Color
@@ -436,21 +436,21 @@ void DenoiserApp::createDescriptorSetsLayout()
         CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
             &descriptorLayout,
             nullptr,
-            &m_trainDenoiseDescriptorSetLayouts.set1InputImage))
+            &m_predictDenoiseDescriptorSetLayouts.set1InputImage))
 
         // TODO: add minibatch set
 
-        // Train compute Pipeline Layout
+        // Predict denoise compute Pipeline Layout
         std::array<VkDescriptorSetLayout, 2> postprocessSetLayouts
-            = { m_trainDenoiseDescriptorSetLayouts.set0Scene,
-                  m_trainDenoiseDescriptorSetLayouts.set1InputImage };
+            = { m_predictDenoiseDescriptorSetLayouts.set0Scene,
+                  m_predictDenoiseDescriptorSetLayouts.set1InputImage };
         VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
             = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
                 postprocessSetLayouts.size());
         CHECK_RESULT(vkCreatePipelineLayout(m_device,
             &postprocessPipelineLayoutCreateInfo,
             nullptr,
-            &m_pipelineLayouts.trainDenoise))
+            &m_pipelineLayouts.predictDenoise))
     }
 }
 
@@ -520,16 +520,16 @@ void DenoiserApp::createComputeDenoisePipelines()
 {
     VkComputePipelineCreateInfo computePipelineCreateInfo {};
     computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    computePipelineCreateInfo.layout = m_pipelineLayouts.trainDenoise;
+    computePipelineCreateInfo.layout = m_pipelineLayouts.predictDenoise;
     computePipelineCreateInfo.flags = 0;
     computePipelineCreateInfo.stage
-        = loadShader("./shaders/train_denoiser.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+        = loadShader("./shaders/predict_denoiser.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
     CHECK_RESULT(vkCreateComputePipelines(m_device,
         m_pipelineCache,
         1,
         &computePipelineCreateInfo,
         nullptr,
-        &m_pipelines.trainDenoise))
+        &m_pipelines.predictDenoise))
 }
 
 void DenoiserApp::createRTPipeline()
@@ -794,16 +794,16 @@ void DenoiserApp::createDescriptorSets()
             &m_postprocessDescriptorSets.set1InputImage))
     }
 
-    // Train compute
+    // Predict denoise compute
     {
         // Set 0: Scene descriptor
         VkDescriptorSetAllocateInfo set0AllocInfo
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                &m_trainDenoiseDescriptorSetLayouts.set0Scene,
+                &m_predictDenoiseDescriptorSetLayouts.set0Scene,
                 1);
         CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &set0AllocInfo,
-            &m_trainDenoiseDescriptorSets.set0Scene))
+            &m_predictDenoiseDescriptorSets.set0Scene))
         VkWriteDescriptorSet uniformBufferWrite
             = initializers::writeDescriptorSet(m_rtDescriptorSets.set1Scene,
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -819,11 +819,11 @@ void DenoiserApp::createDescriptorSets()
         // Set 1: Result image descriptor
         VkDescriptorSetAllocateInfo set5AllocInfo
             = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                &m_trainDenoiseDescriptorSetLayouts.set1InputImage,
+                &m_predictDenoiseDescriptorSetLayouts.set1InputImage,
                 1);
         CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &set5AllocInfo,
-            &m_trainDenoiseDescriptorSets.set1InputImage))
+            &m_predictDenoiseDescriptorSets.set1InputImage))
 
         // TODO: allocate minibatch descriptor set
     }
@@ -879,25 +879,25 @@ void DenoiserApp::updateResultImageDescriptorSets()
             VK_NULL_HANDLE);
     }
 
-    // Train denoise
+    // Predict denoise
     {
         VkWriteDescriptorSet resultImageWrite
-            = initializers::writeDescriptorSet(m_trainDenoiseDescriptorSets.set1InputImage,
+            = initializers::writeDescriptorSet(m_predictDenoiseDescriptorSets.set1InputImage,
                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 0,
                 &m_storageImage.result.descriptor);
         VkWriteDescriptorSet resultDepthMapWrite
-            = initializers::writeDescriptorSet(m_trainDenoiseDescriptorSets.set1InputImage,
+            = initializers::writeDescriptorSet(m_predictDenoiseDescriptorSets.set1InputImage,
                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 1,
                 &m_storageImage.depthMap.descriptor);
         VkWriteDescriptorSet resultNormalMapWrite
-            = initializers::writeDescriptorSet(m_trainDenoiseDescriptorSets.set1InputImage,
+            = initializers::writeDescriptorSet(m_predictDenoiseDescriptorSets.set1InputImage,
                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 2,
                 &m_storageImage.normalMap.descriptor);
         VkWriteDescriptorSet resultAlbedoWrite
-            = initializers::writeDescriptorSet(m_trainDenoiseDescriptorSets.set1InputImage,
+            = initializers::writeDescriptorSet(m_predictDenoiseDescriptorSets.set1InputImage,
                 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 3,
                 &m_storageImage.albedo.descriptor);
@@ -1020,6 +1020,15 @@ void DenoiserApp::createStorageImages()
         VK_FILTER_NEAREST,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
+    m_minibatch.denoiseOutput.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_width,
+        m_height,
+        m_minibatch_size,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
     m_minibatch.depthMap.fromNothing(VK_FORMAT_R32_SFLOAT,
         m_width,
         m_height,
@@ -1115,10 +1124,10 @@ DenoiserApp::~DenoiserApp()
 {
     vkDestroyPipeline(m_device, m_pipelines.postProcess, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.rayTracing, nullptr);
-    vkDestroyPipeline(m_device, m_pipelines.trainDenoise, nullptr);
+    vkDestroyPipeline(m_device, m_pipelines.predictDenoise, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.postProcess, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.rayTracing, nullptr);
-    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.trainDenoise, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.predictDenoise, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_postprocessDescriptorSetLayouts.set1InputImage,
@@ -1131,12 +1140,12 @@ DenoiserApp::~DenoiserApp()
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5ResultImage, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_trainDenoiseDescriptorSetLayouts.set0Scene, nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_predictDenoiseDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
-        m_trainDenoiseDescriptorSetLayouts.set1InputImage,
+        m_predictDenoiseDescriptorSetLayouts.set1InputImage,
         nullptr);
     vkDestroyDescriptorSetLayout(m_device,
-        m_trainDenoiseDescriptorSetLayouts.set2Minibatch,
+        m_predictDenoiseDescriptorSetLayouts.set2Minibatch,
         nullptr);
     m_storageImage.result.destroy();
     m_storageImage.depthMap.destroy();
@@ -1147,6 +1156,7 @@ DenoiserApp::~DenoiserApp()
     m_minibatch.rawSample.destroy();
     m_minibatch.depthMap.destroy();
     m_minibatch.albedo.destroy();
+    m_minibatch.denoiseOutput.destroy();
     m_minibatch.normalMap.destroy();
 
     m_shaderBindingTable.destroy();
@@ -1176,6 +1186,7 @@ void DenoiserApp::onSwapChainRecreation()
     m_minibatch.rawSample.destroy();
     m_minibatch.depthMap.destroy();
     m_minibatch.albedo.destroy();
+    m_minibatch.denoiseOutput.destroy();
     m_minibatch.normalMap.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();

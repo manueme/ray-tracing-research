@@ -8,4 +8,4 @@ glslc %mypath%anyhit.rahit -o %mypath%anyhit.rahit.spv --target-env=vulkan1.2
 glslc %mypath%shadow.rahit -o %mypath%shadow.rahit.spv --target-env=vulkan1.2
 glslc %mypath%postprocess.vert -o %mypath%postprocess.vert.spv
 glslc %mypath%postprocess.frag -o %mypath%postprocess.frag.spv
-glslc %mypath%train_denoiser.comp -o %mypath%train_denoiser.comp.spv
+glslc %mypath%predict_denoiser.comp -o %mypath%predict_denoiser.comp.spv

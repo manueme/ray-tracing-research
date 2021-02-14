@@ -18,12 +18,13 @@ private:
     struct {
         VkPipeline rayTracing;
         VkPipeline postProcess;
-        VkPipeline trainDenoise;
+        VkPipeline predictDenoise;
+        // TODO: add backpropagate denoise
     } m_pipelines;
     struct {
         VkPipelineLayout rayTracing;
         VkPipelineLayout postProcess;
-        VkPipelineLayout trainDenoise;
+        VkPipelineLayout predictDenoise;
     } m_pipelineLayouts;
 
     struct {
@@ -54,12 +55,12 @@ private:
         VkDescriptorSet set0Scene;
         VkDescriptorSet set1InputImage;
         VkDescriptorSet set2Minibatch;
-    } m_trainDenoiseDescriptorSets;
+    } m_predictDenoiseDescriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
         VkDescriptorSetLayout set1InputImage;
         VkDescriptorSetLayout set2Minibatch;
-    } m_trainDenoiseDescriptorSetLayouts;
+    } m_predictDenoiseDescriptorSetLayouts;
 
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
@@ -81,6 +82,7 @@ private:
         Texture depthMap;
         Texture normalMap;
         Texture albedo;
+        Texture denoiseOutput;
     } m_minibatch;
 
     struct UniformData {
