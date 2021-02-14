@@ -22,7 +22,7 @@ void main()
     vec2 res = textureSize(rtInputColor, 0);
     vec2 q = gl_FragCoord.xy / res;
 
-    // Vignette fffect
+    // Vignette effect
     vec2 v = -1.0 + 2.0 * q;
     v.x *= res.x / res.y;
     float vignette = smoothstep(4.0, 0.6, length(v));

@@ -99,6 +99,7 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
     SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue)
 {
     this->m_device = t_device;
+    this->m_vertexLayout = t_layout;
 
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile((t_modelPath).c_str(), defaultFlags);
@@ -164,7 +165,8 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
                         vertexBuffer.push_back(pTexCoord->y * uvscale.t);
                         break;
                     case VERTEX_COMPONENT_TANGENT:
-                        if (std::isnan(pTangent->x) || std::isnan(pTangent->y) || std::isnan(pTangent->z)) {
+                        if (std::isnan(pTangent->x) || std::isnan(pTangent->y)
+                            || std::isnan(pTangent->z)) {
                             vertexBuffer.push_back(1.f);
                             vertexBuffer.push_back(1.f);
                             vertexBuffer.push_back(1.f);
@@ -369,3 +371,5 @@ void Scene::createMeshInstance(uint32_t t_blasIdx, uint32_t t_meshIdx)
 }
 
 bool Scene::isLoaded() { return m_loaded || m_error; }
+
+uint32_t Scene::getVertexLayoutStride() { return m_vertexLayout.stride(); }

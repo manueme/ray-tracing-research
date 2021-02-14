@@ -6,13 +6,13 @@
 #ifndef MANUEME_MONTE_CARLO_RAY_TRACING_H
 #define MANUEME_MONTE_CARLO_RAY_TRACING_H
 
-#include "base_rt_project.h"
+#include "base_project.h"
 #include "core/texture.h"
 
 class RayTracingPipeline;
 class AutoExposurePipeline;
 
-class MonteCarloRTApp : public BaseRTProject {
+class MonteCarloRTApp : public BaseProject {
 public:
     MonteCarloRTApp();
     ~MonteCarloRTApp();
@@ -70,13 +70,8 @@ private:
     } m_exposureData;
     Buffer m_exposureBuffer;
 
-    SceneVertexLayout m_vertexLayout = SceneVertexLayout({ VERTEX_COMPONENT_POSITION,
-        VERTEX_COMPONENT_NORMAL,
-        VERTEX_COMPONENT_TANGENT,
-        VERTEX_COMPONENT_UV,
-        VERTEX_COMPONENT_DUMMY_FLOAT });
-
     void render() override;
+    void setupScene();
     void prepare() override;
     void viewChanged() override;
     void windowResized() override;
@@ -93,8 +88,6 @@ private:
     void createRTPipeline();
     void createPostprocessPipeline();
     void createAutoExposurePipeline();
-
-    void getEnabledFeatures() override;
 };
 
 #endif // MANUEME_MONTE_CARLO_RAY_TRACING_H

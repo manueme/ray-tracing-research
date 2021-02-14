@@ -39,6 +39,14 @@ public:
     void run();
 
 private:
+    // Device extra features
+    struct {
+        VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures {};
+        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures {};
+        VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures {};
+        VkPhysicalDeviceDescriptorIndexingFeaturesEXT descriptorIndexingFeatures {};
+    } m_rayTracingFeatures;
+
     GLFWwindow* m_window;
     bool m_viewUpdated = true;
     bool m_framebufferResized = false;
@@ -181,6 +189,7 @@ protected:
         bool validation = false;
         bool vsync = false;
         bool useCompute = false;
+        bool useRayTracing = false;
     } m_settings;
 
     /** @brief Setup the vulkan instance, enable required extensions and connect

@@ -16,16 +16,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 MonteCarloRTApp::MonteCarloRTApp()
-    : BaseRTProject("Monte Carlo Ray Tracing", "Monte Carlo Ray Tracing App", true)
+    : BaseProject("Monte Carlo Ray Tracing", "Monte Carlo Ray Tracing App", true)
 {
     m_settings.vsync = false;
     m_settings.useCompute = true;
+    m_settings.useRayTracing = true;
     // Make sure no more than 1 frame is processed at the same time to
     // avoid issues in the accumulated image
     m_maxFramesInFlight = 1;
 }
-
-void MonteCarloRTApp::getEnabledFeatures() { BaseRTProject::getEnabledFeatures(); }
 
 void MonteCarloRTApp::buildCommandBuffers()
 {
@@ -328,7 +327,6 @@ void MonteCarloRTApp::createDescriptorSets()
 {
     // Ray Tracing
     m_rayTracing->createDescriptorSets(m_descriptorPool,
-        m_topLevelAS.getHandle(),
         m_scene,
         &m_sceneBuffer,
         &m_instancesBuffer,
@@ -521,13 +519,31 @@ void MonteCarloRTApp::createStorageImages()
         VK_IMAGE_LAYOUT_GENERAL);
 }
 
+void MonteCarloRTApp::setupScene()
+{
+    SceneVertexLayout m_vertexLayout = SceneVertexLayout({ VERTEX_COMPONENT_POSITION,
+        VERTEX_COMPONENT_NORMAL,
+        VERTEX_COMPONENT_TANGENT,
+        VERTEX_COMPONENT_UV,
+        VERTEX_COMPONENT_DUMMY_FLOAT });
+    m_scene = m_rayTracing->createRTScene(m_queue, "assets/pool/Pool.fbx", m_vertexLayout);
+    auto camera = m_scene->getCamera();
+    camera->setMovementSpeed(100.0f);
+    camera->setRotationSpeed(0.5f);
+    camera->setPerspective(60.0f,
+        static_cast<float>(m_width) / static_cast<float>(m_height),
+        CAMERA_NEAR,
+        CAMERA_FAR);
+}
+
 void MonteCarloRTApp::prepare()
 {
-    BaseRTProject::prepare();
-    BaseRTProject::createRTScene("assets/pool/Pool.fbx", m_vertexLayout);
+    BaseProject::prepare();
 
-    m_rayTracing = new RayTracingPipeline(m_vulkanDevice, m_rayTracingPipelineProperties);
+    m_rayTracing = new RayTracingPipeline(m_vulkanDevice);
     m_autoExposure = new AutoExposurePipeline(m_vulkanDevice);
+
+    setupScene();
 
     createStorageImages();
     createUniformBuffers();
@@ -546,7 +562,7 @@ void MonteCarloRTApp::render()
     if (!m_prepared) {
         return;
     }
-    if (BaseRTProject::renderFrame() == VK_SUCCESS) {
+    if (BaseProject::renderFrame() == VK_SUCCESS) {
         m_sceneUniformData.frameChanged = 0;
         m_sceneUniformData.frameIteration++;
         m_sceneUniformData.frame++;
@@ -600,6 +616,10 @@ MonteCarloRTApp::~MonteCarloRTApp()
 void MonteCarloRTApp::viewChanged()
 {
     auto camera = m_scene->getCamera();
+    camera->setPerspective(60.0f,
+        static_cast<float>(m_width) / static_cast<float>(m_height),
+        CAMERA_NEAR,
+        CAMERA_FAR);
     m_sceneUniformData.projInverse = glm::inverse(camera->matrices.perspective);
     m_sceneUniformData.viewInverse = glm::inverse(camera->matrices.view);
     m_sceneUniformData.frameIteration = 0;
@@ -639,6 +659,6 @@ void MonteCarloRTApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_
 }
 void MonteCarloRTApp::windowResized()
 {
-    BaseRTProject::windowResized();
+    BaseProject::windowResized();
     m_sceneUniformData.frameChanged = 1;
 }

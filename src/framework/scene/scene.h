@@ -46,7 +46,7 @@ enum Component {
  * input and attribute bindings  */
 class SceneVertexLayout {
 public:
-    explicit SceneVertexLayout(std::vector<Component> t_components)
+    explicit SceneVertexLayout(std::vector<Component> t_components = {})
         : components(std::move(t_components)) {};
     ~SceneVertexLayout() = default;
     uint32_t stride();
@@ -112,12 +112,16 @@ public:
 
     bool isLoaded();
 
+    uint32_t getVertexLayoutStride();
+
 private:
     static const int defaultFlags = aiProcess_FlipWindingOrder | aiProcess_PreTransformVertices
         | aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals
         | aiProcess_EmbedTextures;
 
     Device* m_device = nullptr;
+
+    SceneVertexLayout m_vertexLayout;
 
     bool m_loaded = false;
     bool m_error = false;
