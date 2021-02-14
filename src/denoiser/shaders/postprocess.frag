@@ -4,19 +4,17 @@
  */
 
 #version 450
+#extension GL_GOOGLE_include_directive : enable
 
 layout(location = 0) out vec4 fragColor;
 
-layout(set = 0, binding = 0) uniform _SceneProperties
-{
-    mat4 viewInverse;
-    mat4 projInverse;
-    uint frameIteration;
-    uint frame;
-    uint frameChanged;
-}
-scene;
+#define SCENE_SET 0 // override SCENE_SET for this particular case
+#include "../../framework/shaders/exposure_functions.glsl"
+#include "app_scene.glsl"
+
 layout(set = 1, binding = 0) uniform sampler2D rtInputColor;
+layout(set = 2, binding = 0) readonly buffer _AutoExposure { float exposure; }
+exposureSettings;
 
 in vec4 gl_FragCoord;
 
@@ -31,12 +29,15 @@ void main()
     float vignette = smoothstep(4.0, 0.6, length(v));
     // ###
 
-    // Chromatic aberration effect
+    // Chromatic aberration effect with tone mapping
     vec2 centerToUv = q - vec2(0.5);
     vec3 aberr;
     aberr.x = texelFetch(rtInputColor, ivec2((0.5 + centerToUv * 0.995) * res), 0).x;
     aberr.y = texelFetch(rtInputColor, ivec2((0.5 + centerToUv * 0.997) * res), 0).y;
     aberr.z = texelFetch(rtInputColor, ivec2((0.5 + centerToUv) * res), 0).z;
-    fragColor = vec4(pow(vignette * aberr, vec3(0.2 + 1.0 / 2.2)), 1.0);
+    fragColor = vec4(
+        (vignette
+            * linear_tone_mapping(aberr, exposureSettings.exposure + scene.manualExposureAdjust)),
+        1.0);
     // ###
 }

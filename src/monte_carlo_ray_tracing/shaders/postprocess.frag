@@ -8,6 +8,7 @@
 
 #define SCENE_SET 0 // override SCENE_SET for this particular case
 #include "app_scene.glsl"
+#include "../../framework/shaders/exposure_functions.glsl"
 
 layout(location = 0) out vec4 fragColor;
 layout(set = 1, binding = 0) uniform sampler2D rtInputColor;
@@ -15,15 +16,6 @@ layout(binding = 0, set = 2) readonly buffer _AutoExposure { float exposure; }
 exposureSettings;
 
 in vec4 gl_FragCoord;
-
-float GAMMA = 2.2;
-
-vec3 linear_tone_mapping(vec3 color, float exposure)
-{
-    color = clamp(exposure * color, 0., 1.);
-    color = pow(color, vec3(1. / GAMMA));
-    return color;
-}
 
 void main()
 {

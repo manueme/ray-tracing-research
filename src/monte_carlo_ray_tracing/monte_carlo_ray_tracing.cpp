@@ -409,7 +409,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
             &m_pipelineLayouts.postProcess))
     }
 
-    // Train compute layout
+    // Auto exposure compute layout
     {
         // Set 0: Input Image
         std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -898,7 +898,7 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
             VK_NULL_HANDLE);
     }
 
-    // Auto manualExposureAdjust
+    // Auto exposure
     {
         VkWriteDescriptorSet inputImageWrite
             = initializers::writeDescriptorSet(m_autoExposureDescriptorSets.set0InputImage,

@@ -118,7 +118,8 @@ void DenoiserApp::buildCommandBuffers()
             vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
             std::vector<VkDescriptorSet> postprocessDescriptorSets
                 = { m_postprocessDescriptorSets.set0Scene,
-                      m_postprocessDescriptorSets.set1InputImage };
+                      m_postprocessDescriptorSets.set1InputImage,
+                      m_postprocessDescriptorSets.set2Exposure };
             vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                 m_pipelineLayouts.postProcess,
@@ -143,6 +144,9 @@ void DenoiserApp::buildCommandBuffers()
     VkCommandBufferBeginInfo cmdBufInfo = {};
     cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo))
+
+    // Predict denoise:
+    /* Not ready yet
     vkCmdBindPipeline(m_compute.commandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
         m_pipelines.predictDenoise);
@@ -158,6 +162,26 @@ void DenoiserApp::buildCommandBuffers()
         0,
         nullptr);
     vkCmdDispatch(m_compute.commandBuffer, m_width / 16, m_height / 16, 1);
+    */
+    // ---
+    // Auto exposure
+    vkCmdBindPipeline(m_compute.commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_pipelines.autoExposure);
+    std::vector<VkDescriptorSet> trainComputeDescriptorSets
+        = { m_autoExposureDescriptorSets.set0InputImage,
+              m_autoExposureDescriptorSets.set1Exposure };
+    vkCmdBindDescriptorSets(m_compute.commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_pipelineLayouts.autoExposure,
+        0,
+        trainComputeDescriptorSets.size(),
+        trainComputeDescriptorSets.data(),
+        0,
+        nullptr);
+    vkCmdDispatch(m_compute.commandBuffer, 1, 1, 1);
+    // ---
+
     vkEndCommandBuffer(m_compute.commandBuffer);
     // END Compute command buffers
 }
@@ -168,6 +192,8 @@ void DenoiserApp::createDescriptorPool()
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         // Scene description
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+        // Exposure
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Vertex, Index and Material Indexes
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Textures
@@ -180,15 +206,7 @@ void DenoiserApp::createDescriptorPool()
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
     };
     // Calculate max set for pool
-    const auto asSets = 1;
-    const auto sceneSets = 1;
-    const auto vertexAndIndexes = 3;
-    const auto textures = 1;
-    const auto materials = 1;
-    const auto lights = 1;
-    const auto resultImages = 4;
-    uint32_t maxSetsForPool
-        = asSets + sceneSets + vertexAndIndexes + textures + materials + lights + resultImages;
+    uint32_t maxSetsForPool = 13;
     // ---
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo
@@ -379,10 +397,24 @@ void DenoiserApp::createDescriptorSetsLayout()
             nullptr,
             &m_postprocessDescriptorSetLayouts.set1InputImage));
 
+        // Set 2 Postprocess: Exposure buffer
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back( // Binding 0 : Buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_FRAGMENT_BIT,
+                0));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_postprocessDescriptorSetLayouts.set2Exposure));
+
         // Postprocess Pipeline Layout
-        std::array<VkDescriptorSetLayout, 2> postprocessSetLayouts
+        std::array<VkDescriptorSetLayout, 3> postprocessSetLayouts
             = { m_postprocessDescriptorSetLayouts.set0Scene,
-                  m_postprocessDescriptorSetLayouts.set1InputImage };
+                  m_postprocessDescriptorSetLayouts.set1InputImage,
+                  m_postprocessDescriptorSetLayouts.set2Exposure };
         VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
             = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
                 postprocessSetLayouts.size());
@@ -390,6 +422,50 @@ void DenoiserApp::createDescriptorSetsLayout()
             &postprocessPipelineLayoutCreateInfo,
             nullptr,
             &m_pipelineLayouts.postProcess))
+    }
+
+    // Auto exposure layout
+    {
+        // Set 0: Input Image
+        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
+            // Binding 0 : Result Image Color
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0)
+        };
+        VkDescriptorSetLayoutCreateInfo descriptorLayout
+            = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+                setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_autoExposureDescriptorSetLayouts.set0InputImage))
+
+        // Set 1 Exposure buffer
+        setLayoutBindings.clear();
+        setLayoutBindings.push_back(
+            // Binding 0 : Scene uniform buffer
+            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0));
+        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
+            setLayoutBindings.size());
+        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
+            &descriptorLayout,
+            nullptr,
+            &m_autoExposureDescriptorSetLayouts.set1Exposure));
+
+        // Train compute Pipeline Layout
+        std::array<VkDescriptorSetLayout, 2> postprocessSetLayouts
+            = { m_autoExposureDescriptorSetLayouts.set0InputImage,
+                  m_autoExposureDescriptorSetLayouts.set1Exposure };
+        VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
+            = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
+                postprocessSetLayouts.size());
+        CHECK_RESULT(vkCreatePipelineLayout(m_device,
+            &postprocessPipelineLayoutCreateInfo,
+            nullptr,
+            &m_pipelineLayouts.autoExposure))
     }
 
     // Predict denoise compute layout
@@ -595,6 +671,22 @@ void DenoiserApp::createRTPipeline()
         &m_pipelines.rayTracing))
 }
 
+void DenoiserApp::createAutoExposurePipeline()
+{
+    VkComputePipelineCreateInfo computePipelineCreateInfo {};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.layout = m_pipelineLayouts.autoExposure;
+    computePipelineCreateInfo.flags = 0;
+    computePipelineCreateInfo.stage
+        = loadShader("./shaders/auto_exposure.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT);
+    CHECK_RESULT(vkCreateComputePipelines(m_device,
+        m_pipelineCache,
+        1,
+        &computePipelineCreateInfo,
+        nullptr,
+        &m_pipelines.autoExposure))
+}
+
 void DenoiserApp::assignPushConstants()
 {
     m_pathTracerParams = {
@@ -772,7 +864,7 @@ void DenoiserApp::createDescriptorSets()
         CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &allocInfo, &m_postprocessDescriptorSets.set0Scene))
         std::vector<VkWriteDescriptorSet> writePostProcessDescriptorSet0 = {
-            // Binding 0 : Vertex shader uniform buffer
+            // Binding 0 : Uniform buffer
             initializers::writeDescriptorSet(m_postprocessDescriptorSets.set0Scene,
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 0,
@@ -792,6 +884,58 @@ void DenoiserApp::createDescriptorSets()
         CHECK_RESULT(vkAllocateDescriptorSets(m_device,
             &inputImageAllocateInfo,
             &m_postprocessDescriptorSets.set1InputImage))
+
+        // Postprocess input manualExposureAdjust descriptor set, set 2
+        allocInfo = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+            &m_postprocessDescriptorSetLayouts.set2Exposure,
+            1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &allocInfo,
+            &m_postprocessDescriptorSets.set2Exposure));
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet2 = {
+            // Binding 2 : Uniform buffer
+            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set2Exposure,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &m_exposureBuffer.descriptor),
+        };
+        vkUpdateDescriptorSets(m_device,
+            writeDescriptorSet2.size(),
+            writeDescriptorSet2.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
+
+    // Exposure compute
+    {
+        // Set 0: Result image descriptor
+        VkDescriptorSetAllocateInfo set0AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_autoExposureDescriptorSetLayouts.set0InputImage,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &set0AllocInfo,
+            &m_autoExposureDescriptorSets.set0InputImage))
+
+        // Set 1: Exposure descriptor
+        VkDescriptorSetAllocateInfo set1AllocInfo
+            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
+                &m_autoExposureDescriptorSetLayouts.set1Exposure,
+                1);
+        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
+            &set1AllocInfo,
+            &m_autoExposureDescriptorSets.set1Exposure))
+        VkWriteDescriptorSet uniformBufferWrite
+            = initializers::writeDescriptorSet(m_autoExposureDescriptorSets.set1Exposure,
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &m_exposureBuffer.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet1.size()),
+            writeDescriptorSet1.data(),
+            0,
+            VK_NULL_HANDLE);
     }
 
     // Predict denoise compute
@@ -879,6 +1023,21 @@ void DenoiserApp::updateResultImageDescriptorSets()
             VK_NULL_HANDLE);
     }
 
+    // Auto exposure
+    {
+        VkWriteDescriptorSet inputImageWrite
+            = initializers::writeDescriptorSet(m_autoExposureDescriptorSets.set0InputImage,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                0,
+                &m_storageImage.result.descriptor);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet0AutoExposure = { inputImageWrite };
+        vkUpdateDescriptorSets(m_device,
+            static_cast<uint32_t>(writeDescriptorSet0AutoExposure.size()),
+            writeDescriptorSet0AutoExposure.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
+
     // Predict denoise
     {
         VkWriteDescriptorSet resultImageWrite
@@ -951,6 +1110,16 @@ void DenoiserApp::createUniformBuffers()
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         bufferSize,
         m_scene->getLightsShaderData().data());
+
+    // Auto Exposure uniform, also set the default data
+    bufferSize = sizeof(ExposureUniformData);
+    m_exposureBuffer.create(m_vulkanDevice,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        bufferSize);
+    CHECK_RESULT(m_exposureBuffer.map())
+    memcpy(m_exposureBuffer.mapped, &m_exposureData, bufferSize);
+    m_exposureBuffer.unmap();
 }
 
 /*
@@ -1091,7 +1260,7 @@ void DenoiserApp::prepare()
     BaseRTProject::prepare();
     prepareCompute();
 
-    BaseRTProject::createRTScene("assets/cornellbox/Cornellbox.fbx", m_vertexLayout);
+    BaseRTProject::createRTScene("assets/sponza/Sponza.fbx", m_vertexLayout);
 
     createStorageImages();
     createUniformBuffers();
@@ -1100,6 +1269,7 @@ void DenoiserApp::prepare()
     createPostprocessPipeline();
     createRTPipeline();
     createShaderRTBindingTable();
+    createAutoExposurePipeline();
     createComputeDenoisePipelines();
     createDescriptorPool();
     createDescriptorSets();
@@ -1116,7 +1286,23 @@ void DenoiserApp::render()
         m_sceneUniformData.frameChanged = 0;
         m_sceneUniformData.frameIteration++;
         m_sceneUniformData.frame++;
-        std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+
+        // The noise can interfere with the luma calculation to set the manualExposureAdjust, wait
+        // for some accumulation:
+        if (m_sceneUniformData.frameIteration > 50) {
+            // Submit compute commands
+            vkWaitForFences(m_device, 1, &m_compute.fence, VK_TRUE, UINT64_MAX);
+            vkResetFences(m_device, 1, &m_compute.fence);
+            VkSubmitInfo submitInfo {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &m_compute.commandBuffer;
+            CHECK_RESULT(vkQueueSubmit(m_compute.queue, 1, &submitInfo, m_compute.fence));
+        }
+        // ----
+
+        std::cout << '\r' << "FPS: " << m_lastFps
+                  << " -- Sample: " << m_sceneUniformData.frameIteration << std::flush;
     }
 }
 
@@ -1124,14 +1310,17 @@ DenoiserApp::~DenoiserApp()
 {
     vkDestroyPipeline(m_device, m_pipelines.postProcess, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.rayTracing, nullptr);
+    vkDestroyPipeline(m_device, m_pipelines.autoExposure, nullptr);
     vkDestroyPipeline(m_device, m_pipelines.predictDenoise, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.postProcess, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.rayTracing, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.autoExposure, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayouts.predictDenoise, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_postprocessDescriptorSetLayouts.set1InputImage,
         nullptr);
+    vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set2Exposure, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_rtDescriptorSetLayouts.set0AccelerationStructure,
         nullptr);
@@ -1140,13 +1329,19 @@ DenoiserApp::~DenoiserApp()
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set3Materials, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set4Lights, nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_rtDescriptorSetLayouts.set5ResultImage, nullptr);
+    vkDestroyDescriptorSetLayout(m_device,
+        m_autoExposureDescriptorSetLayouts.set0InputImage,
+        nullptr);
+    vkDestroyDescriptorSetLayout(m_device,
+        m_autoExposureDescriptorSetLayouts.set1Exposure,
+        nullptr);
     vkDestroyDescriptorSetLayout(m_device, m_predictDenoiseDescriptorSetLayouts.set0Scene, nullptr);
     vkDestroyDescriptorSetLayout(m_device,
         m_predictDenoiseDescriptorSetLayouts.set1InputImage,
         nullptr);
-    vkDestroyDescriptorSetLayout(m_device,
-        m_predictDenoiseDescriptorSetLayouts.set2Minibatch,
-        nullptr);
+//    vkDestroyDescriptorSetLayout(m_device,
+//        m_predictDenoiseDescriptorSetLayouts.set2Minibatch,
+//        nullptr);
     m_storageImage.result.destroy();
     m_storageImage.depthMap.destroy();
     m_storageImage.normalMap.destroy();
@@ -1159,6 +1354,7 @@ DenoiserApp::~DenoiserApp()
     m_minibatch.denoiseOutput.destroy();
     m_minibatch.normalMap.destroy();
 
+    m_exposureBuffer.destroy();
     m_shaderBindingTable.destroy();
     m_sceneBuffer.destroy();
     m_materialsBuffer.destroy();
@@ -1202,6 +1398,12 @@ void DenoiserApp::onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods
     case GLFW_KEY_K:
         m_sceneUniformData.overrideSunDirection.x -= 0.05;
         viewChanged();
+        break;
+    case GLFW_KEY_G:
+        m_sceneUniformData.manualExposureAdjust += 0.1;
+        break;
+    case GLFW_KEY_H:
+        m_sceneUniformData.manualExposureAdjust -= 0.1;
         break;
     default:
         break;
