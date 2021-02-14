@@ -14,7 +14,7 @@ set(SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/predict_denoiser.comp.spv
         )
 
-file(GLOB SOURCE ${FRAMEWORK_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+file(GLOB SOURCE ${FRAMEWORK_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../monte_carlo_ray_tracing/common/*.cpp)
 set(MAIN_CPP main.cpp)
 add_executable(${SUB_PROJECT_NAME} ${MAIN_CPP} ${SOURCE})
 target_link_libraries(${SUB_PROJECT_NAME} ${TARGET_LIBRARIES})
