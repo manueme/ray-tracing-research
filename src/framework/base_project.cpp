@@ -65,7 +65,7 @@ VkResult BaseProject::createInstance(bool t_enableValidation)
     return vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance);
 }
 
-VkResult BaseProject::renderFrame()
+uint32_t BaseProject::acquireNextImage()
 {
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     // Acquire the next image from the swap chain
@@ -88,27 +88,14 @@ VkResult BaseProject::renderFrame()
     // Mark the image as now being in use by this frame
     m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
-    updateUniformBuffers(imageIndex);
+    return imageIndex;
+};
 
-    // Submitting the command buffer
-    VkSubmitInfo submitInfo {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    std::array<VkSemaphore, 1> waitSemaphores = { m_imageAvailableSemaphores[m_currentFrame] };
-    std::array<VkSemaphore, 1> signalSemaphores = { m_renderFinishedSemaphores[m_currentFrame] };
-    std::array<VkPipelineStageFlags, 1> waitStages
-        = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores.data();
-    submitInfo.pWaitDstStageMask = waitStages.data();
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_drawCmdBuffers[imageIndex];
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores.data();
-
-    vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
-
-    CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
-    result = m_swapChain.queuePresent(m_queue, imageIndex, signalSemaphores.data());
+VkResult BaseProject::queuePresentSwapChain(uint32_t t_imageIndex)
+{
+    auto result = m_swapChain.queuePresent(m_queue,
+        t_imageIndex,
+        &m_renderFinishedSemaphores[m_currentFrame]);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
         m_framebufferResized = false;
         handleWindowResize();
@@ -116,6 +103,7 @@ VkResult BaseProject::renderFrame()
         CHECK_RESULT(result)
     }
     m_currentFrame = (m_currentFrame + 1) % m_maxFramesInFlight;
+
     return result;
 }
 
@@ -151,18 +139,25 @@ void BaseProject::createPipelineCache()
 
 void BaseProject::destroyComputeCommandBuffers()
 {
-    vkFreeCommandBuffers(m_device, m_compute.commandPool, 1, &m_compute.commandBuffer);
+    vkFreeCommandBuffers(m_device,
+        m_compute.commandPool,
+        static_cast<uint32_t>(m_compute.commandBuffers.size()),
+        m_compute.commandBuffers.data());
 }
 
 void BaseProject::createComputeCommandBuffers()
 {
+    m_compute.commandBuffers.resize(m_swapChain.imageCount);
+
     VkCommandBufferAllocateInfo commandBufferAllocateInfo {};
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandBufferAllocateInfo.commandPool = m_compute.commandPool;
     commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    commandBufferAllocateInfo.commandBufferCount = 1;
-    CHECK_RESULT(
-        vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &m_compute.commandBuffer))
+    commandBufferAllocateInfo.commandBufferCount
+        = static_cast<uint32_t>(m_compute.commandBuffers.size());
+    CHECK_RESULT(vkAllocateCommandBuffers(m_device,
+        &commandBufferAllocateInfo,
+        m_compute.commandBuffers.data()))
 }
 
 void BaseProject::prepareCompute()
@@ -180,7 +175,17 @@ void BaseProject::prepareCompute()
     VkFenceCreateInfo fenceCreateInfo {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fence))
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    m_compute.fences.resize(m_maxFramesInFlight);
+    m_compute.semaphores.resize(m_maxFramesInFlight);
+    for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+        CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fences[i]))
+        CHECK_RESULT(vkCreateSemaphore(m_device,
+            &semaphoreCreateInfo,
+            nullptr,
+            &m_compute.semaphores[i]))
+    }
 }
 
 void BaseProject::prepare()
@@ -282,8 +287,12 @@ BaseProject::~BaseProject()
     }
 
     if (m_settings.useCompute) {
+        destroyComputeCommandBuffers();
         vkDestroyCommandPool(m_device, m_compute.commandPool, nullptr);
-        vkDestroyFence(m_device, m_compute.fence, nullptr);
+        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+            vkDestroySemaphore(m_device, m_compute.semaphores[i], nullptr);
+            vkDestroyFence(m_device, m_compute.fences[i], nullptr);
+        }
     }
 
     delete m_vulkanDevice;
@@ -553,7 +562,50 @@ void BaseProject::setupRenderPass()
 
 void BaseProject::getEnabledFeatures()
 {
-    // Can be overridden in derived class
+    if (m_settings.useRayTracing) {
+        m_enabledInstanceExtensions.push_back(
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        m_enabledFeatures.fragmentStoresAndAtomics = VK_TRUE;
+
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+        m_enabledDeviceExtensions.emplace_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+
+        // Required for VK_KHR_ray_tracing_pipeline
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_SPIRV_1_4_EXTENSION_NAME);
+        // Required by VK_KHR_spirv_1_4
+        m_enabledDeviceExtensions.emplace_back(VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME);
+
+        m_rayTracingFeatures.bufferDeviceAddressFeatures.sType
+            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+        m_rayTracingFeatures.bufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+
+        m_rayTracingFeatures.rayTracingPipelineFeatures.sType
+            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+        m_rayTracingFeatures.rayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
+        m_rayTracingFeatures.rayTracingPipelineFeatures.pNext
+            = &m_rayTracingFeatures.bufferDeviceAddressFeatures;
+
+        m_rayTracingFeatures.accelerationStructureFeatures.sType
+            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+        m_rayTracingFeatures.accelerationStructureFeatures.accelerationStructure = VK_TRUE;
+        m_rayTracingFeatures.accelerationStructureFeatures.pNext
+            = &m_rayTracingFeatures.rayTracingPipelineFeatures;
+
+        m_rayTracingFeatures.descriptorIndexingFeatures.sType
+            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+        m_rayTracingFeatures.descriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+        m_rayTracingFeatures.descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing
+            = VK_TRUE;
+        m_rayTracingFeatures.descriptorIndexingFeatures.pNext
+            = &m_rayTracingFeatures.accelerationStructureFeatures;
+
+        m_deviceCreatedNextChain = &m_rayTracingFeatures.descriptorIndexingFeatures;
+    }
 }
 
 void BaseProject::handleWindowResize()
@@ -784,5 +836,3 @@ void BaseProject::run()
 }
 
 void BaseProject::mouseMoved(double t_x, double t_y, bool& t_handled) { }
-
-void BaseProject::updateUniformBuffers(uint32_t t_currentImage) { }

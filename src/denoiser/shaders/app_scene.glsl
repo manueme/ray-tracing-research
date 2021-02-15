@@ -8,6 +8,7 @@ layout(binding = 0, set = SCENE_SET) uniform _SceneProperties
     uint frameIteration;
     uint frame;
     uint frameChanged;
+    float manualExposureAdjust;
 }
 scene;
 #endif // SCENE_GLSL

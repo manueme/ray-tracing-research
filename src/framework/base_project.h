@@ -39,6 +39,14 @@ public:
     void run();
 
 private:
+    // Device extra features
+    struct {
+        VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures {};
+        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures {};
+        VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures {};
+        VkPhysicalDeviceDescriptorIndexingFeaturesEXT descriptorIndexingFeatures {};
+    } m_rayTracingFeatures;
+
     GLFWwindow* m_window;
     bool m_viewUpdated = true;
     bool m_framebufferResized = false;
@@ -172,8 +180,9 @@ protected:
     struct {
         VkQueue queue;
         VkCommandPool commandPool;
-        VkCommandBuffer commandBuffer;
-        VkFence fence;
+        std::vector<VkCommandBuffer> commandBuffers;
+        std::vector<VkFence> fences;
+        std::vector<VkSemaphore> semaphores;
     } m_compute;
 
     // Settings
@@ -181,45 +190,46 @@ protected:
         bool validation = false;
         bool vsync = false;
         bool useCompute = false;
+        bool useRayTracing = false;
     } m_settings;
 
     /** @brief Setup the vulkan instance, enable required extensions and connect
      * to the physical device (GPU) */
     bool initVulkan();
 
-    /** @brief (Virtual) Creates the application wide Vulkan instance */
+    /** @brief Creates the application wide Vulkan instance */
     virtual VkResult createInstance(bool t_enableValidation);
 
-    /** @brief (Pure virtual) Render function to be implemented by the application */
+    /** @brief Render function to be implemented by the application */
     virtual void render() = 0;
 
-    /** @brief (Virtual) Called when the camera view has changed */
+    /** @brief Called when the camera view has changed */
     virtual void viewChanged();
 
-    /** @brief (Virtual) Called when the window has been resized, can be used by
+    /** @brief Called when the window has been resized, can be used by
      * the application to recreate resources (GPU not idle) */
     virtual void windowResized();
 
-    /** @brief (Virtual) Called while the swap chain is recreated and the GPU is
+    /** @brief Called while the swap chain is recreated and the GPU is
      * idle, can be used by the application to recreate resources */
     virtual void onSwapChainRecreation();
 
-    /** @brief (Virtual) Called when resources have been recreated that require a
+    /** @brief Called when resources have been recreated that require a
      * rebuild of the command buffers (e.g. frame buffer), to be implemente by the
      * application */
     virtual void buildCommandBuffers();
 
-    /** @brief (Virtual) Setup default depth and stencil views */
+    /** @brief Setup default depth and stencil views */
     virtual void setupDepthStencil();
 
-    /** @brief (Virtual) Setup default framebuffers for all requested swapchain
+    /** @brief Setup default framebuffers for all requested swapchain
      * images */
     virtual void setupFrameBuffer();
 
-    /** @brief (Virtual) Setup a default renderpass */
+    /** @brief Setup a default renderpass */
     virtual void setupRenderPass();
 
-    /** @brief (Virtual) Called after the physical device features have been read,
+    /** @brief Called after the physical device features have been read,
      * can be used to set features to enable on the device */
     virtual void getEnabledFeatures();
 
@@ -242,17 +252,22 @@ protected:
     VkPipelineShaderStageCreateInfo loadShader(
         const std::string& t_fileName, VkShaderStageFlagBits t_stage);
 
-    /** @brief (Virtual) Default image acquire + submission and command buffer
-     * submission function */
-    virtual VkResult renderFrame();
+    /** @brief Acquires the next swap chain image to render to. T o submit your command buffer, use
+     * m_imageAvailableSemaphores as a wait semaphore after calling this function.
+     *  @returns The image index in the swapChain, you will need this index to run
+     * queuePresentSwapChain */
+    uint32_t acquireNextImage();
 
-    /** @brief (Virtual) Called once per frame */
-    virtual void updateUniformBuffers(uint32_t t_currentImage);
+    /** @brief Presents the acquired swap chain image waiting for m_renderFinishedSemaphores, your
+     * last command submitted must have m_renderFinishedSemaphores[t_imageIndex] as a signal
+     * semaphore.
+     *  @returns The result of the present operation */
+    VkResult queuePresentSwapChain(uint32_t t_imageIndex);
 
-    /** @brief (Virtual) Called when the mouse is moved */
+    /** @brief Called when the mouse is moved */
     virtual void mouseMoved(double t_x, double t_y, bool& t_handled);
 
-    /** @brief (Virtual) Called when a key is pressed */
+    /** @brief Called when a key is pressed */
     virtual void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods);
 };
 
