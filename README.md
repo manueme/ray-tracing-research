@@ -13,12 +13,17 @@ denoising), path tracing and other methodologies suitable for daylighting analys
 
 * My first steps in Vulkan were possible thanks to [Vulkan Tutorial](https://vulkan-tutorial.com/).
 
-* The first steps of this project (especially the ray tracing part) were carried out following the demos and examples
-  referenced on the [official Khronos website](https://www.khronos.org/vulkan):
-    * [Sascha Willems' examples and demos for Vulkan](https://github.com/SaschaWillems/Vulkan), IMO the best samples and
-      demos of Vulkan out there, now transformed into
-      a [Vulkan reference material or framework](https://github.com/KhronosGroup/Vulkan-Samples) by Khronos.
+* The first steps of this project were carried out following the demos and examples referenced on
+  the [official Khronos website](https://www.khronos.org/vulkan):
+    * [Vulkan reference material / framework](https://github.com/KhronosGroup/Vulkan-Samples) by Khronos.
+    * [Sascha Willems' examples and demos](https://github.com/SaschaWillems/Vulkan), IMO the best samples and demos out
+      there to get started in Vulkan.
     * [NVIDIA DeignWorks Samples](https://github.com/nvpro-samples).
+
+## Contact
+
+Manuel Machado: [Github](https://github.com/manueme) / [Twitter](https://twitter.com/Manueme7)
+/ [LinkedIn](https://www.linkedin.com/in/manueme/)
 
 ## Status <a href="https://www.repostatus.org/#wip"><img src="https://www.repostatus.org/badges/latest/wip.svg" alt="Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public." /></a>
 
@@ -102,3 +107,7 @@ Install Assimp from repository package
 
 Download the assets folder from https://drive.google.com/open?id=1-JLF8sU_Lb6ZqrRwocwZP3AaiztOekPO
 and extract it on the root directory of the project ```/assets/...```
+
+_Note: The zip has a password (for now) in order to protect some models copyrights._
+
+_TODO: create a free public asset folder to download_
