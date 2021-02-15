@@ -180,8 +180,9 @@ protected:
     struct {
         VkQueue queue;
         VkCommandPool commandPool;
-        VkCommandBuffer commandBuffer;
-        VkFence fence;
+        std::vector<VkCommandBuffer> commandBuffers;
+        std::vector<VkFence> fences;
+        std::vector<VkSemaphore> semaphores;
     } m_compute;
 
     // Settings
@@ -251,12 +252,17 @@ protected:
     VkPipelineShaderStageCreateInfo loadShader(
         const std::string& t_fileName, VkShaderStageFlagBits t_stage);
 
-    /** @brief Default image acquire + submission and command buffer
-     * submission function */
-    virtual VkResult renderFrame();
+    /** @brief Acquires the next swap chain image to render to. T o submit your command buffer, use
+     * m_imageAvailableSemaphores as a wait semaphore after calling this function.
+     *  @returns The image index in the swapChain, you will need this index to run
+     * queuePresentSwapChain */
+    uint32_t acquireNextImage();
 
-    /** @brief Called once per frame */
-    virtual void updateUniformBuffers(uint32_t t_currentImage);
+    /** @brief Presents the acquired swap chain image waiting for m_renderFinishedSemaphores, your
+     * last command submitted must have m_renderFinishedSemaphores[t_imageIndex] as a signal
+     * semaphore.
+     *  @returns The result of the present operation */
+    VkResult queuePresentSwapChain(uint32_t t_imageIndex);
 
     /** @brief Called when the mouse is moved */
     virtual void mouseMoved(double t_x, double t_y, bool& t_handled);

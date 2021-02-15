@@ -62,7 +62,6 @@ void AutoExposurePipeline::createDescriptorSetsLayout()
         nullptr,
         &m_descriptorSetLayouts.set1Exposure));
 
-    // Train compute Pipeline Layout
     std::array<VkDescriptorSetLayout, 2> setLayouts
         = { m_descriptorSetLayouts.set0InputImage, m_descriptorSetLayouts.set1Exposure };
     VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo

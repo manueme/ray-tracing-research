@@ -5,6 +5,7 @@
 
 #include "monte_carlo_ray_tracing.h"
 #include "common/auto_exposure_pipeline.h"
+#include "common/post_process_pipeline.h"
 #include "common/ray_tracing_pipeline.h"
 #include "constants.h"
 
@@ -29,75 +30,65 @@ MonteCarloRTApp::MonteCarloRTApp()
 void MonteCarloRTApp::buildCommandBuffers()
 {
     // Draw command buffers
-    {
-        VkCommandBufferBeginInfo cmdBufInfo = {};
-        cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-        // Postprocess pass info
-        std::array<VkClearValue, 2> clearValues = {};
-        clearValues[0].color = m_default_clear_color;
-        clearValues[1].depthStencil = { 1.0f, 0 };
-        VkRenderPassBeginInfo renderPassBeginInfo = {};
-
-        renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassBeginInfo.renderPass = m_renderPass;
-        renderPassBeginInfo.renderArea.offset.x = 0;
-        renderPassBeginInfo.renderArea.offset.y = 0;
-        renderPassBeginInfo.renderArea.extent.width = m_width;
-        renderPassBeginInfo.renderArea.extent.height = m_height;
-        renderPassBeginInfo.clearValueCount = clearValues.size();
-        renderPassBeginInfo.pClearValues = clearValues.data();
-        // --
-
-        for (int32_t i = 0; i < m_drawCmdBuffers.size();
-             ++i) { // This must be the same size as the swap chain image vector
-            CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &cmdBufInfo))
-
-            m_rayTracing->buildCommandBuffer(m_drawCmdBuffers[i], m_width, m_height);
-
-            // Postprocess section:
-            renderPassBeginInfo.framebuffer = m_frameBuffers[i];
-            vkCmdBeginRenderPass(m_drawCmdBuffers[i],
-                &renderPassBeginInfo,
-                VK_SUBPASS_CONTENTS_INLINE);
-
-            VkViewport viewport = initializers::viewport(static_cast<float>(m_width),
-                static_cast<float>(m_height),
-                0.0f,
-                1.0f);
-            vkCmdSetViewport(m_drawCmdBuffers[i], 0, 1, &viewport);
-            VkRect2D scissor = initializers::rect2D(m_width, m_height, 0, 0);
-            vkCmdSetScissor(m_drawCmdBuffers[i], 0, 1, &scissor);
-            std::vector<VkDescriptorSet> postprocessDescriptorSets
-                = { m_postprocessDescriptorSets.set0Scene,
-                      m_postprocessDescriptorSets.set1InputImage,
-                      m_postprocessDescriptorSets.set2Exposure };
-            vkCmdBindDescriptorSets(m_drawCmdBuffers[i],
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                m_pipelineLayouts.postProcess,
-                0,
-                postprocessDescriptorSets.size(),
-                postprocessDescriptorSets.data(),
-                0,
-                nullptr);
-            vkCmdBindPipeline(m_drawCmdBuffers[i],
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                m_pipelines.postProcess);
-            vkCmdDraw(m_drawCmdBuffers[i], 3, 1, 0, 0);
-
-            vkCmdEndRenderPass(m_drawCmdBuffers[i]);
-            // End of Postprocess section --
-
-            CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
-        }
+    VkCommandBufferBeginInfo drawCmdBufInfo = {};
+    drawCmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    for (int32_t i = 0; i < m_drawCmdBuffers.size(); ++i) {
+        CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &drawCmdBufInfo))
+        m_rayTracing->buildCommandBuffer(m_drawCmdBuffers[i], m_width, m_height);
+        CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
     }
     // ---
     // Compute command buffers
-    VkCommandBufferBeginInfo cmdBufInfo = {};
-    cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffer, &cmdBufInfo))
-    m_autoExposure->buildCommandBuffer(m_compute.commandBuffer);
-    vkEndCommandBuffer(m_compute.commandBuffer);
+    VkCommandBufferBeginInfo computeCmdBufInfo = {};
+    computeCmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    for (int32_t i = 0; i < m_compute.commandBuffers.size(); ++i) {
+        CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffers[i], &computeCmdBufInfo))
+        m_autoExposure->buildCommandBuffer(m_compute.commandBuffers[i]);
+        m_postProcess->buildCommandBuffer(m_compute.commandBuffers[i], m_width, m_height);
+
+        // Move result to swap chain image:
+
+        // Prepare images to transfer
+        VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+        tools::setImageLayout(m_compute.commandBuffers[i],
+            m_swapChain.images[i],
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            subresourceRange);
+        tools::setImageLayout(m_compute.commandBuffers[i],
+            m_storageImage.postProcessResult.getImage(),
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            subresourceRange);
+
+        VkImageCopy copyRegion {};
+        copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        copyRegion.srcOffset = { 0, 0, 0 };
+        copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+        copyRegion.dstOffset = { 0, 0, 0 };
+        copyRegion.extent = { m_width, m_height, 1 };
+        vkCmdCopyImage(m_compute.commandBuffers[i],
+            m_storageImage.postProcessResult.getImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            m_swapChain.images[i],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &copyRegion);
+
+        // Transition back to previous layouts:
+        tools::setImageLayout(m_compute.commandBuffers[i],
+            m_swapChain.images[i],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            subresourceRange);
+        tools::setImageLayout(m_compute.commandBuffers[i],
+            m_storageImage.postProcessResult.getImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
+            subresourceRange);
+
+        vkEndCommandBuffer(m_compute.commandBuffers[i]);
+    }
     // ---
 }
 
@@ -146,61 +137,7 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
     m_rayTracing->createDescriptorSetsLayout(m_scene);
 
     // Postprocess
-    {
-        // Set 0 Postprocess: Scene information buffer
-        std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = { // Binding 0 : Buffer
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                0)
-        };
-        VkDescriptorSetLayoutCreateInfo descriptorLayout
-            = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-                setLayoutBindings.size());
-        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-            &descriptorLayout,
-            nullptr,
-            &m_postprocessDescriptorSetLayouts.set0Scene));
-
-        // Set 1 Postprocess: Input Image
-        setLayoutBindings.clear();
-        setLayoutBindings.push_back(
-            // Binding 0 : Result Image Color
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                0));
-        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-            setLayoutBindings.size());
-        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-            &descriptorLayout,
-            nullptr,
-            &m_postprocessDescriptorSetLayouts.set1InputImage));
-
-        // Set 2 Postprocess: Exposure buffer
-        setLayoutBindings.clear();
-        setLayoutBindings.push_back( // Binding 0 : Buffer
-            initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                VK_SHADER_STAGE_FRAGMENT_BIT,
-                0));
-        descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
-            setLayoutBindings.size());
-        CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
-            &descriptorLayout,
-            nullptr,
-            &m_postprocessDescriptorSetLayouts.set2Exposure));
-
-        // Postprocess Pipeline Layout
-        std::array<VkDescriptorSetLayout, 3> postprocessSetLayouts
-            = { m_postprocessDescriptorSetLayouts.set0Scene,
-                  m_postprocessDescriptorSetLayouts.set1InputImage,
-                  m_postprocessDescriptorSetLayouts.set2Exposure };
-        VkPipelineLayoutCreateInfo postprocessPipelineLayoutCreateInfo
-            = initializers::pipelineLayoutCreateInfo(postprocessSetLayouts.data(),
-                postprocessSetLayouts.size());
-        CHECK_RESULT(vkCreatePipelineLayout(m_device,
-            &postprocessPipelineLayoutCreateInfo,
-            nullptr,
-            &m_pipelineLayouts.postProcess))
-    }
+    m_postProcess->createDescriptorSetsLayout();
 
     // Auto exposure compute layout
     m_autoExposure->createDescriptorSetsLayout();
@@ -208,64 +145,8 @@ void MonteCarloRTApp::createDescriptorSetsLayout()
 
 void MonteCarloRTApp::createPostprocessPipeline()
 {
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyState
-        = initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-            0,
-            VK_FALSE);
-    VkPipelineRasterizationStateCreateInfo rasterizationState
-        = initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL,
-            VK_CULL_MODE_BACK_BIT,
-            VK_FRONT_FACE_CLOCKWISE,
-            0);
-    VkPipelineColorBlendAttachmentState blendAttachmentState
-        = initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-    VkPipelineColorBlendStateCreateInfo colorBlendState
-        = initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
-    VkPipelineDepthStencilStateCreateInfo depthStencilState
-        = initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE,
-            VK_TRUE,
-            VK_COMPARE_OP_LESS_OR_EQUAL);
-    VkPipelineViewportStateCreateInfo viewportState
-        = initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-    VkPipelineMultisampleStateCreateInfo multisampleState {};
-    multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisampleState.flags = 0;
-    std::vector<VkDynamicState> dynamicStateEnables
-        = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-    VkPipelineDynamicStateCreateInfo dynamicState
-        = initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(),
-            dynamicStateEnables.size(),
-            0);
-    VkPipelineVertexInputStateCreateInfo vertexInputState
-        = initializers::pipelineVertexInputStateCreateInfo();
-    vertexInputState.vertexBindingDescriptionCount = 0;
-    vertexInputState.pVertexBindingDescriptions = nullptr;
-    vertexInputState.vertexAttributeDescriptionCount = 0;
-    vertexInputState.pVertexAttributeDescriptions = nullptr;
-
-    std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
-    shaderStages[0] = loadShader("./shaders/postprocess.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-    shaderStages[1] = loadShader("./shaders/postprocess.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-
-    VkGraphicsPipelineCreateInfo pipelineCreateInfo
-        = initializers::pipelineCreateInfo(m_pipelineLayouts.postProcess, m_renderPass, 0);
-    pipelineCreateInfo.pInputAssemblyState = &inputAssemblyState;
-    pipelineCreateInfo.pRasterizationState = &rasterizationState;
-    pipelineCreateInfo.pColorBlendState = &colorBlendState;
-    pipelineCreateInfo.pMultisampleState = &multisampleState;
-    pipelineCreateInfo.pViewportState = &viewportState;
-    pipelineCreateInfo.pDepthStencilState = &depthStencilState;
-    pipelineCreateInfo.pDynamicState = &dynamicState;
-    pipelineCreateInfo.stageCount = shaderStages.size();
-    pipelineCreateInfo.pStages = shaderStages.data();
-    pipelineCreateInfo.pVertexInputState = &vertexInputState;
-    CHECK_RESULT(vkCreateGraphicsPipelines(m_device,
-        m_pipelineCache,
-        1,
-        &pipelineCreateInfo,
-        nullptr,
-        &m_pipelines.postProcess))
+    m_postProcess->createPipeline(m_pipelineCache,
+        loadShader("./shaders/post_process.comp.spv", VK_SHADER_STAGE_COMPUTE_BIT));
 }
 
 void MonteCarloRTApp::createRTPipeline()
@@ -334,56 +215,7 @@ void MonteCarloRTApp::createDescriptorSets()
         &m_materialsBuffer);
 
     // Postprocess
-    {
-        // Postprocess input scene descriptor set, set 0
-        VkDescriptorSetAllocateInfo allocInfo
-            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                &m_postprocessDescriptorSetLayouts.set0Scene,
-                1);
-        CHECK_RESULT(
-            vkAllocateDescriptorSets(m_device, &allocInfo, &m_postprocessDescriptorSets.set0Scene));
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
-            // Binding 0 : Uniform buffer
-            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set0Scene,
-                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                0,
-                &m_sceneBuffer.descriptor),
-        };
-        vkUpdateDescriptorSets(m_device,
-            writeDescriptorSet0.size(),
-            writeDescriptorSet0.data(),
-            0,
-            VK_NULL_HANDLE);
-
-        // Postprocess input image descriptor set, set 1
-        VkDescriptorSetAllocateInfo inputImageAllocateInfo
-            = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-                &m_postprocessDescriptorSetLayouts.set1InputImage,
-                1);
-        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &inputImageAllocateInfo,
-            &m_postprocessDescriptorSets.set1InputImage));
-
-        // Postprocess input manualExposureAdjust descriptor set, set 2
-        allocInfo = initializers::descriptorSetAllocateInfo(m_descriptorPool,
-            &m_postprocessDescriptorSetLayouts.set2Exposure,
-            1);
-        CHECK_RESULT(vkAllocateDescriptorSets(m_device,
-            &allocInfo,
-            &m_postprocessDescriptorSets.set2Exposure));
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet2 = {
-            // Binding 2 : Uniform buffer
-            initializers::writeDescriptorSet(m_postprocessDescriptorSets.set2Exposure,
-                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                0,
-                &m_exposureBuffer.descriptor),
-        };
-        vkUpdateDescriptorSets(m_device,
-            writeDescriptorSet2.size(),
-            writeDescriptorSet2.data(),
-            0,
-            VK_NULL_HANDLE);
-    }
+    m_postProcess->createDescriptorSets(m_descriptorPool, &m_sceneBuffer, &m_exposureBuffer);
 
     // Exposure compute
     m_autoExposure->createDescriptorSets(m_descriptorPool, &m_exposureBuffer);
@@ -400,19 +232,8 @@ void MonteCarloRTApp::updateResultImageDescriptorSets()
         &m_storageImage.albedo);
 
     // Post Process
-    {
-        VkWriteDescriptorSet inputImageWrite
-            = initializers::writeDescriptorSet(m_postprocessDescriptorSets.set1InputImage,
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                0,
-                &m_storageImage.result.descriptor);
-        std::vector<VkWriteDescriptorSet> writeDescriptorSet1Postprocess = { inputImageWrite };
-        vkUpdateDescriptorSets(m_device,
-            static_cast<uint32_t>(writeDescriptorSet1Postprocess.size()),
-            writeDescriptorSet1Postprocess.data(),
-            0,
-            VK_NULL_HANDLE);
-    }
+    m_postProcess->updateResultImageDescriptorSets(&m_storageImage.result,
+        &m_storageImage.postProcessResult);
 
     // Auto exposure
     m_autoExposure->updateResultImageDescriptorSets(&m_storageImage.result);
@@ -517,6 +338,16 @@ void MonteCarloRTApp::createStorageImages()
         VK_FILTER_NEAREST,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
+
+    m_storageImage.postProcessResult.fromNothing(m_swapChain.colorFormat,
+        m_width,
+        m_height,
+        1,
+        m_vulkanDevice,
+        m_queue,
+        VK_FILTER_NEAREST,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        VK_IMAGE_LAYOUT_GENERAL);
 }
 
 void MonteCarloRTApp::setupScene()
@@ -540,8 +371,9 @@ void MonteCarloRTApp::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new RayTracingPipeline(m_vulkanDevice);
+    m_rayTracing = new RayTracingPipeline(m_vulkanDevice, 4, 1);
     m_autoExposure = new AutoExposurePipeline(m_vulkanDevice);
+    m_postProcess = new PostProcessPipeline(m_vulkanDevice);
 
     setupScene();
 
@@ -562,24 +394,46 @@ void MonteCarloRTApp::render()
     if (!m_prepared) {
         return;
     }
-    if (BaseProject::renderFrame() == VK_SUCCESS) {
+    const auto imageIndex = BaseProject::acquireNextImage();
+
+    updateUniformBuffers(imageIndex);
+
+    // Submit the draw command buffer
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[m_currentFrame];
+    VkPipelineStageFlags drawWaitStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+    submitInfo.pWaitDstStageMask = &drawWaitStageMask;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_drawCmdBuffers[imageIndex];
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &m_compute.semaphores[m_currentFrame];
+    vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
+    CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
+    // ----
+
+    // Submit Compute Command Buffer:
+    vkWaitForFences(m_device, 1, &m_compute.fences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    VkSubmitInfo computeSubmitInfo {};
+    computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    computeSubmitInfo.commandBufferCount = 1;
+    computeSubmitInfo.pCommandBuffers = &m_compute.commandBuffers[imageIndex];
+    computeSubmitInfo.waitSemaphoreCount = 1;
+    computeSubmitInfo.pWaitSemaphores = &m_compute.semaphores[m_currentFrame];
+    computeSubmitInfo.signalSemaphoreCount = 1;
+    computeSubmitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[m_currentFrame];
+    VkPipelineStageFlags computeWaitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    computeSubmitInfo.pWaitDstStageMask = &computeWaitStageMask;
+    vkResetFences(m_device, 1, &m_compute.fences[m_currentFrame]);
+    CHECK_RESULT(
+        vkQueueSubmit(m_compute.queue, 1, &computeSubmitInfo, m_compute.fences[m_currentFrame]));
+    // ----
+
+    if (BaseProject::queuePresentSwapChain(imageIndex) == VK_SUCCESS) {
         m_sceneUniformData.frameChanged = 0;
         m_sceneUniformData.frameIteration++;
         m_sceneUniformData.frame++;
-
-        // The noise can interfere with the luma calculation to set the manualExposureAdjust, wait
-        // for some accumulation:
-        if (m_sceneUniformData.frameIteration > 80) {
-            // Submit compute commands
-            vkWaitForFences(m_device, 1, &m_compute.fence, VK_TRUE, UINT64_MAX);
-            vkResetFences(m_device, 1, &m_compute.fence);
-            VkSubmitInfo submitInfo {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &m_compute.commandBuffer;
-            CHECK_RESULT(vkQueueSubmit(m_compute.queue, 1, &submitInfo, m_compute.fence));
-        }
-        // ----
 
         std::cout << '\r' << "| FPS: " << m_lastFps
                   << " -- Sample: " << m_sceneUniformData.frameIteration << " | " << std::flush;
@@ -590,16 +444,10 @@ MonteCarloRTApp::~MonteCarloRTApp()
 {
     delete m_rayTracing;
     delete m_autoExposure;
-
-    vkDestroyPipeline(m_device, m_pipelines.postProcess, nullptr);
-    vkDestroyPipelineLayout(m_device, m_pipelineLayouts.postProcess, nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set0Scene, nullptr);
-    vkDestroyDescriptorSetLayout(m_device,
-        m_postprocessDescriptorSetLayouts.set1InputImage,
-        nullptr);
-    vkDestroyDescriptorSetLayout(m_device, m_postprocessDescriptorSetLayouts.set2Exposure, nullptr);
+    delete m_postProcess;
 
     m_storageImage.result.destroy();
+    m_storageImage.postProcessResult.destroy();
     m_storageImage.depthMap.destroy();
     m_storageImage.normalMap.destroy();
     m_storageImage.albedo.destroy();
@@ -629,6 +477,7 @@ void MonteCarloRTApp::onSwapChainRecreation()
 {
     // Recreate the result image to fit the new extent size
     m_storageImage.result.destroy();
+    m_storageImage.postProcessResult.destroy();
     m_storageImage.depthMap.destroy();
     m_storageImage.normalMap.destroy();
     m_storageImage.albedo.destroy();

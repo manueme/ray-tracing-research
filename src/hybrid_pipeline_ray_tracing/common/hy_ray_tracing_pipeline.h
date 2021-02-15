@@ -16,7 +16,7 @@ class Device;
 
 class HyRayTracingPipeline {
 public:
-    HyRayTracingPipeline(Device* t_vulkanDevice);
+    HyRayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount);
     ~HyRayTracingPipeline();
 
     void buildCommandBuffer(
@@ -44,7 +44,7 @@ private:
 
     PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR;
     PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR;
-    PFN_vkCreateHyRayTracingPipelinesKHR vkCreateHyRayTracingPipelinesKHR;
+    PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR;
     PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR;
     PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR;
     void initFunctionPointers()
@@ -60,11 +60,11 @@ private:
         vkGetRayTracingShaderGroupHandlesKHR
             = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
                 vkGetDeviceProcAddr(m_device, "vkGetRayTracingShaderGroupHandlesKHR"));
-        vkCreateHyRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateHyRayTracingPipelinesKHR>(
-            vkGetDeviceProcAddr(m_device, "vkCreateHyRayTracingPipelinesKHR"));
+        vkCreateRayTracingPipelinesKHR = reinterpret_cast<PFN_vkCreateRayTracingPipelinesKHR>(
+            vkGetDeviceProcAddr(m_device, "vkCreateRayTracingPipelinesKHR"));
     }
 
-    VkPhysicalDeviceHyRayTracingPipelinePropertiesKHR m_HyRayTracingPipelineProperties;
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR m_rayTracingPipelineProperties;
     void getDeviceRayTracingProperties();
 
     // Bottom level acceleration structure
@@ -96,8 +96,6 @@ private:
         VkDescriptorSetLayout set6StorageImages;
     } m_descriptorSetLayouts;
 
-    const uint32_t m_ray_tracer_depth = 8;
-    const uint32_t m_ray_tracer_samples = 1;
     // Push constant sent to the path tracer
     struct PathTracerParameters {
         uint32_t maxDepth; // Max depth

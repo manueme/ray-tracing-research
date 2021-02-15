@@ -12,14 +12,14 @@
 #include <thread>
 #include <vector>
 
-HyRayTracingPipeline::HyRayTracingPipeline(Device* t_vulkanDevice)
+HyRayTracingPipeline::HyRayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount)
     : m_device(t_vulkanDevice->logicalDevice)
     , m_vulkanDevice(t_vulkanDevice)
 {
     m_vulkanDevice = t_vulkanDevice;
     m_pathTracerParams = {
-        m_ray_tracer_depth, // Max depth
-        m_ray_tracer_samples, // samples per frame
+        t_maxDepth, // Max depth
+        t_sampleCount, // samples per frame
     };
     initFunctionPointers();
     getDeviceRayTracingProperties();
@@ -27,12 +27,12 @@ HyRayTracingPipeline::HyRayTracingPipeline(Device* t_vulkanDevice)
 
 void HyRayTracingPipeline::getDeviceRayTracingProperties()
 {
-    m_HyRayTracingPipelineProperties = {};
-    m_HyRayTracingPipelineProperties.sType
+    m_rayTracingPipelineProperties = {};
+    m_rayTracingPipelineProperties.sType
         = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
     VkPhysicalDeviceProperties2 deviceProps2 {};
     deviceProps2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    deviceProps2.pNext = &m_HyRayTracingPipelineProperties;
+    deviceProps2.pNext = &m_rayTracingPipelineProperties;
     vkGetPhysicalDeviceProperties2(m_vulkanDevice->physicalDevice, &deviceProps2);
 }
 
@@ -86,8 +86,8 @@ void HyRayTracingPipeline::buildCommandBuffer(
 
     // Calculate shader bindings
     const uint32_t handleSizeAligned
-        = tools::alignedSize(m_HyRayTracingPipelineProperties.shaderGroupHandleSize,
-            m_HyRayTracingPipelineProperties.shaderGroupHandleAlignment);
+        = tools::alignedSize(m_rayTracingPipelineProperties.shaderGroupHandleSize,
+            m_rayTracingPipelineProperties.shaderGroupHandleAlignment);
     VkStridedDeviceAddressRegionKHR rayGenSbtRegion;
     rayGenSbtRegion.deviceAddress = m_shaderBindingTable.getDeviceAddress();
     rayGenSbtRegion.stride = handleSizeAligned;
@@ -258,13 +258,13 @@ void HyRayTracingPipeline::createDescriptorSetsLayout(Scene* t_scene)
               m_descriptorSetLayouts.set5OffscreenImages,
               m_descriptorSetLayouts.set6StorageImages };
 
-    VkPipelineLayoutCreateInfo HyRayTracingPipelineLayoutCreateInfo
+    VkPipelineLayoutCreateInfo rayTracingPipelineLayoutCreateInfo
         = initializers::pipelineLayoutCreateInfo(rayTracingSetLayouts.data(),
             rayTracingSetLayouts.size());
-    HyRayTracingPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-    HyRayTracingPipelineLayoutCreateInfo.pPushConstantRanges = &rtPushConstantRange;
+    rayTracingPipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+    rayTracingPipelineLayoutCreateInfo.pPushConstantRanges = &rtPushConstantRange;
     CHECK_RESULT(vkCreatePipelineLayout(m_device,
-        &HyRayTracingPipelineLayoutCreateInfo,
+        &rayTracingPipelineLayoutCreateInfo,
         nullptr,
         &m_pipelineLayout));
 }
@@ -272,7 +272,7 @@ void HyRayTracingPipeline::createDescriptorSetsLayout(Scene* t_scene)
 void HyRayTracingPipeline::createPipeline(std::vector<VkPipelineShaderStageCreateInfo> t_shaderStages,
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> t_shaderGroups)
 {
-    VkHyRayTracingPipelineCreateInfoKHR rayPipelineInfo {};
+    VkRayTracingPipelineCreateInfoKHR rayPipelineInfo {};
     rayPipelineInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
     rayPipelineInfo.stageCount = static_cast<uint32_t>(t_shaderStages.size());
     rayPipelineInfo.pStages = t_shaderStages.data();
@@ -280,7 +280,7 @@ void HyRayTracingPipeline::createPipeline(std::vector<VkPipelineShaderStageCreat
     rayPipelineInfo.pGroups = t_shaderGroups.data();
     rayPipelineInfo.maxPipelineRayRecursionDepth = m_pathTracerParams.maxDepth;
     rayPipelineInfo.layout = m_pipelineLayout;
-    CHECK_RESULT(vkCreateHyRayTracingPipelinesKHR(m_device,
+    CHECK_RESULT(vkCreateRayTracingPipelinesKHR(m_device,
         VK_NULL_HANDLE,
         VK_NULL_HANDLE,
         1,
@@ -521,7 +521,7 @@ void HyRayTracingPipeline::createShaderBindingTable()
 {
     // Create buffer for the shader binding table
     const uint32_t sbtSize
-        = m_HyRayTracingPipelineProperties.shaderGroupHandleSize * SBT_NUM_SHADER_GROUPS;
+        = m_rayTracingPipelineProperties.shaderGroupHandleSize * SBT_NUM_SHADER_GROUPS;
     m_shaderBindingTable.create(m_vulkanDevice,
         VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -548,7 +548,7 @@ void HyRayTracingPipeline::createShaderBindingTable()
 VkDeviceSize HyRayTracingPipeline::copyRTShaderIdentifier(
     uint8_t* t_data, const uint8_t* t_shaderHandleStorage, uint32_t t_groupIndex) const
 {
-    const uint32_t shaderGroupHandleSize = m_HyRayTracingPipelineProperties.shaderGroupHandleSize;
+    const uint32_t shaderGroupHandleSize = m_rayTracingPipelineProperties.shaderGroupHandleSize;
     memcpy(t_data,
         t_shaderHandleStorage + t_groupIndex * shaderGroupHandleSize,
         shaderGroupHandleSize);

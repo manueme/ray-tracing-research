@@ -12,14 +12,15 @@
 #include <thread>
 #include <vector>
 
-RayTracingPipeline::RayTracingPipeline(Device* t_vulkanDevice)
+RayTracingPipeline::RayTracingPipeline(
+    Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount)
     : m_device(t_vulkanDevice->logicalDevice)
     , m_vulkanDevice(t_vulkanDevice)
 {
     m_vulkanDevice = t_vulkanDevice;
     m_pathTracerParams = {
-        m_ray_tracer_depth, // Max depth
-        m_ray_tracer_samples, // samples per frame
+        t_maxDepth, // Max depth
+        t_sampleCount, // samples per frame
     };
     initFunctionPointers();
     getDeviceRayTracingProperties();

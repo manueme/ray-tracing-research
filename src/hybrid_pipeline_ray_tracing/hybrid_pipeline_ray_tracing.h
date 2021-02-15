@@ -86,7 +86,7 @@ private:
     void prepare() override;
     void viewChanged() override;
     void createOffscreenRenderPass();
-    void updateUniformBuffers(uint32_t t_currentImage) override;
+    void updateUniformBuffers(uint32_t t_currentImage);
     void onSwapChainRecreation() override;
     void createOffscreenFramebuffers();
     void buildCommandBuffers() override;

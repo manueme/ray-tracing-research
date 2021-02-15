@@ -8,8 +8,7 @@ set(SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rmiss.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/anyhit.rahit.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rahit.spv
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.vert.spv
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.frag.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/post_process.comp.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/auto_exposure.comp.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/predict_denoiser.comp.spv
         )

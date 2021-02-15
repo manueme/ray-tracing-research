@@ -11,6 +11,7 @@
 
 class RayTracingPipeline;
 class AutoExposurePipeline;
+class PostProcessPipeline;
 
 class DenoiserApp : public BaseProject {
 public:
@@ -20,27 +21,16 @@ public:
 private:
     RayTracingPipeline* m_rayTracing;
     AutoExposurePipeline* m_autoExposure;
+    PostProcessPipeline* m_postProcess;
 
     struct {
-        VkPipeline postProcess;
         VkPipeline predictDenoise;
         // TODO: add backpropagate denoise
     } m_pipelines;
     struct {
-        VkPipelineLayout postProcess;
         VkPipelineLayout predictDenoise;
     } m_pipelineLayouts;
 
-    struct {
-        VkDescriptorSet set0Scene;
-        VkDescriptorSet set1InputImage;
-        VkDescriptorSet set2Exposure;
-    } m_postprocessDescriptorSets;
-    struct {
-        VkDescriptorSetLayout set0Scene;
-        VkDescriptorSetLayout set1InputImage;
-        VkDescriptorSetLayout set2Exposure;
-    } m_postprocessDescriptorSetLayouts;
     struct {
         VkDescriptorSet set0Scene;
         VkDescriptorSet set1InputImage;
@@ -55,6 +45,7 @@ private:
     // Images used to store ray traced image
     struct {
         Texture result;
+        Texture postProcessResult;
         Texture depthMap;
         Texture normalMap;
         Texture albedo;
@@ -96,7 +87,7 @@ private:
     void prepare() override;
     void viewChanged() override;
     void windowResized() override;
-    void updateUniformBuffers(uint32_t t_currentImage) override;
+    void updateUniformBuffers(uint32_t t_currentImage);
     void onSwapChainRecreation() override;
     void buildCommandBuffers() override;
     void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods) override;
@@ -108,7 +99,7 @@ private:
     void createUniformBuffers();
     void createRTPipeline();
     void createPostprocessPipeline();
-    void createComputeDenoisePipelines();
+    void createPredictDenoisePipeline();
     void createAutoExposurePipeline();
 };
 

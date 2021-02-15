@@ -16,7 +16,7 @@ class Device;
 
 class RayTracingPipeline {
 public:
-    RayTracingPipeline(Device* t_vulkanDevice);
+    RayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount);
     ~RayTracingPipeline();
 
     void buildCommandBuffer(VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height);
@@ -90,8 +90,6 @@ private:
         VkDescriptorSetLayout set5ResultImage;
     } m_descriptorSetLayouts;
 
-    const uint32_t m_ray_tracer_depth = 4;
-    const uint32_t m_ray_tracer_samples = 1;
     // Push constant sent to the path tracer
     struct PathTracerParameters {
         uint32_t maxDepth; // Max depth

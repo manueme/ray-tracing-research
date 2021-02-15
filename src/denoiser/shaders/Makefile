@@ -7,7 +7,6 @@ build-shaders:
 	glslc $(SHADERS_DIR)/shadow.rmiss -o $(SHADERS_DIR)/shadow.rmiss.spv --target-env=vulkan1.2
 	glslc $(SHADERS_DIR)/anyhit.rahit -o $(SHADERS_DIR)/anyhit.rahit.spv --target-env=vulkan1.2
 	glslc $(SHADERS_DIR)/shadow.rahit -o $(SHADERS_DIR)/shadow.rahit.spv --target-env=vulkan1.2
-	glslc $(SHADERS_DIR)/postprocess.vert -o $(SHADERS_DIR)/postprocess.vert.spv
-	glslc $(SHADERS_DIR)/postprocess.frag -o $(SHADERS_DIR)/postprocess.frag.spv
+	glslc $(SHADERS_DIR)/post_process.comp -o $(SHADERS_DIR)/post_process.comp.spv
 	glslc $(SHADERS_DIR)/auto_exposure.comp -o $(SHADERS_DIR)/auto_exposure.comp.spv
 	glslc $(SHADERS_DIR)/predict_denoiser.comp -o $(SHADERS_DIR)/predict_denoiser.comp.spv

@@ -26,7 +26,27 @@ void HybridPipelineRT::render()
     if (!m_prepared) {
         return;
     }
-    if (BaseProject::renderFrame() == VK_SUCCESS) {
+
+    const auto imageIndex = BaseProject::acquireNextImage();
+
+    updateUniformBuffers(imageIndex);
+
+    // Submit the draw command buffer
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[m_currentFrame];
+    VkPipelineStageFlags drawWaitStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    submitInfo.pWaitDstStageMask = &drawWaitStageMask;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_drawCmdBuffers[imageIndex];
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[m_currentFrame];
+    vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
+    CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
+    // ----
+
+    if (BaseProject::queuePresentSwapChain(imageIndex) == VK_SUCCESS) {
         m_sceneUniformData.frame++;
         std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
     }
@@ -877,7 +897,7 @@ void HybridPipelineRT::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new HyRayTracingPipeline(m_vulkanDevice);
+    m_rayTracing = new HyRayTracingPipeline(m_vulkanDevice, 8, 1);
 
     setupScene();
 
