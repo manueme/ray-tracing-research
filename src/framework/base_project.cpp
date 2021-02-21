@@ -96,6 +96,7 @@ VkResult BaseProject::queuePresentSwapChain(uint32_t t_imageIndex)
     auto result = m_swapChain.queuePresent(m_queue,
         t_imageIndex,
         &m_renderFinishedSemaphores[m_currentFrame]);
+
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
         m_framebufferResized = false;
         handleWindowResize();

@@ -41,7 +41,7 @@ public:
      * creation (optional, if not set, no data is copied over)
      *
      */
-    void create(Device* t_device, VkBufferUsageFlags t_usageFlags,
+    virtual void create(Device* t_device, VkBufferUsageFlags t_usageFlags,
         VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data = nullptr);
 
     VkDevice device;
@@ -130,7 +130,7 @@ public:
     /**
      * Release all Vulkan resources held by this buffer
      */
-    void destroy();
+    virtual void destroy();
 
 private:
     /** @brief Usage flags to be filled by external source at buffer creation (to

@@ -53,6 +53,12 @@ public:
         VkImageUsageFlags t_imageUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
         VkImageLayout t_imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
+    void fromBufferArray(void* t_buffer, uint32_t t_layerCount, VkDeviceSize t_bufferSize, VkFormat t_format,
+        uint32_t t_texWidth, uint32_t t_texHeight, Device* t_device, VkQueue t_copyQueue,
+        VkFilter t_filter = VK_FILTER_LINEAR,
+        VkImageUsageFlags t_imageUsageFlags = VK_IMAGE_USAGE_SAMPLED_BIT,
+        VkImageLayout t_imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
     void fromNothing(VkFormat t_format, uint32_t t_texWidth, uint32_t t_texHeight,
         uint32_t t_layerCount, Device* t_device, VkQueue t_copyQueue,
         VkFilter t_filter = VK_FILTER_LINEAR,
