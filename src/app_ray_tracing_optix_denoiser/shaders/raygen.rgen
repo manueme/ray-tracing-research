@@ -197,18 +197,14 @@ void main()
         imageStore(imageResult, ivec2(gl_LaunchIDEXT.xy), vec4(mix(oldColor, result, a), 1.0f));
     } else {
         imageStore(imageResult, ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0f));
-
-        // Don't need accumulation on albedo, normal, and depth,
-        // storing these on every frame can be avoided:
+    }
 #ifdef STORE_ALBEDO_MAP
-        imageStore(imageAlbedo, ivec2(gl_LaunchIDEXT.xy), vec4(hitAlbedo, 1.0f));
+    imageStore(imageAlbedo, ivec2(gl_LaunchIDEXT.xy), vec4(hitAlbedo, 1.0f));
 #endif
 #ifdef STORE_DEPTH_MAP
-        imageStore(imageDepth, ivec2(gl_LaunchIDEXT.xy), vec4(hitDistance, 1.0f));
+    imageStore(imageDepth, ivec2(gl_LaunchIDEXT.xy), vec4(hitDistance, 1.0f));
 #endif
 #ifdef STORE_NORMAL_MAP
-        imageStore(imageNormal, ivec2(gl_LaunchIDEXT.xy), vec4(hitNormal, 1.0f));
+    imageStore(imageNormal, ivec2(gl_LaunchIDEXT.xy), vec4(hitNormal, 1.0f));
 #endif
-        //---
-    }
 }

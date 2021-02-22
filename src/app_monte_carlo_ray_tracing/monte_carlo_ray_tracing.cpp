@@ -308,10 +308,7 @@ void MonteCarloRTApp::createStorageImages()
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
 
-    // For normals and depth map 32 bits per channel is less negotiable by the denoiser, maybe 16 if
-    // I use Tensor Cores, albedo could be 8 bits but I'll also use 32 to be consistent for now...
-    // TODO: to try 8 bits for albedo and 16 bits for depth and normals
-    m_storageImage.normalMap.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+    m_storageImage.normalMap.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
         m_width,
         m_height,
         1,
@@ -320,7 +317,7 @@ void MonteCarloRTApp::createStorageImages()
         VK_FILTER_NEAREST,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.albedo.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+    m_storageImage.albedo.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
         m_width,
         m_height,
         1,

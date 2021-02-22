@@ -34,14 +34,16 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     if (t_usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
         allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
         allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
+        allocFlagsInfo.pNext = t_allocationInfoNext;
         memAlloc.pNext = &allocFlagsInfo;
+    } else {
+        memAlloc.pNext = t_allocationInfoNext;
     }
     vkGetBufferMemoryRequirements(this->device, this->buffer, &memReqs);
     memAlloc.allocationSize = memReqs.size;
     // Find a memory type index that fits the properties of the buffer
     memAlloc.memoryTypeIndex
         = t_device->getMemoryType(memReqs.memoryTypeBits, t_memoryPropertyFlags);
-    memAlloc.pNext = t_allocationInfoNext;
     CHECK_RESULT(vkAllocateMemory(this->device, &memAlloc, nullptr, &this->memory));
 
     this->alignment = memReqs.alignment;

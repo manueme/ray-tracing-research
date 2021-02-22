@@ -52,7 +52,7 @@ else()
 endif()
 # ----
 # OptiX 7.1 from external_sources folder
-include_directories(${EXTERNAL_SOURCES}/OptiX7SDK/include)
+include_directories(${EXTERNAL_SOURCES}/optix_7_2_sdk/include)
 # ----
 
 file(GLOB SOURCE ${FRAMEWORK_SRC} ${SHARED_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)

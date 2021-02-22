@@ -57,8 +57,25 @@ void SemaphoreCuda::create(VkDevice t_device)
     CUDA_CHECK(cudaImportExternalSemaphore(&m_cuSemaphore, &externalSemaphoreHandleDesc));
 }
 
+VkResult SemaphoreCuda::waitSemaphore(uint64_t timeout, uint64_t& t_timelineValue)
+{
+    VkSemaphoreWaitInfo waitInfo{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+    waitInfo.semaphoreCount = 1;
+    waitInfo.pSemaphores    = &m_semaphore;
+    waitInfo.pValues        = &t_timelineValue;
+    return vkWaitSemaphoresKHR(m_device, &waitInfo, 10000);
+}
+
 void SemaphoreCuda::destroy() { vkDestroySemaphore(m_device, m_semaphore, nullptr); }
 
 cudaExternalSemaphore_t SemaphoreCuda::getCudaSemaphore() { return m_cuSemaphore; }
 
 VkSemaphore SemaphoreCuda::getVulkanSemaphore() { return m_semaphore; }
+
+void SemaphoreCuda::initFunctionPointers()
+{
+    vkGetSemaphoreWin32HandleKHR = reinterpret_cast<PFN_vkGetSemaphoreWin32HandleKHR>(
+        vkGetDeviceProcAddr(m_device, "vkGetSemaphoreWin32HandleKHR"));
+    vkWaitSemaphoresKHR = reinterpret_cast<PFN_vkWaitSemaphoresKHR>(
+        vkGetDeviceProcAddr(m_device, "vkWaitSemaphoresKHR"));
+}

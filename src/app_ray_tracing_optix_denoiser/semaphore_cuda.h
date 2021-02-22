@@ -18,20 +18,18 @@
 class SemaphoreCuda {
 public:
     SemaphoreCuda();
-    PFN_vkGetSemaphoreWin32HandleKHR vkGetSemaphoreWin32HandleKHR;
-    void initFunctionPointers()
-    {
-        vkGetSemaphoreWin32HandleKHR = reinterpret_cast<PFN_vkGetSemaphoreWin32HandleKHR>(
-            vkGetDeviceProcAddr(m_device, "vkGetSemaphoreWin32HandleKHR"));
-    }
 
     void create(VkDevice t_device);
     void destroy();
 
     cudaExternalSemaphore_t getCudaSemaphore();
     VkSemaphore getVulkanSemaphore();
+    VkResult waitSemaphore(uint64_t timeout, uint64_t& t_timelineValue);
 
 private:
+    PFN_vkGetSemaphoreWin32HandleKHR vkGetSemaphoreWin32HandleKHR;
+    PFN_vkWaitSemaphoresKHR vkWaitSemaphoresKHR;
+    void initFunctionPointers();
     VkDevice m_device;
     VkSemaphore m_semaphore;
 #ifdef WIN32

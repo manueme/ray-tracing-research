@@ -323,30 +323,27 @@ void RayTracingOptixDenoiser::createStorageImages()
         1,
         m_vulkanDevice,
         m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_FILTER_LINEAR,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
 
-    // For normals and depth map 32 bits per channel is less negotiable by the denoiser, maybe 16 if
-    // I use Tensor Cores, albedo could be 8 bits but I'll also use 32 to be consistent for now...
-    // TODO: to try 8 bits for albedo and 16 bits for depth and normals
-    m_storageImage.normalMap.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+    m_storageImage.normalMap.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
         m_width,
         m_height,
         1,
         m_vulkanDevice,
         m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_FILTER_LINEAR,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.albedo.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
+    m_storageImage.albedo.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
         m_width,
         m_height,
         1,
         m_vulkanDevice,
         m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_FILTER_LINEAR,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
     m_storageImage.depthMap.fromNothing(VK_FORMAT_R32_SFLOAT,
         m_width,
@@ -354,8 +351,8 @@ void RayTracingOptixDenoiser::createStorageImages()
         1,
         m_vulkanDevice,
         m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_FILTER_LINEAR,
+        VK_IMAGE_USAGE_STORAGE_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
 
     m_storageImage.denoiseResult.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
@@ -364,8 +361,8 @@ void RayTracingOptixDenoiser::createStorageImages()
         1,
         m_vulkanDevice,
         m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_FILTER_LINEAR,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
 
     m_storageImage.postProcessResult.fromNothing(m_swapChain.colorFormat,
@@ -386,7 +383,7 @@ void RayTracingOptixDenoiser::setupScene()
         VERTEX_COMPONENT_TANGENT,
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
-    m_scene = m_rayTracing->createRTScene(m_queue, "assets/pool/Pool.fbx", m_vertexLayout);
+    m_scene = m_rayTracing->createRTScene(m_queue, "assets/sponza/Sponza.fbx", m_vertexLayout);
     auto camera = m_scene->getCamera();
     camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);
@@ -400,7 +397,7 @@ void RayTracingOptixDenoiser::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new RayTracingPipeline(m_vulkanDevice, 4, 1);
+    m_rayTracing = new RayTracingPipeline(m_vulkanDevice, 8, 1);
     m_autoExposure = new AutoExposurePipeline(m_vulkanDevice);
     m_postProcess = new PostProcessPipeline(m_vulkanDevice);
 
@@ -438,8 +435,15 @@ void RayTracingOptixDenoiser::render()
     auto denoiserSignalToSemaphore = m_denoiseSignalTo.getVulkanSemaphore();
 
     // Submit the draw command buffer
+    m_timelineValue++;
+    VkTimelineSemaphoreSubmitInfo timelineInfo {};
+    timelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+    timelineInfo.signalSemaphoreValueCount = 1;
+    timelineInfo.pSignalSemaphoreValues = &m_timelineValue;
+
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pNext = &timelineInfo;
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[m_currentFrame];
     VkPipelineStageFlags drawWaitStageMask = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
@@ -452,15 +456,20 @@ void RayTracingOptixDenoiser::render()
     CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
     // ----
 
-    m_denoiser->denoiseSubmit(&m_denoiseWaitFor, &m_denoiseSignalTo);
+    m_denoiser->denoiseSubmit(&m_denoiseWaitFor,
+        &m_denoiseSignalTo,
+        m_sceneUniformData.frameIteration,
+        m_timelineValue);
 
     // Submit Compute Command Buffer:
     VkSubmitInfo computeSubmitInfo {};
     computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     computeSubmitInfo.commandBufferCount = 1;
     computeSubmitInfo.pCommandBuffers = &m_compute.commandBuffers[imageIndex];
-    computeSubmitInfo.waitSemaphoreCount = 1;
-    computeSubmitInfo.pWaitSemaphores = &denoiserSignalToSemaphore;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &denoiserSignalToSemaphore;
+    drawWaitStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    submitInfo.pWaitDstStageMask = &drawWaitStageMask;
     computeSubmitInfo.signalSemaphoreCount = 1;
     computeSubmitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[m_currentFrame];
     VkPipelineStageFlags computeWaitStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
@@ -511,6 +520,8 @@ void RayTracingOptixDenoiser::viewChanged()
         static_cast<float>(m_width) / static_cast<float>(m_height),
         CAMERA_NEAR,
         CAMERA_FAR);
+    m_sceneUniformData.projection = camera->matrices.perspective;
+    m_sceneUniformData.view = camera->matrices.view;
     m_sceneUniformData.projInverse = glm::inverse(camera->matrices.perspective);
     m_sceneUniformData.viewInverse = glm::inverse(camera->matrices.view);
     m_sceneUniformData.frameIteration = 0;
@@ -567,7 +578,6 @@ void RayTracingOptixDenoiser::getEnabledFeatures()
     m_enabledDeviceExtensions.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME);
     m_enabledDeviceExtensions.emplace_back(VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME);
     m_enabledDeviceExtensions.emplace_back(VK_KHR_EXTERNAL_FENCE_WIN32_EXTENSION_NAME);
-    m_enabledDeviceExtensions.emplace_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
 #else
     m_enabledDeviceExtensions.emplace_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
     m_enabledDeviceExtensions.emplace_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
@@ -580,6 +590,4 @@ void RayTracingOptixDenoiser::getEnabledFeatures()
     timelineFeature.pNext = m_deviceCreatedNextChain;
     m_deviceCreatedNextChain = &timelineFeature;
     m_enabledDeviceExtensions.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
-    m_enabledDeviceExtensions.emplace_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
-    m_enabledDeviceExtensions.emplace_back(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
 }

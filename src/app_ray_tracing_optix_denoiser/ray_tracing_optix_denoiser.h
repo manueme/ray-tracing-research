@@ -43,6 +43,8 @@ private:
     Buffer m_materialsBuffer;
 
     struct UniformData {
+        glm::mat4 view;
+        glm::mat4 projection;
         glm::mat4 viewInverse { glm::mat4(0.0) };
         glm::mat4 projInverse { glm::mat4(0.0) };
         glm::vec4 overrideSunDirection { glm::vec4(0.0) };
@@ -58,8 +60,11 @@ private:
     } m_exposureData;
     Buffer m_exposureBuffer;
 
+    // Timeline semaphores for denoiser system synchronization
     SemaphoreCuda m_denoiseWaitFor;
     SemaphoreCuda m_denoiseSignalTo;
+    uint64_t m_timelineValue { 0 };
+    // ---
 
     void render() override;
     void setupScene();

@@ -31,7 +31,8 @@ public:
     void buildCommandImageToBuffer(VkCommandBuffer t_commandBuffer, Texture* imgInRawResult,
         Texture* imgInAlbedo, Texture* imgInNormals);
 
-    void denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo);
+    void denoiseSubmit(
+        SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo, uint32_t t_frameIteration, uint64_t& t_timelineValue);
 
 private:
     Device* m_vulkanDevice;
@@ -43,7 +44,7 @@ private:
     CUdeviceptr m_dState { 0 };
     CUdeviceptr m_dScratch { 0 };
     CUdeviceptr m_dIntensity { 0 };
-    CUdeviceptr m_dMinRGB { 0 };
+    CUdeviceptr m_dAverageRGB { 0 };
 
     // Holding the Buffer for Cuda interop
     VkExtent2D m_imageSize;
@@ -51,9 +52,6 @@ private:
     BufferCuda m_pixelBufferInAlbedo;
     BufferCuda m_pixelBufferInNormal;
     BufferCuda m_pixelBufferOut;
-
-    // Timeline semaphores
-    uint64_t m_fenceValue { 0 };
 
     int initOptiX();
 };
