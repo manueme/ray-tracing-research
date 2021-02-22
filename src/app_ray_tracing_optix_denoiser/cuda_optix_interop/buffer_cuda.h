@@ -11,7 +11,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #ifdef WIN32
-#include <windows.h>
+#include <Windows.h>
 // nolint
 #include "vulkan/vulkan_win32.h"
 #endif

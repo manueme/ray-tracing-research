@@ -6,7 +6,7 @@
 #ifndef MANUEME_RAY_TRACING_OPTIX_DENOISER_H
 #define MANUEME_RAY_TRACING_OPTIX_DENOISER_H
 
-#include "semaphore_cuda.h"
+#include "cuda_optix_interop/semaphore_cuda.h"
 
 #include "base_project.h"
 #include "core/texture.h"

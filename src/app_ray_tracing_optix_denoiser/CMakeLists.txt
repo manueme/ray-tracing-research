@@ -55,7 +55,7 @@ endif()
 include_directories(${EXTERNAL_SOURCES}/optix_7_2_sdk/include)
 # ----
 
-file(GLOB SOURCE ${FRAMEWORK_SRC} ${SHARED_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+file(GLOB SOURCE ${FRAMEWORK_SRC} ${SHARED_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/**/*.cpp)
 set(MAIN_CPP main.cpp)
 add_executable(${SUB_PROJECT_NAME} ${MAIN_CPP} ${SOURCE})
 target_link_libraries(${SUB_PROJECT_NAME} ${TARGET_LIBRARIES} ${CUDA_LIBRARIES_OPTIMIZED})

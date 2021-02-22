@@ -6,7 +6,7 @@
 #include "ray_tracing_optix_denoiser.h"
 #include "auto_exposure_pipeline.h"
 #include "constants.h"
-#include "denoiser_optix_pipeline.h"
+#include "cuda_optix_interop/denoiser_optix_pipeline.h"
 #include "post_process_pipeline.h"
 #include "ray_tracing_pipeline.h"
 
