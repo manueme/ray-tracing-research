@@ -19,7 +19,7 @@ class Device;
 class Buffer {
 public:
     PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
-    void initFunctionPointers()
+    virtual void initFunctionPointers()
     {
         vkGetBufferDeviceAddressKHR = reinterpret_cast<PFN_vkGetBufferDeviceAddressKHR>(
             vkGetDeviceProcAddr(device, "vkGetBufferDeviceAddressKHR"));
@@ -41,8 +41,9 @@ public:
      * creation (optional, if not set, no data is copied over)
      *
      */
-    void create(Device* t_device, VkBufferUsageFlags t_usageFlags,
-        VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data = nullptr);
+    virtual void create(Device* t_device, VkBufferUsageFlags t_usageFlags,
+        VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data = nullptr,
+        void* t_createInfoNext = nullptr, void* t_allocationInfoNext = nullptr);
 
     VkDevice device;
     VkBuffer buffer = VK_NULL_HANDLE;
@@ -130,15 +131,16 @@ public:
     /**
      * Release all Vulkan resources held by this buffer
      */
-    void destroy();
+    virtual void destroy();
 
-private:
-    /** @brief Usage flags to be filled by external source at buffer creation (to
-     * query at some later point) */
-    VkBufferUsageFlags usageFlags;
+protected:
     /** @brief Memory propertys flags to be filled by external source at buffer
      * creation (to query at some later point) */
     VkMemoryPropertyFlags memoryPropertyFlags;
+
+    /** @brief Usage flags to be filled by external source at buffer creation (to
+     * query at some later point) */
+    VkBufferUsageFlags usageFlags;
 };
 
 #endif // MANUEME_BUFFER_H

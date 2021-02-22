@@ -27,11 +27,11 @@
 // Default fence timeout in nanoseconds
 #define DEFAULT_FENCE_TIMEOUT 100000000000
 
-#define CHECK_RESULT(f)                                                                        \
+#define CHECK_RESULT(f)                                                                            \
     {                                                                                              \
         VkResult res = (f);                                                                        \
         if (res != VK_SUCCESS) {                                                                   \
-            std::cout << "Fatal : VkResult is \"" << tools::errorString(res) << "\" in "      \
+            std::cout << "Fatal : VkResult is \"" << tools::errorString(res) << "\" in "           \
                       << static_cast<const char*>(__FILE__) << " at line "                         \
                       << static_cast<int>(__LINE__) << " in function \""                           \
                       << static_cast<const char*>(__FUNCTION__) << "\"" << std::endl;              \
