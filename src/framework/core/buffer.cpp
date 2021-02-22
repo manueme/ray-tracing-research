@@ -7,14 +7,13 @@
 
 #include "device.h"
 
-Buffer::Buffer()
-{
-};
+Buffer::Buffer() {};
 
 Buffer::~Buffer() = default;
 
 void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
-    VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data)
+    VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data,
+    void* t_createInfoNext, void* t_allocationInfoNext)
 {
     this->device = t_device->logicalDevice;
     initFunctionPointers();
@@ -24,13 +23,14 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.usage = t_usageFlags;
     bufferCreateInfo.size = t_size;
+    bufferCreateInfo.pNext = t_createInfoNext;
     CHECK_RESULT(vkCreateBuffer(this->device, &bufferCreateInfo, nullptr, &this->buffer));
 
     // Create the memory backing up the buffer handle
     VkMemoryRequirements memReqs;
     VkMemoryAllocateInfo memAlloc = {};
     memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    VkMemoryAllocateFlagsInfoKHR allocFlagsInfo{};
+    VkMemoryAllocateFlagsInfoKHR allocFlagsInfo {};
     if (t_usageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
         allocFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO_KHR;
         allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
@@ -41,6 +41,7 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     // Find a memory type index that fits the properties of the buffer
     memAlloc.memoryTypeIndex
         = t_device->getMemoryType(memReqs.memoryTypeBits, t_memoryPropertyFlags);
+    memAlloc.pNext = t_allocationInfoNext;
     CHECK_RESULT(vkAllocateMemory(this->device, &memAlloc, nullptr, &this->memory));
 
     this->alignment = memReqs.alignment;

@@ -22,9 +22,7 @@ DenoiserOptixPipeline::DenoiserOptixPipeline(Device* t_vulkanDevice)
     initOptiX();
 }
 
-DenoiserOptixPipeline::~DenoiserOptixPipeline() {
-    destroy();
-}
+DenoiserOptixPipeline::~DenoiserOptixPipeline() { destroy(); }
 
 int DenoiserOptixPipeline::initOptiX()
 {
@@ -60,29 +58,25 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize)
     VkDeviceSize bufferSize = m_imageSize.width * m_imageSize.height * 4 * sizeof(float);
 
     // Using direct method
-    VkBufferUsageFlags usage
-        = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    VkBufferUsageFlags usage = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     m_pixelBufferInRawResult.create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        bufferSize,
-        nullptr);
+        bufferSize);
     m_pixelBufferInAlbedo.create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        bufferSize,
-        nullptr);
+        bufferSize);
     m_pixelBufferInNormal.create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        bufferSize,
-        nullptr);
+        bufferSize);
     m_pixelBufferOut.create(m_vulkanDevice,
         usage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        bufferSize,
-        nullptr);
+        bufferSize);
 
     // Computing the amount of memory needed to do the denoiser
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(m_denoiser,

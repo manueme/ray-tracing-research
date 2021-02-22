@@ -8,6 +8,8 @@
 
 #include "core/buffer.h"
 #include "vulkan/vulkan_core.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
 #ifdef WIN32
 #include <windows.h>
 // nolint
@@ -20,25 +22,20 @@ public:
     ~BufferCuda();
 
     PFN_vkGetMemoryWin32HandleKHR vkGetMemoryWin32HandleKHR;
-    void initFunctionPointers()
-    {
-        vkGetMemoryWin32HandleKHR = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(
-            vkGetDeviceProcAddr(m_device, "vkGetMemoryWin32HandleKHR"));
-    }
+    void initFunctionPointers() override;
+
     void create(Device* t_device, VkBufferUsageFlags t_usageFlags,
-        VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size,
-        void* t_data = nullptr) override;
+        VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data = nullptr,
+        void* t_createInfoNext = nullptr, void* t_allocationInfoNext = nullptr);
 
     void destroy() override;
 
     void* getCudaPointer();
 
 private:
-    VkDevice m_device;
-
     // Extra for Cuda
 #ifdef WIN32
-    HANDLE m_handle { INVALID_HANDLE_VALUE }; // The Win32 handle
+    HANDLE m_handle = nullptr; // The Win32 handle
 #else
     int m_handle = -1;
 #endif
