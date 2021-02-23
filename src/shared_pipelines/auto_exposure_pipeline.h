@@ -12,24 +12,22 @@ class Device;
 class Buffer;
 class Texture;
 
-class AutoExposurePipeline {
+class BaseAutoExposurePipeline {
 public:
-    AutoExposurePipeline(Device* t_vulkanDevice);
-
-    ~AutoExposurePipeline();
-
     void buildCommandBuffer(VkCommandBuffer t_commandBuffer);
-
-    void createDescriptorSetsLayout();
 
     void createPipeline(
         VkPipelineCache t_pipelineCache, VkPipelineShaderStageCreateInfo t_shaderStage);
 
     void createDescriptorSets(VkDescriptorPool t_descriptorPool, Buffer* t_exposureBuffer);
 
-    void updateResultImageDescriptorSets(Texture* t_result);
+protected:
+    BaseAutoExposurePipeline(Device* t_vulkanDevice);
 
-private:
+    ~BaseAutoExposurePipeline();
+
+    virtual void createDescriptorSetsLayout() = 0;
+
     Device* m_vulkanDevice;
     VkDevice m_device;
 
@@ -37,13 +35,35 @@ private:
     VkPipelineLayout m_pipelineLayout;
 
     struct {
-        VkDescriptorSet set0InputImage;
+        VkDescriptorSet set0InputColor;
         VkDescriptorSet set1Exposure;
     } m_descriptorSets;
     struct {
-        VkDescriptorSetLayout set0InputImage;
+        VkDescriptorSetLayout set0InputColor;
         VkDescriptorSetLayout set1Exposure;
     } m_descriptorSetLayouts;
+};
+
+class AutoExposurePipeline : public BaseAutoExposurePipeline {
+public:
+    AutoExposurePipeline(Device* t_vulkanDevice);
+
+    ~AutoExposurePipeline();
+
+    void createDescriptorSetsLayout() override;
+
+    void updateResultImageDescriptorSets(Texture* t_result);
+};
+
+class AutoExposureWithBuffersPipeline : public BaseAutoExposurePipeline {
+public:
+    AutoExposureWithBuffersPipeline(Device* t_vulkanDevice);
+
+    ~AutoExposureWithBuffersPipeline();
+
+    void createDescriptorSetsLayout() override;
+
+    void updateResultImageDescriptorSets(Buffer* t_inputImageBuffer);
 };
 
 #endif // SHARED_AUTO_EXPOSURE_PIPELINE_H

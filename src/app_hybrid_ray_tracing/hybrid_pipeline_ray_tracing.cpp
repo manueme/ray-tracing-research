@@ -4,8 +4,8 @@
  */
 
 #include "hybrid_pipeline_ray_tracing.h"
-#include "hy_ray_tracing_pipeline.h"
 #include "constants.h"
+#include "pipelines/hy_ray_tracing_pipeline.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE

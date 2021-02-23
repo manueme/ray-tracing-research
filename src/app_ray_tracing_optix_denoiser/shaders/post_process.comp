@@ -13,14 +13,15 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(set = 1, binding = 0, rgba32f) uniform image2D inputTexture;
-layout(set = 1, binding = 1, rgba8) uniform image2D outputTexture;
+layout(set = 1, binding = 0) buffer InputTexture_ { float data[]; }
+inputTexture;
 layout(set = 2, binding = 0) readonly buffer _AutoExposure { float exposure; }
 exposureSettings;
+layout(set = 3, binding = 0, rgba8) uniform image2D outputTexture;
 
 void main()
 {
-    vec2 res = imageSize(inputTexture);
+    vec2 res = imageSize(outputTexture);
     vec2 q = gl_GlobalInvocationID.xy / res;
     if (q.x > 1 || q.y > 1) {
         return;
@@ -33,17 +34,21 @@ void main()
     // ###
 
     // Chromatic aberration effect with tone mapping
-    vec2 centerToUv = q - vec2(0.5);
     vec3 aberr;
-    aberr.x = imageLoad(inputTexture, ivec2((0.5 + centerToUv * 0.995) * res)).x;
-    aberr.y = imageLoad(inputTexture, ivec2((0.5 + centerToUv * 0.997) * res)).y;
-    aberr.z = imageLoad(inputTexture, ivec2((0.5 + centerToUv) * res)).z;
-
+    vec2 centerToUv = q - vec2(0.5);
+    ivec2 rCoord = ivec2((0.5 + centerToUv * 0.995) * res);
+    ivec2 gCoord = ivec2((0.5 + centerToUv * 0.997) * res);
+    ivec2 bCoord = ivec2((0.5 + centerToUv) * res);
+    uint bufferImageIdxR = uint((rCoord.y * res.x + rCoord.x) * 4);
+    uint bufferImageIdxG = uint((gCoord.y * res.x + gCoord.x) * 4 + 1);
+    uint bufferImageIdxB = uint((bCoord.y * res.x + bCoord.x) * 4 + 2);
+    aberr.x = inputTexture.data[bufferImageIdxR];
+    aberr.y = inputTexture.data[bufferImageIdxG];
+    aberr.z = inputTexture.data[bufferImageIdxB];
     vec4 result = vec4(
         (vignette
             * linear_tone_mapping(aberr, exposureSettings.exposure + scene.manualExposureAdjust)),
         1.0);
     // ###
-
     imageStore(outputTexture, ivec2(gl_GlobalInvocationID.xy), result);
 }

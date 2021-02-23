@@ -5,9 +5,9 @@
 
 #include "monte_carlo_ray_tracing.h"
 #include "auto_exposure_pipeline.h"
-#include "post_process_pipeline.h"
-#include "ray_tracing_pipeline.h"
 #include "constants.h"
+#include "pipelines/mc_ray_tracing_pipeline.h"
+#include "post_process_pipeline.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -368,7 +368,7 @@ void MonteCarloRTApp::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new RayTracingPipeline(m_vulkanDevice, 4, 1);
+    m_rayTracing = new MCRayTracingPipeline(m_vulkanDevice, 4, 1);
     m_autoExposure = new AutoExposurePipeline(m_vulkanDevice);
     m_postProcess = new PostProcessPipeline(m_vulkanDevice);
 

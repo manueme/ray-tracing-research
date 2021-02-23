@@ -25,14 +25,21 @@ public:
 
     void destroy();
 
-    void allocateBuffers(const VkExtent2D& imgSize);
+    /**
+     * Allocates and stores the buffers to be used by the denoiser, the function will NOT destroy
+     * the buffers before creating them.
+     * @param imgSize
+     * @param t_pixelBufferInRawResult
+     * @param t_pixelBufferInAlbedo
+     * @param t_pixelBufferInNormal
+     * @param t_pixelBufferOut
+     */
+    void allocateBuffers(const VkExtent2D& imgSize, BufferCuda* t_pixelBufferInRawResult,
+        BufferCuda* t_pixelBufferInAlbedo, BufferCuda* t_pixelBufferInNormal,
+        BufferCuda* t_pixelBufferOut);
 
-    void buildCommandBufferToImage(VkCommandBuffer t_commandBuffer, Texture* imgOut);
-    void buildCommandImageToBuffer(VkCommandBuffer t_commandBuffer, Texture* imgInRawResult,
-        Texture* imgInAlbedo, Texture* imgInNormals);
-
-    void denoiseSubmit(
-        SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo, uint32_t t_frameIteration, uint64_t& t_timelineValue);
+    void denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo,
+        uint32_t t_frameIteration, uint64_t& t_timelineValue);
 
 private:
     Device* m_vulkanDevice;
@@ -48,10 +55,11 @@ private:
 
     // Holding the Buffer for Cuda interop
     VkExtent2D m_imageSize;
-    BufferCuda m_pixelBufferInRawResult;
-    BufferCuda m_pixelBufferInAlbedo;
-    BufferCuda m_pixelBufferInNormal;
-    BufferCuda m_pixelBufferOut;
+
+    BufferCuda* m_pixelBufferInRawResult;
+    BufferCuda* m_pixelBufferInAlbedo;
+    BufferCuda* m_pixelBufferInNormal;
+    BufferCuda* m_pixelBufferOut;
 
     int initOptiX();
 };

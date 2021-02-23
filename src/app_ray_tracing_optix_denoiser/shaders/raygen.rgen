@@ -16,16 +16,16 @@
 #include "../../framework/shaders/ray_tracing_apps/trace_ray.glsl"
 #include "../../framework/shaders/utils.glsl"
 
-layout(binding = 0, set = 5, rgba32f) uniform image2D imageResult;
 #ifdef STORE_DEPTH_MAP
-layout(binding = 1, set = 5, r32f) uniform image2D imageDepth;
+layout(binding = 0, set = 5, r32f) uniform image2D imageDepth;
 #endif
-#ifdef STORE_NORMAL_MAP
-layout(binding = 2, set = 5, rgba32f) uniform image2D imageNormal;
-#endif
-#ifdef STORE_ALBEDO_MAP
-layout(binding = 3, set = 5, rgba32f) uniform image2D imageAlbedo;
-#endif
+
+layout(binding = 0, set = 6) buffer ImageNormal_ { vec4 data[]; }
+imageNormal;
+layout(binding = 1, set = 6) buffer ImageAlbedo_ { vec4 data[]; }
+imageAlbedo;
+layout(binding = 2, set = 6) buffer ImageResult_ { vec4 data[]; }
+imageResult;
 
 layout(push_constant) uniform Constants
 {
@@ -135,12 +135,8 @@ void main()
 #ifdef STORE_DEPTH_MAP
         hitDistance += resultDistance / RAY_DISTANCE;
 #endif
-#ifdef STORE_ALBEDO_MAP
         hitAlbedo += min(rayPayload.surfaceEmissive + rayPayload.surfaceAttenuation, vec3(1.0f));
-#endif
-#ifdef STORE_NORMAL_MAP
         hitNormal += rayPayload.surfaceNormal;
-#endif
 
         // Indirect Illum
         for (depth; depth < maxDepth; depth++) {
@@ -174,12 +170,9 @@ void main()
 #ifdef STORE_DEPTH_MAP
     hitDistance /= float(samples);
 #endif
-#ifdef STORE_ALBEDO_MAP
+
     hitAlbedo /= float(samples);
-#endif
-#ifdef STORE_NORMAL_MAP
     hitNormal /= float(samples);
-#endif
 
 #endif
 
@@ -190,21 +183,18 @@ void main()
     }
 #endif
 
+    uint bufferImageIdx = gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x;
     if (scene.frameIteration > 0) {
         // Do accumulation (imageResult should be rgba32f to avoid losing precision)
         const float a = 1.0f / float(scene.frameIteration);
-        const vec3 oldColor = imageLoad(imageResult, ivec2(gl_LaunchIDEXT.xy)).xyz;
-        imageStore(imageResult, ivec2(gl_LaunchIDEXT.xy), vec4(mix(oldColor, result, a), 1.0f));
+        const vec4 oldColor = imageResult.data[bufferImageIdx];
+        imageResult.data[bufferImageIdx] = vec4(mix(oldColor.xyz, result, a), 1.0f);
     } else {
-        imageStore(imageResult, ivec2(gl_LaunchIDEXT.xy), vec4(result, 1.0f));
+        imageResult.data[bufferImageIdx] = vec4(result, 1.0f);
     }
-#ifdef STORE_ALBEDO_MAP
-    imageStore(imageAlbedo, ivec2(gl_LaunchIDEXT.xy), vec4(hitAlbedo, 1.0f));
-#endif
 #ifdef STORE_DEPTH_MAP
     imageStore(imageDepth, ivec2(gl_LaunchIDEXT.xy), vec4(hitDistance, 1.0f));
 #endif
-#ifdef STORE_NORMAL_MAP
-    imageStore(imageNormal, ivec2(gl_LaunchIDEXT.xy), vec4(hitNormal, 1.0f));
-#endif
+    imageAlbedo.data[bufferImageIdx] = vec4(hitAlbedo, 1.0f);
+    imageNormal.data[bufferImageIdx] = vec4(normalize(hitNormal * 0.5 + 0.5), 1.0f);
 }

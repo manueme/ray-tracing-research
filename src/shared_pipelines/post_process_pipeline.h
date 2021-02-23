@@ -12,15 +12,9 @@ class Device;
 class Buffer;
 class Texture;
 
-class PostProcessPipeline {
+class BasePostProcessPipeline {
 public:
-    PostProcessPipeline(Device* t_vulkanDevice);
-
-    ~PostProcessPipeline();
-
     void buildCommandBuffer(VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height);
-
-    void createDescriptorSetsLayout();
 
     void createPipeline(
         VkPipelineCache t_pipelineCache, VkPipelineShaderStageCreateInfo t_shaderStage);
@@ -28,9 +22,13 @@ public:
     void createDescriptorSets(
         VkDescriptorPool t_descriptorPool, Buffer* t_sceneBuffer, Buffer* t_exposureBuffer);
 
-    void updateResultImageDescriptorSets(Texture* t_resultInput, Texture* t_resultOutput);
+protected:
+    BasePostProcessPipeline(Device* t_vulkanDevice);
 
-private:
+    ~BasePostProcessPipeline();
+
+    virtual void createDescriptorSetsLayout() = 0;
+
     Device* m_vulkanDevice;
     VkDevice m_device;
 
@@ -39,14 +37,38 @@ private:
 
     struct {
         VkDescriptorSet set0Scene;
-        VkDescriptorSet set1InputImage;
+        VkDescriptorSet set1InputColor;
         VkDescriptorSet set2Exposure;
+        VkDescriptorSet set3ResultImage;
     } m_descriptorSets;
     struct {
         VkDescriptorSetLayout set0Scene;
-        VkDescriptorSetLayout set1InputImage;
+        VkDescriptorSetLayout set1InputColor;
         VkDescriptorSetLayout set2Exposure;
+        VkDescriptorSetLayout set3ResultImage;
     } m_descriptorSetLayouts;
+};
+
+class PostProcessPipeline : public BasePostProcessPipeline {
+public:
+    PostProcessPipeline(Device* t_vulkanDevice);
+
+    ~PostProcessPipeline();
+
+    void createDescriptorSetsLayout() override;
+
+    void updateResultImageDescriptorSets(Texture* t_inputColor, Texture* t_outputColor);
+};
+
+class PostProcessWithBuffersPipeline : public BasePostProcessPipeline {
+public:
+    PostProcessWithBuffersPipeline(Device* t_vulkanDevice);
+
+    ~PostProcessWithBuffersPipeline();
+
+    void createDescriptorSetsLayout() override;
+
+    void updateResultImageDescriptorSets(Buffer* t_inputColorBuffer, Texture* t_outputColor);
 };
 
 #endif // SHARED_POST_PROCESS_PIPELINE_H

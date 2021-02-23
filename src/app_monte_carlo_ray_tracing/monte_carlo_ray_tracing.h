@@ -9,7 +9,7 @@
 #include "base_project.h"
 #include "core/texture.h"
 
-class RayTracingPipeline;
+class MCRayTracingPipeline;
 class AutoExposurePipeline;
 class PostProcessPipeline;
 
@@ -19,7 +19,7 @@ public:
     ~MonteCarloRTApp();
 
 private:
-    RayTracingPipeline* m_rayTracing;
+    MCRayTracingPipeline* m_rayTracing;
     AutoExposurePipeline* m_autoExposure;
     PostProcessPipeline* m_postProcess;
 

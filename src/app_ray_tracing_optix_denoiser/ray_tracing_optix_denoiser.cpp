@@ -7,8 +7,8 @@
 #include "auto_exposure_pipeline.h"
 #include "constants.h"
 #include "cuda_optix_interop/denoiser_optix_pipeline.h"
+#include "pipelines/denoise_ray_tracing_pipeline.h"
 #include "post_process_pipeline.h"
-#include "ray_tracing_pipeline.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -58,10 +58,6 @@ void RayTracingOptixDenoiser::buildCommandBuffers()
     for (int32_t i = 0; i < m_drawCmdBuffers.size(); ++i) {
         CHECK_RESULT(vkBeginCommandBuffer(m_drawCmdBuffers[i], &drawCmdBufInfo))
         m_rayTracing->buildCommandBuffer(m_drawCmdBuffers[i], m_width, m_height);
-        m_denoiser->buildCommandImageToBuffer(m_drawCmdBuffers[i],
-            &m_storageImage.rtResult,
-            &m_storageImage.albedo,
-            &m_storageImage.normalMap);
         CHECK_RESULT(vkEndCommandBuffer(m_drawCmdBuffers[i]))
     }
     // ---
@@ -70,8 +66,6 @@ void RayTracingOptixDenoiser::buildCommandBuffers()
     computeCmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     for (int32_t i = 0; i < m_compute.commandBuffers.size(); ++i) {
         CHECK_RESULT(vkBeginCommandBuffer(m_compute.commandBuffers[i], &computeCmdBufInfo))
-        m_denoiser->buildCommandBufferToImage(m_compute.commandBuffers[i],
-            &m_storageImage.denoiseResult);
         m_autoExposure->buildCommandBuffer(m_compute.commandBuffers[i]);
         m_postProcess->buildCommandBuffer(m_compute.commandBuffers[i], m_width, m_height);
 
@@ -247,17 +241,17 @@ void RayTracingOptixDenoiser::createDescriptorSets()
 void RayTracingOptixDenoiser::updateResultImageDescriptorSets()
 {
     // Ray Tracing
-    m_rayTracing->updateResultImageDescriptorSets(&m_storageImage.rtResult,
-        &m_storageImage.depthMap,
-        &m_storageImage.normalMap,
-        &m_storageImage.albedo);
-
-    // Auto exposure
-    m_autoExposure->updateResultImageDescriptorSets(&m_storageImage.rtResult);
+    m_rayTracing->updateResultImageDescriptorSets(&m_storageImage.depthMap,
+        &m_denoiserData.pixelBufferInNormal,
+        &m_denoiserData.pixelBufferInAlbedo,
+        &m_denoiserData.pixelBufferInRawResult);
 
     // Post Process
-    m_postProcess->updateResultImageDescriptorSets(&m_storageImage.denoiseResult,
+    m_postProcess->updateResultImageDescriptorSets(&m_denoiserData.pixelBufferOut,
         &m_storageImage.postProcessResult);
+
+    // Exposure compute
+    m_autoExposure->updateResultImageDescriptorSets(&m_denoiserData.pixelBufferOut);
 }
 
 void RayTracingOptixDenoiser::updateUniformBuffers(uint32_t t_currentImage)
@@ -314,37 +308,6 @@ void RayTracingOptixDenoiser::createUniformBuffers()
 
 void RayTracingOptixDenoiser::createStorageImages()
 {
-    // NOTE: For the result RGBA32f is used because of the accumulation feature in order to avoid
-    // losing quality over frames for "real-time" frames you may want to change the format to a more
-    // efficient one, like the swapchain image format "m_swapChain.colorFormat"
-    m_storageImage.rtResult.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
-        m_width,
-        m_height,
-        1,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_LINEAR,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-
-    m_storageImage.normalMap.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
-        m_width,
-        m_height,
-        1,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_LINEAR,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.albedo.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
-        m_width,
-        m_height,
-        1,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_LINEAR,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
     m_storageImage.depthMap.fromNothing(VK_FORMAT_R32_SFLOAT,
         m_width,
         m_height,
@@ -353,16 +316,6 @@ void RayTracingOptixDenoiser::createStorageImages()
         m_queue,
         VK_FILTER_LINEAR,
         VK_IMAGE_USAGE_STORAGE_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-
-    m_storageImage.denoiseResult.fromNothing(VK_FORMAT_R32G32B32A32_SFLOAT,
-        m_width,
-        m_height,
-        1,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_LINEAR,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
 
     m_storageImage.postProcessResult.fromNothing(m_swapChain.colorFormat,
@@ -397,14 +350,19 @@ void RayTracingOptixDenoiser::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new RayTracingPipeline(m_vulkanDevice, 8, 1);
-    m_autoExposure = new AutoExposurePipeline(m_vulkanDevice);
-    m_postProcess = new PostProcessPipeline(m_vulkanDevice);
+    m_rayTracing = new DenoiseRayTracingPipeline(m_vulkanDevice, 8, 1);
+    m_autoExposure = new AutoExposureWithBuffersPipeline(m_vulkanDevice);
+    m_postProcess = new PostProcessWithBuffersPipeline(m_vulkanDevice);
 
     m_denoiser = new DenoiserOptixPipeline(m_vulkanDevice);
-    m_denoiseWaitFor.create(m_device);
-    m_denoiseSignalTo.create(m_device);
-    m_denoiser->allocateBuffers({ m_width, m_height });
+    m_denoiserData.denoiseWaitFor.create(m_device);
+    m_denoiserData.denoiseSignalTo.create(m_device);
+
+    m_denoiser->allocateBuffers({ m_width, m_height },
+        &m_denoiserData.pixelBufferInRawResult,
+        &m_denoiserData.pixelBufferInNormal,
+        &m_denoiserData.pixelBufferInAlbedo,
+        &m_denoiserData.pixelBufferOut);
 
     setupScene();
 
@@ -431,15 +389,15 @@ void RayTracingOptixDenoiser::render()
 
     updateUniformBuffers(imageIndex);
 
-    auto denoiserWaitForSemaphore = m_denoiseWaitFor.getVulkanSemaphore();
-    auto denoiserSignalToSemaphore = m_denoiseSignalTo.getVulkanSemaphore();
+    auto denoiserWaitForSemaphore = m_denoiserData.denoiseWaitFor.getVulkanSemaphore();
+    auto denoiserSignalToSemaphore = m_denoiserData.denoiseSignalTo.getVulkanSemaphore();
 
     // Submit the draw command buffer
-    m_timelineValue++;
+    m_denoiserData.timelineValue++;
     VkTimelineSemaphoreSubmitInfo timelineInfo {};
     timelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo.signalSemaphoreValueCount = 1;
-    timelineInfo.pSignalSemaphoreValues = &m_timelineValue;
+    timelineInfo.pSignalSemaphoreValues = &m_denoiserData.timelineValue;
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -456,10 +414,10 @@ void RayTracingOptixDenoiser::render()
     CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
     // ----
 
-    m_denoiser->denoiseSubmit(&m_denoiseWaitFor,
-        &m_denoiseSignalTo,
+    m_denoiser->denoiseSubmit(&m_denoiserData.denoiseWaitFor,
+        &m_denoiserData.denoiseSignalTo,
         m_sceneUniformData.frameIteration,
-        m_timelineValue);
+        m_denoiserData.timelineValue);
 
     // Submit Compute Command Buffer:
     VkSubmitInfo computeSubmitInfo {};
@@ -495,15 +453,16 @@ RayTracingOptixDenoiser::~RayTracingOptixDenoiser()
     delete m_autoExposure;
     delete m_postProcess;
     delete m_denoiser;
-    m_denoiseWaitFor.destroy();
-    m_denoiseSignalTo.destroy();
+    m_denoiserData.denoiseWaitFor.destroy();
+    m_denoiserData.denoiseSignalTo.destroy();
 
-    m_storageImage.rtResult.destroy();
-    m_storageImage.denoiseResult.destroy();
     m_storageImage.postProcessResult.destroy();
     m_storageImage.depthMap.destroy();
-    m_storageImage.normalMap.destroy();
-    m_storageImage.albedo.destroy();
+
+    m_denoiserData.pixelBufferInAlbedo.destroy();
+    m_denoiserData.pixelBufferInNormal.destroy();
+    m_denoiserData.pixelBufferInRawResult.destroy();
+    m_denoiserData.pixelBufferOut.destroy();
 
     m_exposureBuffer.destroy();
     m_sceneBuffer.destroy();
@@ -530,15 +489,20 @@ void RayTracingOptixDenoiser::viewChanged()
 void RayTracingOptixDenoiser::onSwapChainRecreation()
 {
     // Recreate the images to fit the new extent size
-    m_storageImage.rtResult.destroy();
-    m_storageImage.denoiseResult.destroy();
     m_storageImage.postProcessResult.destroy();
     m_storageImage.depthMap.destroy();
-    m_storageImage.normalMap.destroy();
-    m_storageImage.albedo.destroy();
     createStorageImages();
+    m_denoiserData.pixelBufferInAlbedo.destroy();
+    m_denoiserData.pixelBufferInNormal.destroy();
+    m_denoiserData.pixelBufferInRawResult.destroy();
+    m_denoiserData.pixelBufferOut.destroy();
+    m_denoiser->allocateBuffers({ m_width, m_height },
+        &m_denoiserData.pixelBufferInRawResult,
+        &m_denoiserData.pixelBufferInNormal,
+        &m_denoiserData.pixelBufferInAlbedo,
+        &m_denoiserData.pixelBufferOut);
+
     updateResultImageDescriptorSets();
-    m_denoiser->allocateBuffers({ m_width, m_height });
 }
 
 void RayTracingOptixDenoiser::onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods)

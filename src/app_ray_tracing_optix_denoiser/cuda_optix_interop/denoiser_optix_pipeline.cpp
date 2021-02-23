@@ -46,7 +46,9 @@ int DenoiserOptixPipeline::initOptiX()
     return 1;
 }
 
-void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize)
+void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize,
+    BufferCuda* t_pixelBufferInRawResult, BufferCuda* t_pixelBufferInAlbedo,
+    BufferCuda* t_pixelBufferInNormal, BufferCuda* t_pixelBufferOut)
 {
     m_imageSize = imgSize;
 
@@ -55,25 +57,29 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize)
     VkDeviceSize bufferSize = m_imageSize.width * m_imageSize.height * 4 * sizeof(float);
 
     // Using direct method
-    VkBufferUsageFlags usage
-        = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
-    m_pixelBufferInRawResult.create(m_vulkanDevice,
+    t_pixelBufferInRawResult->create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bufferSize);
-    m_pixelBufferInAlbedo.create(m_vulkanDevice,
+    t_pixelBufferInAlbedo->create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bufferSize);
-    m_pixelBufferInNormal.create(m_vulkanDevice,
+    t_pixelBufferInNormal->create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bufferSize);
-    m_pixelBufferOut.create(m_vulkanDevice,
-        usage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    t_pixelBufferOut->create(m_vulkanDevice,
+        usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bufferSize);
+
+    m_pixelBufferInRawResult = t_pixelBufferInRawResult;
+    m_pixelBufferInAlbedo = t_pixelBufferInAlbedo;
+    m_pixelBufferInNormal = t_pixelBufferInNormal;
+    m_pixelBufferOut = t_pixelBufferOut;
 
     // Computing the amount of memory needed to do the denoiser
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(m_denoiser,
@@ -99,11 +105,6 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize)
 
 void DenoiserOptixPipeline::destroy()
 {
-    m_pixelBufferInRawResult.destroy(); // Closing Handle
-    m_pixelBufferInAlbedo.destroy(); // Closing Handle
-    m_pixelBufferInNormal.destroy(); // Closing Handle
-    m_pixelBufferOut.destroy(); // Closing Handle
-
     if (m_dState != 0) {
         CUDA_CHECK(cudaFree((void*)m_dState));
     }
@@ -128,7 +129,7 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
         std::vector<OptixImage2D> inputLayer; // Order: RGB, Albedo, Normal
 
         // RGB
-        inputLayer.push_back(OptixImage2D { (CUdeviceptr)m_pixelBufferInRawResult.getCudaPointer(),
+        inputLayer.push_back(OptixImage2D { (CUdeviceptr)m_pixelBufferInRawResult->getCudaPointer(),
             m_imageSize.width,
             m_imageSize.height,
             rowStrideInBytes,
@@ -137,23 +138,25 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
         // ALBEDO
         if (m_dOptions.inputKind == OPTIX_DENOISER_INPUT_RGB_ALBEDO
             || m_dOptions.inputKind == OPTIX_DENOISER_INPUT_RGB_ALBEDO_NORMAL) {
-            inputLayer.push_back(OptixImage2D { (CUdeviceptr)m_pixelBufferInAlbedo.getCudaPointer(),
-                m_imageSize.width,
-                m_imageSize.height,
-                rowStrideInBytes,
-                0,
-                pixelFormat });
+            inputLayer.push_back(
+                OptixImage2D { (CUdeviceptr)m_pixelBufferInAlbedo->getCudaPointer(),
+                    m_imageSize.width,
+                    m_imageSize.height,
+                    rowStrideInBytes,
+                    0,
+                    pixelFormat });
         }
         // NORMAL
         if (m_dOptions.inputKind == OPTIX_DENOISER_INPUT_RGB_ALBEDO_NORMAL) {
-            inputLayer.push_back(OptixImage2D { (CUdeviceptr)m_pixelBufferInNormal.getCudaPointer(),
-                m_imageSize.width,
-                m_imageSize.height,
-                rowStrideInBytes,
-                0,
-                pixelFormat });
+            inputLayer.push_back(
+                OptixImage2D { (CUdeviceptr)m_pixelBufferInNormal->getCudaPointer(),
+                    m_imageSize.width,
+                    m_imageSize.height,
+                    rowStrideInBytes,
+                    0,
+                    pixelFormat });
         }
-        OptixImage2D outputLayer = { (CUdeviceptr)m_pixelBufferOut.getCudaPointer(),
+        OptixImage2D outputLayer = { (CUdeviceptr)m_pixelBufferOut->getCudaPointer(),
             m_imageSize.width,
             m_imageSize.height,
             rowStrideInBytes,
@@ -210,76 +213,4 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
     } catch (const std::exception& e) {
         std::cout << e.what() << std::endl;
     }
-}
-
-void DenoiserOptixPipeline::buildCommandBufferToImage(
-    VkCommandBuffer t_commandBuffer, Texture* imgOut)
-{
-    const VkBuffer& pixelBufferOut = m_pixelBufferOut.buffer;
-
-    VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    tools::setImageLayout(t_commandBuffer,
-        imgOut->getImage(),
-        VK_IMAGE_LAYOUT_GENERAL,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        subresourceRange);
-
-    VkBufferImageCopy bufferCopyRegion = {};
-    bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    bufferCopyRegion.imageSubresource.mipLevel = 0;
-    bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
-    bufferCopyRegion.imageSubresource.layerCount = 1;
-    bufferCopyRegion.imageExtent.width = m_imageSize.width;
-    bufferCopyRegion.imageExtent.height = m_imageSize.height;
-    bufferCopyRegion.imageExtent.depth = 1;
-    bufferCopyRegion.bufferOffset = 0;
-
-    vkCmdCopyBufferToImage(t_commandBuffer,
-        pixelBufferOut,
-        imgOut->getImage(),
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1,
-        &bufferCopyRegion);
-
-    tools::setImageLayout(t_commandBuffer,
-        imgOut->getImage(),
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_GENERAL,
-        subresourceRange);
-}
-
-void DenoiserOptixPipeline::buildCommandImageToBuffer(VkCommandBuffer t_commandBuffer,
-    Texture* imgInRawResult, Texture* imgInAlbedo, Texture* imgInNormals)
-{
-    const VkBuffer& pixelBufferIn = m_pixelBufferInRawResult.buffer;
-
-    VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-    tools::setImageLayout(t_commandBuffer,
-        imgInRawResult->getImage(),
-        VK_IMAGE_LAYOUT_GENERAL,
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        subresourceRange);
-
-    VkBufferImageCopy bufferCopyRegion = {};
-    bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    bufferCopyRegion.imageSubresource.mipLevel = 0;
-    bufferCopyRegion.imageSubresource.baseArrayLayer = 0;
-    bufferCopyRegion.imageSubresource.layerCount = 1;
-    bufferCopyRegion.imageExtent.width = m_imageSize.width;
-    bufferCopyRegion.imageExtent.height = m_imageSize.height;
-    bufferCopyRegion.imageExtent.depth = 1;
-    bufferCopyRegion.bufferOffset = 0;
-
-    vkCmdCopyImageToBuffer(t_commandBuffer,
-        imgInRawResult->getImage(),
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        pixelBufferIn,
-        1,
-        &bufferCopyRegion);
-
-    tools::setImageLayout(t_commandBuffer,
-        imgInRawResult->getImage(),
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        VK_IMAGE_LAYOUT_GENERAL,
-        subresourceRange);
 }

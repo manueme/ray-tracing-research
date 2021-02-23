@@ -7,14 +7,15 @@
 #define MANUEME_RAY_TRACING_OPTIX_DENOISER_H
 
 #include "cuda_optix_interop/semaphore_cuda.h"
+#include "cuda_optix_interop/buffer_cuda.h"
 
 #include "base_project.h"
 #include "core/texture.h"
 
 
-class RayTracingPipeline;
-class AutoExposurePipeline;
-class PostProcessPipeline;
+class DenoiseRayTracingPipeline;
+class AutoExposureWithBuffersPipeline;
+class PostProcessWithBuffersPipeline;
 class DenoiserOptixPipeline;
 
 class RayTracingOptixDenoiser : public BaseProject {
@@ -23,19 +24,15 @@ public:
     ~RayTracingOptixDenoiser();
 
 private:
-    RayTracingPipeline* m_rayTracing;
-    AutoExposurePipeline* m_autoExposure;
-    PostProcessPipeline* m_postProcess;
+    DenoiseRayTracingPipeline* m_rayTracing;
+    AutoExposureWithBuffersPipeline* m_autoExposure;
+    PostProcessWithBuffersPipeline* m_postProcess;
     DenoiserOptixPipeline* m_denoiser;
 
     // Images used to store ray traced image
     struct {
-        Texture rtResult;
-        Texture denoiseResult;
         Texture postProcessResult;
         Texture depthMap;
-        Texture normalMap;
-        Texture albedo;
     } m_storageImage;
 
     Buffer m_instancesBuffer;
@@ -60,11 +57,17 @@ private:
     } m_exposureData;
     Buffer m_exposureBuffer;
 
-    // Timeline semaphores for denoiser system synchronization
-    SemaphoreCuda m_denoiseWaitFor;
-    SemaphoreCuda m_denoiseSignalTo;
-    uint64_t m_timelineValue { 0 };
-    // ---
+    struct DenoiserData {
+        // Timeline semaphores for denoiser system synchronization
+        SemaphoreCuda denoiseWaitFor;
+        SemaphoreCuda denoiseSignalTo;
+        uint64_t timelineValue { 0 };
+        // ---
+        BufferCuda pixelBufferInRawResult;
+        BufferCuda pixelBufferInAlbedo;
+        BufferCuda pixelBufferInNormal;
+        BufferCuda pixelBufferOut;
+    } m_denoiserData;
 
     void render() override;
     void setupScene();
