@@ -29,7 +29,7 @@ layout(location = 2) in vec3 inTangent;
 layout(location = 3) in vec3 inBitangent;
 layout(location = 4) in vec3 inEyePos;
 
-layout(location = 0) out vec4 outFragColor;
+layout(location = 0) out vec4 outFragMaterial;
 layout(location = 1) out vec4 outFragNormals;
 layout(location = 2) out vec4 outFragReflectRefractMap;
 
@@ -55,15 +55,6 @@ void main()
     }
     if (surfaceAlbedo.a < 0.5 && material.refractIdx == NOT_REFRACTIVE_IDX) {
         discard;
-    }
-    // ####  End compute surface albedo ####
-
-    // ####  Compute surface emission ####
-    vec3 surfaceEmissive;
-    if (material.emissiveMapIndex >= 0) {
-        surfaceEmissive = texture(textures[nonuniformEXT(material.emissiveMapIndex)], inUV).rgb;
-    } else {
-        surfaceEmissive = material.emissive.rgb;
     }
     // ####  End compute surface albedo ####
 
@@ -95,40 +86,8 @@ void main()
     }
     // #### End compute refraction and reflection maps ####
 
-    // #### Compute direct ligthing ####
-    vec3 diffuse = vec3(0.0);
-    vec3 specular = vec3(0.0);
-    vec3 emissive = surfaceEmissive;
-    vec3 ambient = vec3(AMBIENT_WEIGHT);
-    for (int i = 0; i < lighting.l.length(); ++i) {
-        const LightProperties light = lighting.l[i];
-        vec3 lightDir = vec3(0.0f);
-        vec3 lightIntensity = vec3(0.0f);
-
-        if (light.lightType == 1) { // Directional light (SUN)
-            lightDir = (transpose(mat3(scene.viewInverse)) * light.direction.xyz).xyz
-                + vec3(scene.overrideSunDirection);
-            lightIntensity = light.diffuse.rgb;
-            lightDir = normalize(lightDir);
-        } else {
-            continue;
-        }
-        const float cosThetaLight = dot(shadingNormal, -lightDir);
-        if (cosThetaLight <= 0) {
-            continue;
-        }
-        diffuse += lightIntensity * cosThetaLight;
-        if (material.shininessStrength == 0) {
-            continue;
-        }
-        const vec3 r = reflect(lightDir, shadingNormal);
-        specular += lightIntensity * pow(max(0, dot(r, eyeVector)), material.shininess)
-            * material.shininessStrength;
-    }
-    // #### End compute direct ligthing ####
-
     outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
         surfaceAlbedo.a); // transform them back to view space
     outFragReflectRefractMap = vec4(reflectPercent, refractPercent, ior, alphaWithoutRefractives);
-    outFragColor = vec4((max(diffuse, ambient) + specular) * surfaceAlbedo.rgb, emissive.r);
+    outFragMaterial = vec4(inUV.x, inUV.y, float(materialIndex.i), 1.0);
 }

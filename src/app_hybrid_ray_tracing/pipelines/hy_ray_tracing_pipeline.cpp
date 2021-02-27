@@ -138,13 +138,15 @@ void HyRayTracingPipeline::createDescriptorSetsLayout(Scene* t_scene)
     // Texture list binding 0
     setLayoutBindings.push_back(
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR
+                | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             0,
             t_scene->textures.size()));
     // Material list binding 1
     setLayoutBindings.push_back(
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+            VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR
+                | VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             1));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());

@@ -22,6 +22,7 @@ HybridPipelineRT::HybridPipelineRT()
     m_settings.vsync = false;
     m_settings.useRayTracing = true;
     m_settings.useCompute = true;
+    m_maxFramesInFlight = 3;
 }
 
 void HybridPipelineRT::render()
@@ -419,7 +420,7 @@ void HybridPipelineRT::createStorageImages()
 {
     m_storageImages.resize(m_swapChain.imageCount);
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
-        m_storageImages[i].offscreenColor.toColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
+        m_storageImages[i].offscreenMaterial.toColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
             m_width,
             m_height,
             m_vulkanDevice,
@@ -568,7 +569,7 @@ void HybridPipelineRT::createOffscreenFramebuffers()
     m_offscreenFramebuffers.resize(m_swapChain.imageCount);
     for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
         std::array<VkImageView, 4> attachments = {};
-        attachments[0] = m_storageImages[i].offscreenColor.getImageView();
+        attachments[0] = m_storageImages[i].offscreenMaterial.getImageView();
         attachments[1] = m_storageImages[i].offscreenNormals.getImageView();
         attachments[2] = m_storageImages[i].offscreenReflectRefractMap.getImageView();
         attachments[3] = m_storageImages[i].offscreenDepth.getImageView();
@@ -593,7 +594,7 @@ void HybridPipelineRT::updateResultImageDescriptorSets()
     for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
         // Ray tracing sets
         m_rayTracing->updateResultImageDescriptorSets(i,
-            &m_storageImages[i].offscreenColor,
+            &m_storageImages[i].offscreenMaterial,
             &m_storageImages[i].offscreenNormals,
             &m_storageImages[i].offscreenReflectRefractMap,
             &m_storageImages[i].offscreenDepth,
@@ -620,7 +621,7 @@ void HybridPipelineRT::onSwapChainRecreation()
     for (size_t i = 0; i < m_swapChain.imageCount; i++) {
         m_storageImages[i].rtResultImage.destroy();
         m_storageImages[i].postProcessResultImage.destroy();
-        m_storageImages[i].offscreenColor.destroy();
+        m_storageImages[i].offscreenMaterial.destroy();
         m_storageImages[i].offscreenDepth.destroy();
         m_storageImages[i].offscreenNormals.destroy();
         m_storageImages[i].offscreenReflectRefractMap.destroy();
@@ -904,7 +905,7 @@ HybridPipelineRT::~HybridPipelineRT()
     for (auto& offscreenImage : m_storageImages) {
         offscreenImage.rtResultImage.destroy();
         offscreenImage.postProcessResultImage.destroy();
-        offscreenImage.offscreenColor.destroy();
+        offscreenImage.offscreenMaterial.destroy();
         offscreenImage.offscreenDepth.destroy();
         offscreenImage.offscreenNormals.destroy();
         offscreenImage.offscreenReflectRefractMap.destroy();

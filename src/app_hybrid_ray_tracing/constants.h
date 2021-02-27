@@ -42,4 +42,9 @@
 #define LIGHTS_SET 4
 // ---
 
+// Override and increase CAMERA_NEAR to avoid depth map artifacts
+#undef CAMERA_NEAR
+#define CAMERA_NEAR 0.3f
+// ---
+
 #endif // HYBRID_PIPELINE_CONSTANTS

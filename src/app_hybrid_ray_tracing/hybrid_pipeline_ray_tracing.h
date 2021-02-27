@@ -51,7 +51,7 @@ private:
 
     // Images used to store ray traced image
     struct OffscreenImages {
-        Texture offscreenColor;
+        Texture offscreenMaterial;
         Texture offscreenNormals;
         Texture offscreenDepth;
         Texture offscreenReflectRefractMap;

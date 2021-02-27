@@ -11,6 +11,6 @@
 #include "../../framework/shaders/shared_definitions.glsl"
 #include "../constants.h"
 
-#define AMBIENT_WEIGHT 0.2f
+#define AMBIENT_WEIGHT 0.1f
 
 #endif // APP_DEFINITIONS_GLSL
