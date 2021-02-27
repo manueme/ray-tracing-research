@@ -28,11 +28,18 @@ BasePostProcessPipeline::~BasePostProcessPipeline()
 void BasePostProcessPipeline::buildCommandBuffer(
     VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height)
 {
+    buildCommandBuffer(0, t_commandBuffer, t_width, t_height);
+}
+
+void BasePostProcessPipeline::buildCommandBuffer(
+    uint32_t t_commandIndex, VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height)
+{
     vkCmdBindPipeline(t_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
-    std::vector<VkDescriptorSet> trainComputeDescriptorSets = { m_descriptorSets.set0Scene,
-        m_descriptorSets.set1InputColor,
-        m_descriptorSets.set2Exposure,
-        m_descriptorSets.set3ResultImage };
+    std::vector<VkDescriptorSet> trainComputeDescriptorSets
+        = { m_descriptorSets.set0Scene[t_commandIndex],
+              m_descriptorSets.set1InputColor[t_commandIndex],
+              m_descriptorSets.set2Exposure[t_commandIndex],
+              m_descriptorSets.set3ResultImage[t_commandIndex] };
     vkCmdBindDescriptorSets(t_commandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
         m_pipelineLayout,
@@ -64,56 +71,90 @@ void BasePostProcessPipeline::createPipeline(
 void BasePostProcessPipeline::createDescriptorSets(
     VkDescriptorPool t_descriptorPool, Buffer* t_sceneBuffer, Buffer* t_exposureBuffer)
 {
+    std::vector<Buffer> sceneBuffers = { *t_sceneBuffer };
+    std::vector<Buffer> exposureBuffers = { *t_exposureBuffer };
+    createDescriptorSets(t_descriptorPool, sceneBuffers, 1, exposureBuffers, 1);
+}
+
+void BasePostProcessPipeline::createDescriptorSets(VkDescriptorPool t_descriptorPool,
+    std::vector<Buffer>& t_sceneBuffers, uint32_t t_inputColorDescriptorCount,
+    std::vector<Buffer>& t_exposureBuffers, uint32_t t_outputColorDescriptorCount)
+
+{
     // Set 0: Scene descriptor
+    auto layoutCount = t_sceneBuffers.size();
+    std::vector<VkDescriptorSetLayout> sceneLayouts(layoutCount, m_descriptorSetLayouts.set0Scene);
     VkDescriptorSetAllocateInfo set0AllocInfo
         = initializers::descriptorSetAllocateInfo(t_descriptorPool,
-            &m_descriptorSetLayouts.set0Scene,
-            1);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device, &set0AllocInfo, &m_descriptorSets.set0Scene))
-    VkWriteDescriptorSet uniformBufferWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set0Scene,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            sceneLayouts.data(),
+            layoutCount);
+    m_descriptorSets.set0Scene.resize(layoutCount);
+    CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &set0AllocInfo, m_descriptorSets.set0Scene.data()))
+    for (size_t i = 0; i < layoutCount; i++) {
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
+            // Binding 0:
+            initializers::writeDescriptorSet(m_descriptorSets.set0Scene[i],
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                0,
+                &t_sceneBuffers[i].descriptor),
+        };
+        vkUpdateDescriptorSets(m_device,
+            writeDescriptorSet0.size(),
+            writeDescriptorSet0.data(),
             0,
-            &t_sceneBuffer->descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = { uniformBufferWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet0.size()),
-        writeDescriptorSet0.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
+    }
 
-    // Set 1: Input image Buffer
+    // Set 1: Input color
+    layoutCount = t_inputColorDescriptorCount;
+    std::vector<VkDescriptorSetLayout> inputColorLayouts(layoutCount,
+        m_descriptorSetLayouts.set1InputColor);
     VkDescriptorSetAllocateInfo set1AllocInfo
         = initializers::descriptorSetAllocateInfo(t_descriptorPool,
-            &m_descriptorSetLayouts.set1InputColor,
-            1);
+            inputColorLayouts.data(),
+            layoutCount);
+    m_descriptorSets.set1InputColor.resize(layoutCount);
     CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set1AllocInfo, &m_descriptorSets.set1InputColor))
+        vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_descriptorSets.set1InputColor.data()))
 
     // Set 2: Exposure descriptor
+    layoutCount = t_exposureBuffers.size();
+    std::vector<VkDescriptorSetLayout> exposureLayouts(layoutCount,
+        m_descriptorSetLayouts.set2Exposure);
     VkDescriptorSetAllocateInfo set2AllocInfo
         = initializers::descriptorSetAllocateInfo(t_descriptorPool,
-            &m_descriptorSetLayouts.set2Exposure,
-            1);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device, &set2AllocInfo, &m_descriptorSets.set2Exposure))
-    uniformBufferWrite = initializers::writeDescriptorSet(m_descriptorSets.set2Exposure,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        0,
-        &t_exposureBuffer->descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet2 = { uniformBufferWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet2.size()),
-        writeDescriptorSet2.data(),
-        0,
-        VK_NULL_HANDLE);
+            exposureLayouts.data(),
+            layoutCount);
+    m_descriptorSets.set2Exposure.resize(layoutCount);
+    CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &set2AllocInfo, m_descriptorSets.set2Exposure.data()))
+    for (size_t i = 0; i < layoutCount; i++) {
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet2 = {
+            // Binding 0:
+            initializers::writeDescriptorSet(m_descriptorSets.set2Exposure[i],
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &t_exposureBuffers[i].descriptor),
+        };
+        vkUpdateDescriptorSets(m_device,
+            writeDescriptorSet2.size(),
+            writeDescriptorSet2.data(),
+            0,
+            VK_NULL_HANDLE);
+    }
 
     // Set 3: Result image descriptor
+    layoutCount = t_outputColorDescriptorCount;
+    std::vector<VkDescriptorSetLayout> outputColorLayouts(layoutCount,
+        m_descriptorSetLayouts.set3ResultImage);
     VkDescriptorSetAllocateInfo set3AllocInfo
         = initializers::descriptorSetAllocateInfo(t_descriptorPool,
-            &m_descriptorSetLayouts.set3ResultImage,
-            1);
+            outputColorLayouts.data(),
+            layoutCount);
+    m_descriptorSets.set3ResultImage.resize(layoutCount);
     CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set3AllocInfo, &m_descriptorSets.set3ResultImage))
+        vkAllocateDescriptorSets(m_device, &set3AllocInfo, m_descriptorSets.set3ResultImage.data()))
 }
 
 PostProcessPipeline::PostProcessPipeline(Device* t_vulkanDevice)
@@ -197,14 +238,20 @@ void PostProcessPipeline::createDescriptorSetsLayout()
 void PostProcessPipeline::updateResultImageDescriptorSets(
     Texture* t_inputColor, Texture* t_outputColor)
 {
+    updateResultImageDescriptorSets(0, t_inputColor, t_outputColor);
+}
+
+void PostProcessPipeline::updateResultImageDescriptorSets(
+    uint32_t t_descriptorIndex, Texture* t_inputColor, Texture* t_outputColor)
+{
     VkWriteDescriptorSet inputImageWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set1InputColor,
+        = initializers::writeDescriptorSet(m_descriptorSets.set1InputColor[t_descriptorIndex],
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             0,
             &t_inputColor->descriptor);
 
     VkWriteDescriptorSet outputImageWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set3ResultImage,
+        = initializers::writeDescriptorSet(m_descriptorSets.set3ResultImage[t_descriptorIndex],
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             0,
             &t_outputColor->descriptor);
@@ -299,8 +346,14 @@ void PostProcessWithBuffersPipeline::createDescriptorSetsLayout()
 void PostProcessWithBuffersPipeline::updateResultImageDescriptorSets(
     Buffer* t_inputColorBuffer, Texture* t_outputColor)
 {
+    updateResultImageDescriptorSets(0, t_inputColorBuffer, t_outputColor);
+}
+
+void PostProcessWithBuffersPipeline::updateResultImageDescriptorSets(
+    uint32_t t_descriptorIndex, Buffer* t_inputColorBuffer, Texture* t_outputColor)
+{
     VkWriteDescriptorSet inputImageBufferWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set1InputColor,
+        = initializers::writeDescriptorSet(m_descriptorSets.set1InputColor[t_descriptorIndex],
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             0,
             &t_inputColorBuffer->descriptor);
@@ -312,7 +365,7 @@ void PostProcessWithBuffersPipeline::updateResultImageDescriptorSets(
         VK_NULL_HANDLE);
 
     VkWriteDescriptorSet outputImageWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set3ResultImage,
+        = initializers::writeDescriptorSet(m_descriptorSets.set3ResultImage[t_descriptorIndex],
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             0,
             &t_outputColor->descriptor);

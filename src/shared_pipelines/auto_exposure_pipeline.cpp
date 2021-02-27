@@ -25,15 +25,21 @@ BaseAutoExposurePipeline::~BaseAutoExposurePipeline()
 
 void BaseAutoExposurePipeline::buildCommandBuffer(VkCommandBuffer t_commandBuffer)
 {
+    buildCommandBuffer(0, t_commandBuffer);
+}
+
+void BaseAutoExposurePipeline::buildCommandBuffer(
+    uint32_t t_commandIndex, VkCommandBuffer t_commandBuffer)
+{
     vkCmdBindPipeline(t_commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
-    std::vector<VkDescriptorSet> trainComputeDescriptorSets
-        = { m_descriptorSets.set0InputColor, m_descriptorSets.set1Exposure };
+    std::vector<VkDescriptorSet> descriptorSets = { m_descriptorSets.set0InputColor[t_commandIndex],
+        m_descriptorSets.set1Exposure[t_commandIndex] };
     vkCmdBindDescriptorSets(t_commandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
         m_pipelineLayout,
         0,
-        trainComputeDescriptorSets.size(),
-        trainComputeDescriptorSets.data(),
+        descriptorSets.size(),
+        descriptorSets.data(),
         0,
         nullptr);
     vkCmdDispatch(t_commandBuffer, 1, 1, 1);
@@ -58,31 +64,50 @@ void BaseAutoExposurePipeline::createPipeline(
 void BaseAutoExposurePipeline::createDescriptorSets(
     VkDescriptorPool t_descriptorPool, Buffer* t_exposureBuffer)
 {
+    std::vector<Buffer> exposureBuffers = { *t_exposureBuffer };
+    createDescriptorSets(t_descriptorPool, exposureBuffers, 1);
+}
+
+void BaseAutoExposurePipeline::createDescriptorSets(VkDescriptorPool t_descriptorPool,
+    std::vector<Buffer>& t_exposureBuffers, uint32_t t_inputColorDescriptorCount)
+{
     // Set 0: Result image descriptor
+    auto layoutCount = t_inputColorDescriptorCount;
+    std::vector<VkDescriptorSetLayout> inputColorLayouts(layoutCount,
+        m_descriptorSetLayouts.set0InputColor);
     VkDescriptorSetAllocateInfo set0AllocInfo
         = initializers::descriptorSetAllocateInfo(t_descriptorPool,
-            &m_descriptorSetLayouts.set0InputColor,
-            1);
+            inputColorLayouts.data(),
+            t_inputColorDescriptorCount);
+    m_descriptorSets.set0InputColor.resize(layoutCount);
     CHECK_RESULT(
-        vkAllocateDescriptorSets(m_device, &set0AllocInfo, &m_descriptorSets.set0InputColor))
+        vkAllocateDescriptorSets(m_device, &set0AllocInfo, m_descriptorSets.set0InputColor.data()))
 
     // Set 1: Exposure descriptor
+    layoutCount = t_exposureBuffers.size();
+    std::vector<VkDescriptorSetLayout> exposureLayouts(layoutCount,
+        m_descriptorSetLayouts.set1Exposure);
     VkDescriptorSetAllocateInfo set1AllocInfo
         = initializers::descriptorSetAllocateInfo(t_descriptorPool,
-            &m_descriptorSetLayouts.set1Exposure,
-            1);
-    CHECK_RESULT(vkAllocateDescriptorSets(m_device, &set1AllocInfo, &m_descriptorSets.set1Exposure))
-    VkWriteDescriptorSet uniformBufferWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set1Exposure,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            exposureLayouts.data(),
+            layoutCount);
+    m_descriptorSets.set1Exposure.resize(layoutCount);
+    CHECK_RESULT(
+        vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_descriptorSets.set1Exposure.data()))
+    for (size_t i = 0; i < layoutCount; i++) {
+        std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = {
+            // Binding 0:
+            initializers::writeDescriptorSet(m_descriptorSets.set1Exposure[i],
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                0,
+                &t_exposureBuffers[i].descriptor),
+        };
+        vkUpdateDescriptorSets(m_device,
+            writeDescriptorSet1.size(),
+            writeDescriptorSet1.data(),
             0,
-            &t_exposureBuffer->descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = { uniformBufferWrite };
-    vkUpdateDescriptorSets(m_device,
-        static_cast<uint32_t>(writeDescriptorSet1.size()),
-        writeDescriptorSet1.data(),
-        0,
-        VK_NULL_HANDLE);
+            VK_NULL_HANDLE);
+    }
 }
 
 AutoExposurePipeline::AutoExposurePipeline(Device* t_vulkanDevice)
@@ -133,8 +158,14 @@ void AutoExposurePipeline::createDescriptorSetsLayout()
 
 void AutoExposurePipeline::updateResultImageDescriptorSets(Texture* t_result)
 {
+    updateResultImageDescriptorSets(0, t_result);
+}
+
+void AutoExposurePipeline::updateResultImageDescriptorSets(
+    uint32_t t_descriptorIndex, Texture* t_result)
+{
     VkWriteDescriptorSet inputImageWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set0InputColor,
+        = initializers::writeDescriptorSet(m_descriptorSets.set0InputColor[t_descriptorIndex],
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
             &t_result->descriptor);
@@ -197,8 +228,14 @@ void AutoExposureWithBuffersPipeline::createDescriptorSetsLayout()
 
 void AutoExposureWithBuffersPipeline::updateResultImageDescriptorSets(Buffer* t_inputImageBuffer)
 {
+    updateResultImageDescriptorSets(0, t_inputImageBuffer);
+}
+
+void AutoExposureWithBuffersPipeline::updateResultImageDescriptorSets(
+    uint32_t t_descriptorIndex, Buffer* t_inputImageBuffer)
+{
     VkWriteDescriptorSet inputBufferWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set0InputColor,
+        = initializers::writeDescriptorSet(m_descriptorSets.set0InputColor[t_descriptorIndex],
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             0,
             &t_inputImageBuffer->descriptor);
