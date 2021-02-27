@@ -9,16 +9,22 @@ acceleration of the generation of images with ray tracing. For this, one or more
 carried out, which may have different objectives: physically realistic ray tracing, real-time ray tracing (with AI-based
 denoising), path tracing and other methodologies suitable for daylighting analysis.
 
-## Acknowledgements
+## Implemented Applications
 
-* My first steps in Vulkan were possible thanks to [Vulkan Tutorial](https://vulkan-tutorial.com/).
+* Monte carlo ray tracing
+* Monte carlo ray tracing with Optix denoiser
+* Ray tracing with raster pipeline first hit (hybrid pipeline)
 
-* The first steps of this project were carried out following the demos and examples referenced on
-  the [official Khronos website](https://www.khronos.org/vulkan):
-    * [Vulkan reference material / framework](https://github.com/KhronosGroup/Vulkan-Samples) by Khronos.
-    * [Sascha Willems' examples and demos](https://github.com/SaschaWillems/Vulkan), IMO the best samples and demos out
-      there to get started in Vulkan.
-    * [NVIDIA DeignWorks Samples](https://github.com/nvpro-samples).
+## Screenshots
+
+![Sponza 1](/screenshots/sponza_1.png?raw=true)
+![Sponza 2](/screenshots/sponza_2.png?raw=true)
+![Sponza 3](/screenshots/sponza_3.png?raw=true)
+![Conrell Box 1](/screenshots/cornell_box_1.png?raw=true)
+![Pool 1](/screenshots/pool_1.png?raw=true)
+![Pool 2](/screenshots/pool_2.png?raw=true)
+![Pool 3](/screenshots/pool_3.png?raw=true)
+![Pool 4](/screenshots/pool_4.png?raw=true)
 
 ## Contact
 
@@ -28,14 +34,6 @@ Manuel Machado: [Github](https://github.com/manueme) / [Twitter](https://twitter
 ## Status <a href="https://www.repostatus.org/#wip"><img src="https://www.repostatus.org/badges/latest/wip.svg" alt="Project Status: WIP – Initial development is in progress, but there has not yet been a stable, usable release suitable for the public." /></a>
 
 This project is still a work in progress.
-
-## Code style and naming conventions
-
-There's a `.clang-format` and `.clang-tidy` file defined for the project, in order to write code install and configure
-on your IDE, **Clangd:** https://clangd.llvm.org/installation.html, or both **Clang-Format** and **Clang-Tidy**.
-
-*Note: you may also want to remove any naming convention settings on your IDE to prevent overriding the clang-tidy
-readability checks*
 
 ## External Sources
 
@@ -111,3 +109,22 @@ and extract it on the root directory of the project ```/assets/...```
 _Note: The zip has a password (for now) in order to protect some models copyrights._
 
 _TODO: create a free public asset folder to download_
+
+## Code style and naming conventions
+
+There's a `.clang-format` and `.clang-tidy` file defined for the project, in order to write code install and configure
+on your IDE, **Clangd:** https://clangd.llvm.org/installation.html, or both **Clang-Format** and **Clang-Tidy**.
+
+*Note: you may also want to remove any naming convention settings on your IDE to prevent overriding the clang-tidy
+readability checks*
+
+## Acknowledgements
+
+* My first steps in Vulkan were possible thanks to [Vulkan Tutorial](https://vulkan-tutorial.com/).
+
+* The first steps of this project were carried out following the demos and examples referenced on
+  the [official Khronos website](https://www.khronos.org/vulkan):
+    * [Vulkan reference material / framework](https://github.com/KhronosGroup/Vulkan-Samples) by Khronos.
+    * [Sascha Willems' examples and demos](https://github.com/SaschaWillems/Vulkan), IMO the best samples and demos out
+      there to get started in Vulkan.
+    * [NVIDIA DeignWorks Samples](https://github.com/nvpro-samples).
