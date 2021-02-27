@@ -8,5 +8,5 @@ glslc %mypath%anyhit.rahit -o %mypath%anyhit.rahit.spv --target-env=vulkan1.2
 glslc %mypath%shadow.rahit -o %mypath%shadow.rahit.spv --target-env=vulkan1.2
 glslc %mypath%offscreen.vert -o %mypath%offscreen.vert.spv
 glslc %mypath%offscreen.frag -o %mypath%offscreen.frag.spv
-glslc %mypath%postprocess.vert -o %mypath%postprocess.vert.spv
-glslc %mypath%postprocess.frag -o %mypath%postprocess.frag.spv
+glslc %mypath%auto_exposure.comp -o %mypath%auto_exposure.comp.spv
+glslc %mypath%post_process.comp -o %mypath%post_process.comp.spv

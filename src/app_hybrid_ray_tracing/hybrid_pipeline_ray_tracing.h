@@ -10,6 +10,8 @@
 #include "core/texture.h"
 
 class HyRayTracingPipeline;
+class AutoExposurePipeline;
+class PostProcessPipeline;
 
 class HybridPipelineRT : public BaseProject {
 public:
@@ -18,17 +20,17 @@ public:
 
 private:
     HyRayTracingPipeline* m_rayTracing;
+    AutoExposurePipeline* m_autoExposure;
+    PostProcessPipeline* m_postProcess;
 
     const uint32_t vertex_buffer_bind_id = 0;
 
     // PIPELINES
     struct {
         VkPipeline raster;
-        VkPipeline postProcess;
     } m_pipelines;
     struct {
         VkPipelineLayout raster;
-        VkPipelineLayout postProcess;
     } m_pipelineLayouts;
 
     // RASTER SETS
@@ -42,13 +44,6 @@ private:
         VkDescriptorSetLayout set1Materials;
         VkDescriptorSetLayout set2Lights;
     } m_rasterDescriptorSetLayouts;
-    // POSTPROCESS SETS
-    struct {
-        std::vector<VkDescriptorSet> set0StorageImages;
-    } m_postProcessDescriptorSets;
-    struct {
-        VkDescriptorSetLayout set0StorageImages;
-    } m_postProcessDescriptorSetLayouts;
 
     Buffer m_instancesBuffer;
     Buffer m_lightsBuffer;
@@ -61,9 +56,10 @@ private:
         Texture offscreenDepth;
         Texture offscreenReflectRefractMap;
         Texture rtResultImage;
+        Texture postProcessResultImage;
     };
     // we will have one set of images per swap image
-    std::vector<OffscreenImages> m_offscreenImages;
+    std::vector<OffscreenImages> m_storageImages;
     // Offscreen raster render pass
     VkRenderPass m_offscreenRenderPass;
     std::vector<VkFramebuffer> m_offscreenFramebuffers;
@@ -77,9 +73,15 @@ private:
         glm::mat4 projInverse { glm::mat4(1.0) };
         glm::vec4 overrideSunDirection { glm::vec4(0.0) };
         uint32_t frame { 0 }; // Current frame
+        float manualExposureAdjust = { 0.0f };
     } m_sceneUniformData;
     // one for each swap chain image, the scene can change on every frame
     std::vector<Buffer> m_sceneBuffers;
+
+    struct ExposureUniformData {
+        float exposure = { 1.0f };
+    } m_exposureData;
+    std::vector<Buffer> m_exposureBuffers;
 
     void render() override;
     void setupScene();
@@ -95,6 +97,7 @@ private:
     void createRTPipeline();
     void createRasterPipeline();
     void createPostprocessPipeline();
+    void createAutoExposurePipeline();
     void createDescriptorPool();
     void createDescriptorSetLayout();
     void createDescriptorSets();

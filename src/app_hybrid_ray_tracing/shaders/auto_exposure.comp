@@ -1,0 +1,32 @@
+/*
+ * Manuel Machado Copyright (C) 2021 This code is licensed under the MIT license (MIT)
+ * (http://opensource.org/licenses/MIT)
+ */
+
+#version 450
+
+layout(set = 0, binding = 0) uniform sampler2D inputColor;
+layout(set = 1, binding = 0) buffer _AutoExposure { float exposure; }
+exposureSettings;
+
+float get_luma(vec4 color) { return dot(color.xyz, vec3(0.299, 0.587, 0.114)); }
+
+float gather_average_luminance()
+{
+    float lumAvg = 0.0;
+    uint sample_count = 16;
+    float sensorSize = 1.0 / float(sample_count);
+    for (uint i = 0; i < sample_count; i++) {
+        for (uint j = 0; j < sample_count; j++) {
+            lumAvg += get_luma(texture(inputColor, vec2(sensorSize * i, sensorSize * j)));
+        }
+    }
+    return clamp(lumAvg / float(sample_count * sample_count), 0.15, 0.9);
+}
+
+void main()
+{
+    float targetExposure = 0.5 / gather_average_luminance();
+    exposureSettings.exposure
+        = exposureSettings.exposure + (targetExposure - exposureSettings.exposure) * 0.02;
+}

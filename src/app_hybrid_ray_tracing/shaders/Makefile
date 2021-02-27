@@ -9,6 +9,6 @@ build-shaders:
 	glslc $(SHADERS_DIR)/shadow.rahit -o $(SHADERS_DIR)/shadow.rahit.spv --target-env=vulkan1.2
 	glslc $(SHADERS_DIR)/offscreen.vert -o $(SHADERS_DIR)/offscreen.vert.spv
 	glslc $(SHADERS_DIR)/offscreen.frag -o $(SHADERS_DIR)/offscreen.frag.spv
-	glslc $(SHADERS_DIR)/postprocess.vert -o $(SHADERS_DIR)/postprocess.vert.spv
-	glslc $(SHADERS_DIR)/postprocess.frag -o $(SHADERS_DIR)/postprocess.frag.spv
+	glslc $(SHADERS_DIR)/post_process.comp -o $(SHADERS_DIR)/post_process.comp.spv
+    glslc $(SHADERS_DIR)/auto_exposure.comp -o $(SHADERS_DIR)/auto_exposure.comp.spv
 

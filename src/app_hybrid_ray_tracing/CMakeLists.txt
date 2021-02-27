@@ -10,8 +10,8 @@ set(SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow.rahit.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/offscreen.frag.spv
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/offscreen.vert.spv
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.frag.spv
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/postprocess.vert.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/post_process.comp.spv
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/auto_exposure.comp.spv
         )
 
 file(GLOB SOURCE ${FRAMEWORK_SRC} ${SHARED_SRC} ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/**/*.cpp)
