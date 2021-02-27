@@ -7,6 +7,10 @@
 #include "utils.hpp"
 #include <base_project.h>
 
+#ifdef __linux__
+#include <unistd.h>
+#endif
+
 BufferCuda::BufferCuda()
     : Buffer()
 {
@@ -50,20 +54,20 @@ void BufferCuda::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     handleInfo.memory = memory;
     handleInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
     CHECK_RESULT(vkGetMemoryWin32HandleKHR(device, &handleInfo, &m_handle));
+
+    cudaExternalMemoryHandleDesc cudaExtMemHandleDesc {};
+    cudaExtMemHandleDesc.size = size;
+    cudaExtMemHandleDesc.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+    cudaExtMemHandleDesc.handle.win32.handle = m_handle;
 #else
     VkMemoryGetFdInfoKHR handleInfo = {};
     handleInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
     handleInfo.memory = memory;
     handleInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
-    vkGetMemoryFdKHR(m_device, &handleInfo, &m_handle);
-#endif
+    vkGetMemoryFdKHR(device, &handleInfo, &m_handle);
+
     cudaExternalMemoryHandleDesc cudaExtMemHandleDesc {};
     cudaExtMemHandleDesc.size = size;
-
-#ifdef WIN32
-    cudaExtMemHandleDesc.type = cudaExternalMemoryHandleTypeOpaqueWin32;
-    cudaExtMemHandleDesc.handle.win32.handle = m_handle;
-#else
     cudaExtMemHandleDesc.type = cudaExternalMemoryHandleTypeOpaqueFd;
     cudaExtMemHandleDesc.handle.fd = m_handle;
 #endif
@@ -91,7 +95,7 @@ void BufferCuda::destroy()
 #else
     if (m_handle != -1) {
         close(m_handle);
-        handle = -1;
+        m_handle = -1;
     }
 #endif
 }
@@ -102,6 +106,11 @@ BufferCuda::~BufferCuda() { }
 void BufferCuda::initFunctionPointers()
 {
     Buffer::initFunctionPointers();
+#ifdef WIN32
     vkGetMemoryWin32HandleKHR = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(
         vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR"));
+#else
+    vkGetMemoryFdKHR
+        = reinterpret_cast<PFN_vkGetMemoryFdKHR>(vkGetDeviceProcAddr(device, "vkGetMemoryFdKHR"));
+#endif
 }

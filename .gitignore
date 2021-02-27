@@ -36,10 +36,7 @@
 
 # Build dirs and external sources
 cmake-build-*/
-external_sources/assimp
-external_sources/freeimage
-external_sources/glfw
-external_sources/glm
+external_sources/
 assets/
 tutorials/assets/
 build*/

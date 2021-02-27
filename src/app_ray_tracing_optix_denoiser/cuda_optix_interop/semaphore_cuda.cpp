@@ -40,29 +40,35 @@ void SemaphoreCuda::create(VkDevice t_device)
     handleInfo.semaphore = m_semaphore;
     handleInfo.handleType = handleType;
     CHECK_RESULT(vkGetSemaphoreWin32HandleKHR(m_device, &handleInfo, &m_handle))
+
+    cudaExternalSemaphoreHandleDesc externalSemaphoreHandleDesc;
+    std::memset(&externalSemaphoreHandleDesc, 0, sizeof(externalSemaphoreHandleDesc));
+    externalSemaphoreHandleDesc.flags = 0;
+    externalSemaphoreHandleDesc.type = cudaExternalSemaphoreHandleTypeD3D12Fence;
+    externalSemaphoreHandleDesc.handle.win32.handle = (void*)m_handle;
 #else
     VkSemaphoreGetFdInfoKHR handleInfo = {};
     handleInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
     handleInfo.semaphore = m_semaphore;
     handleInfo.handleType = handleType;
     vkGetSemaphoreFdKHR(m_device, &handleInfo, &m_handle);
-#endif
 
     cudaExternalSemaphoreHandleDesc externalSemaphoreHandleDesc;
     std::memset(&externalSemaphoreHandleDesc, 0, sizeof(externalSemaphoreHandleDesc));
     externalSemaphoreHandleDesc.flags = 0;
-    externalSemaphoreHandleDesc.type = cudaExternalSemaphoreHandleTypeD3D12Fence;
+    externalSemaphoreHandleDesc.type = cudaExternalSemaphoreHandleTypeOpaqueFd;
+    externalSemaphoreHandleDesc.handle.fd = m_handle;
+#endif
 
-    externalSemaphoreHandleDesc.handle.win32.handle = (void*)m_handle;
     CUDA_CHECK(cudaImportExternalSemaphore(&m_cuSemaphore, &externalSemaphoreHandleDesc));
 }
 
 VkResult SemaphoreCuda::waitSemaphore(uint64_t timeout, uint64_t& t_timelineValue)
 {
-    VkSemaphoreWaitInfo waitInfo{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};
+    VkSemaphoreWaitInfo waitInfo { VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
     waitInfo.semaphoreCount = 1;
-    waitInfo.pSemaphores    = &m_semaphore;
-    waitInfo.pValues        = &t_timelineValue;
+    waitInfo.pSemaphores = &m_semaphore;
+    waitInfo.pValues = &t_timelineValue;
     return vkWaitSemaphoresKHR(m_device, &waitInfo, 10000);
 }
 
@@ -74,8 +80,13 @@ VkSemaphore SemaphoreCuda::getVulkanSemaphore() { return m_semaphore; }
 
 void SemaphoreCuda::initFunctionPointers()
 {
+#ifdef WIN32
     vkGetSemaphoreWin32HandleKHR = reinterpret_cast<PFN_vkGetSemaphoreWin32HandleKHR>(
         vkGetDeviceProcAddr(m_device, "vkGetSemaphoreWin32HandleKHR"));
+#else
+    vkGetSemaphoreFdKHR = reinterpret_cast<PFN_vkGetSemaphoreFdKHR>(
+        vkGetDeviceProcAddr(m_device, "vkGetSemaphoreFdKHR"));
+#endif
     vkWaitSemaphoresKHR = reinterpret_cast<PFN_vkWaitSemaphoresKHR>(
         vkGetDeviceProcAddr(m_device, "vkWaitSemaphoresKHR"));
 }

@@ -21,7 +21,6 @@ public:
     BufferCuda();
     ~BufferCuda();
 
-    PFN_vkGetMemoryWin32HandleKHR vkGetMemoryWin32HandleKHR;
     void initFunctionPointers() override;
 
     void create(Device* t_device, VkBufferUsageFlags t_usageFlags,
@@ -35,8 +34,10 @@ public:
 private:
     // Extra for Cuda
 #ifdef WIN32
+    PFN_vkGetMemoryWin32HandleKHR vkGetMemoryWin32HandleKHR;
     HANDLE m_handle = nullptr; // The Win32 handle
 #else
+    PFN_vkGetMemoryFdKHR vkGetMemoryFdKHR;
     int m_handle = -1;
 #endif
     void* m_cudaPtr = nullptr;

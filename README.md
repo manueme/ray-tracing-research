@@ -84,22 +84,40 @@ Install FreeImage from repository package:
 
 ### Assimp
 
-#### Windows
-
-Run `build_assimp_windows.bat`
-
-The script will clone (https://github.com/assimp/assimp) and build Assimp. Don't forget to check recent issues on
-Windows building if the process fails, you can always checkout to the last stable tag release, for example
+The following scripts will clone (https://github.com/assimp/assimp) and build Assimp. Don't forget to check recent issues on
+Windows/Linux building if the process fails, you can always checkout to the last stable tag release, for example
 [v5.0.1](https://github.com/assimp/assimp/commit/8f0c6b04b2257a520aaab38421b2e090204b69df)
 
 CMake will take care of the rest, if you change the generator make sure to also update the paths in the Assimp section
 of the CMakeLists.txt to target the new libraries
 
+#### Windows
+
+Run `build_assimp_windows.bat`
+
 #### Linux
 
-Install Assimp from repository package
+Run `build_assimp_linux.sh`
 
-`sudo apt-get install libassimp-dev assimp-utils`
+### CUDA (only required for to run the denoiser app)
+
+Install the CUDA SDK from [Cuda Zone](https://developer.nvidia.com/cuda-zone)
+
+### Optix (only required for to run the denoiser app)
+
+Install Optix 7.2 from the [NVIDIA Developer page](https://developer.nvidia.com/designworks/optix/download), you will
+probably need an NVIDIA developer account for this.
+
+#### Linux
+
+By default the **Find OptiX** will look for `OPTIX_PATH` as an environment variable with the installation path or
+into _"~/NVIDIA-OptiX-SDK-7.2.0-linux64"_. You can change the path defined in `cmake/FindOptiX.cmake`.
+
+#### Windows
+
+By default the **Find OptiX** will look for `OPTIX_PATH` as an environment variable with the installation path or
+into "_C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.2.0"_, Optix should be installed there by default, if not, you can
+change the path defined in `cmake/FindOptiX.cmake`.
 
 ## Assets
 

@@ -27,14 +27,15 @@ public:
     VkResult waitSemaphore(uint64_t timeout, uint64_t& t_timelineValue);
 
 private:
-    PFN_vkGetSemaphoreWin32HandleKHR vkGetSemaphoreWin32HandleKHR;
     PFN_vkWaitSemaphoresKHR vkWaitSemaphoresKHR;
     void initFunctionPointers();
     VkDevice m_device;
     VkSemaphore m_semaphore;
 #ifdef WIN32
+    PFN_vkGetSemaphoreWin32HandleKHR vkGetSemaphoreWin32HandleKHR;
     HANDLE m_handle { INVALID_HANDLE_VALUE };
 #else
+    PFN_vkGetSemaphoreFdKHR vkGetSemaphoreFdKHR;
     int m_handle { -1 };
 #endif
     cudaExternalSemaphore_t m_cuSemaphore;

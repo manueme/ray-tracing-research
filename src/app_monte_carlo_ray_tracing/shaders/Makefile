@@ -8,4 +8,4 @@ build-shaders:
 	glslc $(SHADERS_DIR)/anyhit.rahit -o $(SHADERS_DIR)/anyhit.rahit.spv --target-env=vulkan1.2
 	glslc $(SHADERS_DIR)/shadow.rahit -o $(SHADERS_DIR)/shadow.rahit.spv --target-env=vulkan1.2
 	glslc $(SHADERS_DIR)/post_process.comp -o $(SHADERS_DIR)/post_process.comp.spv
-    glslc $(SHADERS_DIR)/auto_exposure.comp -o $(SHADERS_DIR)/auto_exposure.comp.spv
+	glslc $(SHADERS_DIR)/auto_exposure.comp -o $(SHADERS_DIR)/auto_exposure.comp.spv
