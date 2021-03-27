@@ -185,7 +185,7 @@ void PostProcessPipeline::createDescriptorSetsLayout()
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
         // Binding 0 : Input Image Color
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_COMPUTE_BIT,
             0));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
@@ -246,7 +246,7 @@ void PostProcessPipeline::updateResultImageDescriptorSets(
 {
     VkWriteDescriptorSet inputImageWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set1InputColor[t_descriptorIndex],
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
             &t_inputColor->descriptor);
 

@@ -13,14 +13,14 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(set = 1, binding = 0, rgba32f) uniform image2D inputTexture;
+layout(set = 1, binding = 0) uniform sampler2D inputTexture;
 layout(set = 2, binding = 0) readonly buffer _AutoExposure { float exposure; }
 exposureSettings;
 layout(set = 3, binding = 0, rgba8) uniform image2D outputTexture;
 
 void main()
 {
-    vec2 res = imageSize(inputTexture);
+    vec2 res = textureSize(inputTexture, 0);
     vec2 q = gl_GlobalInvocationID.xy / res;
     if (q.x > 1 || q.y > 1) {
         return;
@@ -35,9 +35,9 @@ void main()
     // Chromatic aberration effect with tone mapping
     vec2 centerToUv = q - vec2(0.5);
     vec3 aberr;
-    aberr.x = imageLoad(inputTexture, ivec2((0.5 + centerToUv * 0.995) * res)).x;
-    aberr.y = imageLoad(inputTexture, ivec2((0.5 + centerToUv * 0.997) * res)).y;
-    aberr.z = imageLoad(inputTexture, ivec2((0.5 + centerToUv) * res)).z;
+    aberr.x = texture(inputTexture, vec2((0.5 + centerToUv * 0.995))).x;
+    aberr.y = texture(inputTexture, vec2((0.5 + centerToUv * 0.997))).y;
+    aberr.z = texture(inputTexture, vec2((0.5 + centerToUv))).z;
 
     vec4 result = vec4(
         (vignette
