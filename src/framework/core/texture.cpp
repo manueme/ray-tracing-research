@@ -305,7 +305,7 @@ void Texture::fromBufferArray(void* t_buffer, uint32_t t_layerCount, VkDeviceSiz
 
     const auto layerOffset = t_bufferSize / t_layerCount;
     std::vector<VkBufferImageCopy> bufferCopyRegions = {};
-    for (uint32_t layerIdx = 0; layerIdx < t_layerCount; layerIdx++) {
+    for (uint32_t layerIdx = 0; layerIdx < t_layerCount; ++layerIdx) {
         VkBufferImageCopy bufferCopyRegion = {};
         bufferCopyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         bufferCopyRegion.imageSubresource.mipLevel = 0;

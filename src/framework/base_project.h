@@ -33,8 +33,8 @@ class Scene;
 
 class BaseProject {
 public:
-    explicit BaseProject(
-        std::string t_appName, std::string t_windowTitle, bool t_enableValidation = false);
+    explicit BaseProject(std::string t_appName, std::string t_windowTitle,
+        bool t_enableValidation = false);
     virtual ~BaseProject();
     void run();
 
@@ -66,8 +66,8 @@ private:
     static void framebufferResizeCallback(GLFWwindow* t_window, int t_width, int t_height);
     static void mouseCallback(GLFWwindow* t_window, int t_button, int t_action, int t_mods);
     static void mousePositionCallback(GLFWwindow* t_window, double t_x, double t_y);
-    static void keyCallback(
-        GLFWwindow* t_window, int t_key, int t_scancode, int t_action, int t_mods);
+    static void keyCallback(GLFWwindow* t_window, int t_key, int t_scancode, int t_action,
+        int t_mods);
     void handleMouseClick(int t_button, int t_action, int t_mods);
     void handleMousePositionChanged(int32_t t_x, int32_t t_y);
     void handleKeyEvent(int t_key, int t_scancode, int t_action, int t_mods);
@@ -106,33 +106,18 @@ protected:
     // Encapsulated physical and logical vulkan device
     Device* m_vulkanDevice;
 
-    // Physical device (GPU) that Vulkan will ise
-    VkPhysicalDevice m_physicalDevice;
+    // Logical device, application's view of the physical device (GPU)
+    VkDevice m_device;
 
-    // Stores physical device properties (for e.g. checking device limits)
-    VkPhysicalDeviceProperties m_deviceProperties;
-
-    // Stores the features available on the selected physical device (for e.g.
-    // checking if a feature is available)
-    VkPhysicalDeviceFeatures m_deviceFeatures;
-
-    // Stores all available memory (type) properties for the physical device
-    VkPhysicalDeviceMemoryProperties m_deviceMemoryProperties;
-
-    // Set of physical device features to be enabled for this example (must be set in the derived
-    // constructor)
+    // Set of physical device features to be enabled (must be set in the derived constructor)
     VkPhysicalDeviceFeatures m_enabledFeatures {};
-
-    // Set of device extensions to be enabled for this example (must be set in the derived
-    // constructor)
-    std::vector<const char*> m_enabledDeviceExtensions;
-    std::vector<const char*> m_enabledInstanceExtensions;
 
     // Optional pNext structure for passing extension structures to device creation
     void* m_deviceCreatedNextChain = nullptr;
 
-    // Logical device, application's view of the physical device (GPU)
-    VkDevice m_device;
+    // Set of device extensions to be enabled (must be set in the derived constructor)
+    std::vector<const char*> m_enabledDeviceExtensions;
+    std::vector<const char*> m_enabledInstanceExtensions;
 
     // Handle to the device graphics queue that command buffers are submitted to
     VkQueue m_queue;
@@ -142,9 +127,6 @@ protected:
 
     // Command buffer pool
     VkCommandPool m_cmdPool;
-
-    // Pipeline stages used to wait at for graphics queue submissions
-    VkPipelineStageFlags m_submitPipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
     // Command buffers used for rendering
     std::vector<VkCommandBuffer> m_drawCmdBuffers;
@@ -164,8 +146,7 @@ protected:
     // Pipeline cache object
     VkPipelineCache m_pipelineCache;
 
-    // Wraps the swap chain to present images (framebuffers) to the windowing
-    // system
+    // Wraps the swap chain to present images (framebuffers) to the windowing system
     SwapChain m_swapChain;
 
     // Synchronization
@@ -249,8 +230,8 @@ protected:
     void destroyComputeCommandBuffers();
 
     /** @brief Loads a SPIR-V shader file for the given shader stage */
-    VkPipelineShaderStageCreateInfo loadShader(
-        const std::string& t_fileName, VkShaderStageFlagBits t_stage);
+    VkPipelineShaderStageCreateInfo loadShader(const std::string& t_fileName,
+        VkShaderStageFlagBits t_stage);
 
     /** @brief Acquires the next swap chain image to render to. T o submit your command buffer, use
      * m_imageAvailableSemaphores as a wait semaphore after calling this function.

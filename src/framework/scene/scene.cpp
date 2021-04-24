@@ -131,14 +131,14 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
         // Load meshes (and instances for each mesh)
         std::cout << "\nLoading Meshes..." << std::endl;
         const auto length = static_cast<float>(scene->mNumMeshes);
-        for (unsigned int i = 0; i < scene->mNumMeshes; i++) {
+        for (unsigned int i = 0; i < scene->mNumMeshes; ++i) {
             const aiMesh* pAiMesh = scene->mMeshes[i];
             auto currentIndexOffset = static_cast<uint32_t>(indexBuffer.size()) * sizeof(uint32_t);
             auto currentVertexOffset = static_cast<uint32_t>(vertexBuffer.size()) * sizeof(float);
 
             const aiVector3D zero3D(0.0f, 0.0f, 0.0f);
 
-            for (unsigned int j = 0; j < pAiMesh->mNumVertices; j++) {
+            for (unsigned int j = 0; j < pAiMesh->mNumVertices; ++j) {
                 const aiVector3D* pPos = &(pAiMesh->mVertices[j]);
                 const aiVector3D* pNormal = &(pAiMesh->mNormals[j]);
                 const aiVector3D* pTexCoord
@@ -206,9 +206,9 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
 
             uint32_t meshIndexCount = 0;
 
-            for (unsigned int j = 0; j < pAiMesh->mNumFaces; j++) {
+            for (unsigned int j = 0; j < pAiMesh->mNumFaces; ++j) {
                 const aiFace& face = pAiMesh->mFaces[j];
-                for (unsigned int k = 0; k < face.mNumIndices; k++) {
+                for (unsigned int k = 0; k < face.mNumIndices; ++k) {
                     indexBuffer.push_back(face.mIndices[k]);
                     meshIndexCount += 1;
                 }
@@ -306,7 +306,7 @@ void Scene::loadLights(const aiScene* t_scene)
 {
     if (t_scene->HasLights()) {
         std::cout << "\nLoading Lights..." << std::endl;
-        for (unsigned int i = 0; i < t_scene->mNumLights; i++) {
+        for (unsigned int i = 0; i < t_scene->mNumLights; ++i) {
             const auto aiLight = t_scene->mLights[i];
             m_lights.emplace_back(*aiLight);
             debug::printPercentage(i, t_scene->mNumLights);
@@ -330,7 +330,7 @@ void Scene::loadMaterials(const aiScene* t_scene, VkQueue t_transferQueue)
     m_materials.resize(t_scene->mNumMaterials);
     std::cout << "\nLoading Materials..." << std::endl;
     const auto length = static_cast<float>(m_materials.size());
-    for (size_t i = 0; i < m_materials.size(); i++) {
+    for (size_t i = 0; i < m_materials.size(); ++i) {
         m_materials[i] = Material(m_device, t_transferQueue, this, t_scene, t_scene->mMaterials[i]);
         debug::printPercentage(i, length);
     }

@@ -91,7 +91,7 @@ void BasePostProcessPipeline::createDescriptorSets(VkDescriptorPool t_descriptor
     m_descriptorSets.set0Scene.resize(layoutCount);
     CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set0AllocInfo, m_descriptorSets.set0Scene.data()))
-    for (size_t i = 0; i < layoutCount; i++) {
+    for (size_t i = 0; i < layoutCount; ++i) {
         std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
             // Binding 0:
             initializers::writeDescriptorSet(m_descriptorSets.set0Scene[i],
@@ -129,7 +129,7 @@ void BasePostProcessPipeline::createDescriptorSets(VkDescriptorPool t_descriptor
     m_descriptorSets.set2Exposure.resize(layoutCount);
     CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set2AllocInfo, m_descriptorSets.set2Exposure.data()))
-    for (size_t i = 0; i < layoutCount; i++) {
+    for (size_t i = 0; i < layoutCount; ++i) {
         std::vector<VkWriteDescriptorSet> writeDescriptorSet2 = {
             // Binding 0:
             initializers::writeDescriptorSet(m_descriptorSets.set2Exposure[i],

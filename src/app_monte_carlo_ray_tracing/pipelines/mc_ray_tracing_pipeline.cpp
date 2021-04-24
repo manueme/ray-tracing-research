@@ -8,8 +8,8 @@
 #include <array>
 #include <vector>
 
-MCRayTracingPipeline::MCRayTracingPipeline(
-    Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount)
+MCRayTracingPipeline::MCRayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth,
+    uint32_t t_sampleCount)
     : RayTracingBasePipeline(t_vulkanDevice, t_maxDepth, t_sampleCount)
 {
 }
@@ -26,8 +26,8 @@ MCRayTracingPipeline::~MCRayTracingPipeline()
     vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayouts.set5ResultImage, nullptr);
 };
 
-void MCRayTracingPipeline::buildCommandBuffer(
-    VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height)
+void MCRayTracingPipeline::buildCommandBuffer(VkCommandBuffer t_commandBuffer, uint32_t t_width,
+    uint32_t t_height)
 {
     /*
     Dispatch the ray tracing commands
@@ -181,16 +181,6 @@ void MCRayTracingPipeline::createDescriptorSetsLayout(Scene* t_scene)
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             1));
-    setLayoutBindings.push_back(
-        // Binding 2 : Result Image Normal Map
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            2));
-    setLayoutBindings.push_back(
-        // Binding  3: Result Image Albedo
-        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-            3));
 
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
@@ -381,8 +371,7 @@ void MCRayTracingPipeline::createDescriptorSets(VkDescriptorPool t_descriptorPoo
         vkAllocateDescriptorSets(m_device, &set5AllocInfo, &m_descriptorSets.set5ResultImage));
 }
 
-void MCRayTracingPipeline::updateResultImageDescriptorSets(
-    Texture* t_result, Texture* t_depthMap, Texture* t_normalMap, Texture* t_albedo)
+void MCRayTracingPipeline::updateResultImageDescriptorSets(Texture* t_result, Texture* t_depthMap)
 {
     VkWriteDescriptorSet resultImageWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set5ResultImage,
@@ -394,18 +383,8 @@ void MCRayTracingPipeline::updateResultImageDescriptorSets(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             1,
             &t_depthMap->descriptor);
-    VkWriteDescriptorSet resultNormalMapWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set5ResultImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            2,
-            &t_normalMap->descriptor);
-    VkWriteDescriptorSet resultAlbedoWrite
-        = initializers::writeDescriptorSet(m_descriptorSets.set5ResultImage,
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            3,
-            &t_albedo->descriptor);
     std::vector<VkWriteDescriptorSet> writeDescriptorSet5
-        = { resultImageWrite, resultDepthMapWrite, resultNormalMapWrite, resultAlbedoWrite };
+        = { resultImageWrite, resultDepthMapWrite };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet5.size()),
         writeDescriptorSet5.data(),

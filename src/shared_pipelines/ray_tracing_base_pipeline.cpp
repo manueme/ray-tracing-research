@@ -115,7 +115,7 @@ Scene* RayTracingBasePipeline::createRTScene(
     geometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;
 
     std::vector<BlasCreateInfo> blases;
-    for (auto i = 0; i < scene->meshes.size(); i++) {
+    for (auto i = 0; i < scene->meshes.size(); ++i) {
         const auto mesh = scene->meshes[i];
         VkAccelerationStructureBuildRangeInfoKHR meshOffsetInfo {};
         meshOffsetInfo.primitiveCount = mesh.getIndexCount() / 3;
@@ -172,7 +172,7 @@ void RayTracingBasePipeline::createBottomLevelAccelerationStructure(
     m_bottomLevelAS.resize(t_blases.size());
     const auto blasCount = static_cast<uint32_t>(t_blases.size());
     std::vector<VkAccelerationStructureBuildGeometryInfoKHR> buildInfos(blasCount);
-    for (uint32_t idx = 0; idx < blasCount; idx++) {
+    for (uint32_t idx = 0; idx < blasCount; ++idx) {
         buildInfos[idx].sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
         buildInfos[idx].flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
         buildInfos[idx].geometryCount = t_blases[idx].geomery.size();
@@ -183,10 +183,10 @@ void RayTracingBasePipeline::createBottomLevelAccelerationStructure(
     }
 
     VkDeviceSize maxScratch { 0 };
-    for (uint32_t idx = 0; idx < blasCount; idx++) {
+    for (uint32_t idx = 0; idx < blasCount; ++idx) {
         const auto meshCount = static_cast<uint32_t>(t_blases[idx].meshes.size());
         std::vector<uint32_t> maxPrimCount(meshCount);
-        for (auto tt = 0; tt < meshCount; tt++) {
+        for (auto tt = 0; tt < meshCount; ++tt) {
             maxPrimCount[tt] = t_blases[idx].meshes[tt].primitiveCount;
         }
         VkAccelerationStructureBuildSizesInfoKHR sizeInfo {
@@ -213,10 +213,10 @@ void RayTracingBasePipeline::createBottomLevelAccelerationStructure(
     VkCommandBuffer cmdBuffer
         = m_vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
-    for (uint32_t idx = 0; idx < blasCount; idx++) {
+    for (uint32_t idx = 0; idx < blasCount; ++idx) {
         const auto meshCount = t_blases[idx].meshes.size();
         std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> pBuildOffset(meshCount);
-        for (size_t infoIdx = 0; infoIdx < meshCount; infoIdx++) {
+        for (size_t infoIdx = 0; infoIdx < meshCount; ++infoIdx) {
             pBuildOffset[infoIdx] = &t_blases[idx].meshes[infoIdx];
         }
         buildInfos[idx].scratchData.deviceAddress = scratchBuffer.getDeviceAddress();

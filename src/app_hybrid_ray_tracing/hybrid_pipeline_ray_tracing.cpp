@@ -68,7 +68,10 @@ void HybridPipelineRT::render()
     // ----
 
     if (BaseProject::queuePresentSwapChain(imageIndex) == VK_SUCCESS) {
-        m_sceneUniformData.frame++;
+        ++m_sceneUniformData.frame;
+        if (m_sceneUniformData.frame > 6000) {
+            m_sceneUniformData.frame = 0;
+        }
         std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
     }
 }
@@ -319,7 +322,7 @@ void HybridPipelineRT::createDescriptorSets()
         m_rasterDescriptorSets.set0Scene.resize(m_swapChain.imageCount);
         CHECK_RESULT(
             vkAllocateDescriptorSets(m_device, &allocInfo, m_rasterDescriptorSets.set0Scene.data()))
-        for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+        for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
             std::vector<VkWriteDescriptorSet> writeDescriptorSet0 = {
                 // Binding 0 : Vertex shader uniform buffer
                 initializers::writeDescriptorSet(m_rasterDescriptorSets.set0Scene[i],
@@ -419,7 +422,7 @@ void HybridPipelineRT::createDescriptorSets()
 void HybridPipelineRT::createStorageImages()
 {
     m_storageImages.resize(m_swapChain.imageCount);
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         m_storageImages[i].offscreenMaterial.toColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
             m_width,
             m_height,
@@ -567,7 +570,7 @@ void HybridPipelineRT::createOffscreenRenderPass()
 void HybridPipelineRT::createOffscreenFramebuffers()
 {
     m_offscreenFramebuffers.resize(m_swapChain.imageCount);
-    for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (uint32_t i = 0; i < m_swapChain.imageCount; ++i) {
         std::array<VkImageView, 4> attachments = {};
         attachments[0] = m_storageImages[i].offscreenMaterial.getImageView();
         attachments[1] = m_storageImages[i].offscreenNormals.getImageView();
@@ -591,7 +594,7 @@ void HybridPipelineRT::createOffscreenFramebuffers()
 
 void HybridPipelineRT::updateResultImageDescriptorSets()
 {
-    for (uint32_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (uint32_t i = 0; i < m_swapChain.imageCount; ++i) {
         // Ray tracing sets
         m_rayTracing->updateResultImageDescriptorSets(i,
             &m_storageImages[i].offscreenMaterial,
@@ -618,7 +621,7 @@ void HybridPipelineRT::updateUniformBuffers(uint32_t t_currentImage)
 void HybridPipelineRT::onSwapChainRecreation()
 {
     // Recreate the result image to fit the new extent size
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         m_storageImages[i].rtResultImage.destroy();
         m_storageImages[i].postProcessResultImage.destroy();
         m_storageImages[i].offscreenMaterial.destroy();
@@ -637,7 +640,7 @@ void HybridPipelineRT::createUniformBuffers()
 {
     VkDeviceSize bufferSize = sizeof(m_sceneUniformData);
     m_sceneBuffers.resize(m_swapChain.imageCount);
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         m_sceneBuffers[i].create(m_vulkanDevice,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -670,7 +673,7 @@ void HybridPipelineRT::createUniformBuffers()
     // Auto Exposure uniform, also set the default data
     bufferSize = sizeof(ExposureUniformData);
     m_exposureBuffers.resize(m_swapChain.imageCount);
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         m_exposureBuffers[i].create(m_vulkanDevice,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -911,7 +914,7 @@ HybridPipelineRT::~HybridPipelineRT()
         offscreenImage.offscreenReflectRefractMap.destroy();
     }
 
-    for (size_t i = 0; i < m_swapChain.imageCount; i++) {
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         m_sceneBuffers[i].destroy();
         m_exposureBuffers[i].destroy();
     }

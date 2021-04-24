@@ -94,7 +94,7 @@ void BaseAutoExposurePipeline::createDescriptorSets(VkDescriptorPool t_descripto
     m_descriptorSets.set1Exposure.resize(layoutCount);
     CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_descriptorSets.set1Exposure.data()))
-    for (size_t i = 0; i < layoutCount; i++) {
+    for (size_t i = 0; i < layoutCount; ++i) {
         std::vector<VkWriteDescriptorSet> writeDescriptorSet1 = {
             // Binding 0:
             initializers::writeDescriptorSet(m_descriptorSets.set1Exposure[i],

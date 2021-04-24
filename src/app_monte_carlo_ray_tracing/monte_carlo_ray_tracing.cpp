@@ -226,10 +226,7 @@ void MonteCarloRTApp::createDescriptorSets()
 void MonteCarloRTApp::updateResultImageDescriptorSets()
 {
     // Ray Tracing
-    m_rayTracing->updateResultImageDescriptorSets(&m_storageImage.result,
-        &m_storageImage.depthMap,
-        &m_storageImage.normalMap,
-        &m_storageImage.albedo);
+    m_rayTracing->updateResultImageDescriptorSets(&m_storageImage.result, &m_storageImage.depthMap);
 
     // Post Process
     m_postProcess->updateResultImageDescriptorSets(&m_storageImage.result,
@@ -308,24 +305,6 @@ void MonteCarloRTApp::createStorageImages()
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_IMAGE_LAYOUT_GENERAL);
 
-    m_storageImage.normalMap.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
-        m_width,
-        m_height,
-        1,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
-    m_storageImage.albedo.fromNothing(VK_FORMAT_R16G16B16A16_SFLOAT,
-        m_width,
-        m_height,
-        1,
-        m_vulkanDevice,
-        m_queue,
-        VK_FILTER_NEAREST,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_GENERAL);
     m_storageImage.depthMap.fromNothing(VK_FORMAT_R32_SFLOAT,
         m_width,
         m_height,
@@ -429,8 +408,8 @@ void MonteCarloRTApp::render()
 
     if (BaseProject::queuePresentSwapChain(imageIndex) == VK_SUCCESS) {
         m_sceneUniformData.frameChanged = 0;
-        m_sceneUniformData.frameIteration++;
-        m_sceneUniformData.frame++;
+        ++m_sceneUniformData.frameIteration;
+        ++m_sceneUniformData.frame;
 
         std::cout << '\r' << "| FPS: " << m_lastFps
                   << " -- Sample: " << m_sceneUniformData.frameIteration << " | " << std::flush;
@@ -446,8 +425,6 @@ MonteCarloRTApp::~MonteCarloRTApp()
     m_storageImage.result.destroy();
     m_storageImage.postProcessResult.destroy();
     m_storageImage.depthMap.destroy();
-    m_storageImage.normalMap.destroy();
-    m_storageImage.albedo.destroy();
 
     m_exposureBuffer.destroy();
     m_sceneBuffer.destroy();
@@ -476,8 +453,6 @@ void MonteCarloRTApp::onSwapChainRecreation()
     m_storageImage.result.destroy();
     m_storageImage.postProcessResult.destroy();
     m_storageImage.depthMap.destroy();
-    m_storageImage.normalMap.destroy();
-    m_storageImage.albedo.destroy();
     createStorageImages();
     updateResultImageDescriptorSets();
 }

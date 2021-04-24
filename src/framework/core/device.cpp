@@ -12,12 +12,8 @@ Device::Device(VkPhysicalDevice t_physicalDevice)
     assert(t_physicalDevice);
     this->physicalDevice = t_physicalDevice;
 
-    // Store Properties features, limits and properties of the physical device for
-    // later use Device properties also contain limits and sparse properties
     vkGetPhysicalDeviceProperties(t_physicalDevice, &properties);
-    // Features should be checked by the examples before using them
     vkGetPhysicalDeviceFeatures(t_physicalDevice, &features);
-    // Memory properties are used regularly for creating all kinds of buffers
     vkGetPhysicalDeviceMemoryProperties(t_physicalDevice, &memoryProperties);
     // Queue family properties, used for setting up requested queues upon device
     // creation
@@ -59,7 +55,7 @@ Device::~Device()
 uint32_t Device::getMemoryType(
     uint32_t t_typeBits, VkMemoryPropertyFlags t_properties, VkBool32* t_memTypeFound) const
 {
-    for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
+    for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i) {
         if ((t_typeBits & 1) == 1) {
             if ((memoryProperties.memoryTypes[i].propertyFlags & t_properties) == t_properties) {
                 if (t_memTypeFound) {
@@ -84,7 +80,7 @@ uint32_t Device::getQueueFamilyIndex(VkQueueFlagBits t_queueFlags)
     // Dedicated queue for compute
     // Try to find a queue family index that supports compute but not graphics
     if (t_queueFlags & VK_QUEUE_COMPUTE_BIT) {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); i++) {
+        for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); ++i) {
             if ((queueFamilyProperties[i].queueFlags & t_queueFlags)
                 && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0)) {
                 return i;
@@ -96,7 +92,7 @@ uint32_t Device::getQueueFamilyIndex(VkQueueFlagBits t_queueFlags)
     // Try to find a queue family index that supports transfer but not graphics
     // and compute
     if (t_queueFlags & VK_QUEUE_TRANSFER_BIT) {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); i++) {
+        for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); ++i) {
             if ((queueFamilyProperties[i].queueFlags & t_queueFlags)
                 && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0)
                 && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT) == 0)) {
@@ -107,7 +103,7 @@ uint32_t Device::getQueueFamilyIndex(VkQueueFlagBits t_queueFlags)
 
     // For other queue types or if no separate compute queue is present, return
     // the first one to support the requested flags
-    for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); i++) {
+    for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); ++i) {
         if (queueFamilyProperties[i].queueFlags & t_queueFlags) {
             return i;
         }

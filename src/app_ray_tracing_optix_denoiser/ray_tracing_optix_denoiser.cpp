@@ -336,7 +336,7 @@ void RayTracingOptixDenoiser::setupScene()
         VERTEX_COMPONENT_TANGENT,
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
-    m_scene = m_rayTracing->createRTScene(m_queue, "assets/sponza/Sponza.fbx", m_vertexLayout);
+    m_scene = m_rayTracing->createRTScene(m_queue, "assets/cornellbox/Cornellbox.fbx", m_vertexLayout);
     auto camera = m_scene->getCamera();
     camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);
@@ -393,7 +393,7 @@ void RayTracingOptixDenoiser::render()
     auto denoiserSignalToSemaphore = m_denoiserData.denoiseSignalTo.getVulkanSemaphore();
 
     // Submit the draw command buffer
-    m_denoiserData.timelineValue++;
+    ++m_denoiserData.timelineValue;
     VkTimelineSemaphoreSubmitInfo timelineInfo {};
     timelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo.signalSemaphoreValueCount = 1;
@@ -442,8 +442,8 @@ void RayTracingOptixDenoiser::render()
                   << " | " << std::endl;
 
         m_sceneUniformData.frameChanged = 0;
-        m_sceneUniformData.frame++;
-        m_sceneUniformData.frameIteration++;
+        ++m_sceneUniformData.frame;
+        ++m_sceneUniformData.frameIteration;
     }
 }
 

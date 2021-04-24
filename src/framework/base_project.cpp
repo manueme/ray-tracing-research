@@ -180,7 +180,7 @@ void BaseProject::prepareCompute()
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     m_compute.fences.resize(m_maxFramesInFlight);
     m_compute.semaphores.resize(m_maxFramesInFlight);
-    for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+    for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
         CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fences[i]))
         CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
@@ -230,7 +230,7 @@ void BaseProject::nextFrame()
     const auto millisecond = 1000.0f;
 
     render();
-    m_frameCounter++;
+    ++m_frameCounter;
     auto timeEnd = std::chrono::high_resolution_clock::now();
     auto timeDiff = std::chrono::duration<double, std::milli>(timeEnd - timeStart).count();
     m_frameTimer = static_cast<float>(timeDiff) / millisecond;
@@ -281,7 +281,7 @@ BaseProject::~BaseProject()
 
     vkDestroyCommandPool(m_device, m_cmdPool, nullptr);
 
-    for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+    for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
         vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
@@ -290,7 +290,7 @@ BaseProject::~BaseProject()
     if (m_settings.useCompute) {
         destroyComputeCommandBuffers();
         vkDestroyCommandPool(m_device, m_compute.commandPool, nullptr);
-        for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+        for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
             vkDestroySemaphore(m_device, m_compute.semaphores[i], nullptr);
             vkDestroyFence(m_device, m_compute.fences[i], nullptr);
         }
@@ -343,21 +343,16 @@ bool BaseProject::initVulkan()
     }
 
     // GPU selection
-    m_physicalDevice = tools::getBestSuitableDevice(physicalDevices,
+    const auto physicalDevice = tools::getBestSuitableDevice(physicalDevices,
         m_enabledDeviceExtensions,
         m_enabledFeatures);
-    // Store properties (including limits), features and memory properties of the
-    // physical device
-    vkGetPhysicalDeviceProperties(m_physicalDevice, &m_deviceProperties);
-    vkGetPhysicalDeviceFeatures(m_physicalDevice, &m_deviceFeatures);
-    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_deviceMemoryProperties);
 
     // Derived classes can override this to set actual features to enable for logical device
     // creation
     getEnabledFeatures();
 
     // Vulkan device creation
-    m_vulkanDevice = new Device(m_physicalDevice);
+    m_vulkanDevice = new Device(physicalDevice);
     VkResult res = m_vulkanDevice->createLogicalDevice(m_enabledFeatures,
         m_enabledDeviceExtensions,
         m_deviceCreatedNextChain);
@@ -370,10 +365,10 @@ bool BaseProject::initVulkan()
     vkGetDeviceQueue(m_device, m_vulkanDevice->queueFamilyIndices.graphics, 0, &m_queue);
 
     // Find a suitable depth format
-    VkBool32 validDepthFormat = tools::getSupportedDepthFormat(m_physicalDevice, &m_depthFormat);
+    VkBool32 validDepthFormat = tools::getSupportedDepthFormat(m_vulkanDevice->physicalDevice, &m_depthFormat);
     assert(validDepthFormat);
 
-    m_swapChain.connect(m_instance, m_physicalDevice, m_device);
+    m_swapChain.connect(m_instance, m_vulkanDevice->physicalDevice, m_device);
 
     return true;
 }
@@ -396,7 +391,7 @@ void BaseProject::createSynchronizationPrimitives()
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (size_t i = 0; i < m_maxFramesInFlight; i++) {
+    for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
         CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
             nullptr,
@@ -480,7 +475,7 @@ void BaseProject::setupFrameBuffer()
 
     // Create frame buffers for every swap chain image
     m_frameBuffers.resize(m_swapChain.imageCount);
-    for (uint32_t i = 0; i < m_frameBuffers.size(); i++) {
+    for (uint32_t i = 0; i < m_frameBuffers.size(); ++i) {
         attachments[0] = m_swapChain.buffers[i].view;
         CHECK_RESULT(
             vkCreateFramebuffer(m_device, &frameBufferCreateInfo, nullptr, &m_frameBuffers[i]))

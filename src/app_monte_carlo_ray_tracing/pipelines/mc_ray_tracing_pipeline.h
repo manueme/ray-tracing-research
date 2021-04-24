@@ -7,8 +7,8 @@
 #define MC_RAY_TRACING_PIPELINE_H
 
 #include "core/acceleration_structure.h"
-#include "ray_tracing_base_pipeline.h"
 #include "core/buffer.h"
+#include "ray_tracing_base_pipeline.h"
 #include "scene/scene.h"
 #include "vulkan/vulkan_core.h"
 
@@ -24,11 +24,12 @@ public:
 
     void createDescriptorSetsLayout(Scene* t_scene) override;
 
-    void createDescriptorSets(VkDescriptorPool t_descriptorPool, Scene* t_scene, Buffer* t_sceneBuffer,
-        Buffer* t_instancesBuffer, Buffer* t_lightsBuffer, Buffer* t_materialsBuffer);
+    void createDescriptorSets(VkDescriptorPool t_descriptorPool, Scene* t_scene,
+        Buffer* t_sceneBuffer, Buffer* t_instancesBuffer, Buffer* t_lightsBuffer,
+        Buffer* t_materialsBuffer);
 
-    void updateResultImageDescriptorSets(
-        Texture* t_result, Texture* t_depthMap, Texture* t_normalMap, Texture* t_albedo);
+    void updateResultImageDescriptorSets(Texture* t_result, Texture* t_depthMap);
+
 private:
     struct {
         VkDescriptorSet set0AccelerationStructure;
@@ -47,7 +48,7 @@ private:
         VkDescriptorSetLayout set5ResultImage;
     } m_descriptorSetLayouts;
 
-    void createShaderBindingTable()  override;
+    void createShaderBindingTable() override;
 };
 
 #endif // MC_RAY_TRACING_PIPELINE_H

@@ -17,7 +17,7 @@ float gather_average_luminance()
     float lumAvg = 0.0;
     uint sample_count = 100;
     float sensorSize = inputTexture.data.length() / float(sample_count);
-    for (uint i = 0; i < sample_count; i++) {
+    for (uint i = 0; i < sample_count; ++i) {
         vec4 color = inputTexture.data[uint(i * sensorSize)];
         lumAvg += get_luma(color);
     }

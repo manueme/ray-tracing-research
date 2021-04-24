@@ -28,12 +28,8 @@ private:
     struct {
         Texture result;
         Texture postProcessResult;
-        // - Normal map, Depth Map and Albedo are used by the denoiser in the denoiser app,
-        // can be removed if you don't need them.
         // - The depth map is also used for the DOF effect
         Texture depthMap;
-        Texture normalMap;
-        Texture albedo;
     } m_storageImage;
 
     Buffer m_instancesBuffer;

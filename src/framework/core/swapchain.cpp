@@ -22,7 +22,7 @@ void SwapChain::initSurface(GLFWwindow* t_window)
     // Find a queue with present support
     // Will be used to present the swap chain images to the windowing system
     std::vector<VkBool32> supportsPresent(queueCount);
-    for (uint32_t i = 0; i < queueCount; i++) {
+    for (uint32_t i = 0; i < queueCount; ++i) {
         vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, i, m_surface, &supportsPresent[i]);
     }
 
@@ -30,7 +30,7 @@ void SwapChain::initSurface(GLFWwindow* t_window)
     // families, try to find one that supports both
     uint32_t graphicsQueueNodeIndex = UINT32_MAX;
     uint32_t presentQueueNodeIndex = UINT32_MAX;
-    for (uint32_t i = 0; i < queueCount; i++) {
+    for (uint32_t i = 0; i < queueCount; ++i) {
         if ((queueProps[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
             if (graphicsQueueNodeIndex == UINT32_MAX) {
                 graphicsQueueNodeIndex = i;
@@ -160,7 +160,7 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
     // If v-sync is not requested, try to find a mailbox mode
     // It's the lowest latency non-tearing present mode available
     if (!t_vsync) {
-        for (size_t i = 0; i < presentModeCount; i++) {
+        for (size_t i = 0; i < presentModeCount; ++i) {
             if (presentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
                 swapChainPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
                 break;
@@ -238,7 +238,7 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
     // If an existing swap chain is re-created, destroy the old swap chain
     // This also cleans up all the presentable images
     if (oldSwapChain != VK_NULL_HANDLE) {
-        for (uint32_t i = 0; i < imageCount; i++) {
+        for (uint32_t i = 0; i < imageCount; ++i) {
             vkDestroyImageView(m_device, buffers[i].view, nullptr);
         }
         vkDestroySwapchainKHR(m_device, oldSwapChain, nullptr);
@@ -251,7 +251,7 @@ void SwapChain::create(uint32_t* t_width, uint32_t* t_height, bool t_vsync)
 
     // Get the swap chain buffers containing the image and imageview
     buffers.resize(imageCount);
-    for (uint32_t i = 0; i < imageCount; i++) {
+    for (uint32_t i = 0; i < imageCount; ++i) {
         VkImageViewCreateInfo colorAttachmentView = {};
         colorAttachmentView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         colorAttachmentView.pNext = nullptr;
@@ -312,7 +312,7 @@ VkResult SwapChain::queuePresent(
 void SwapChain::cleanup()
 {
     if (swapChain != VK_NULL_HANDLE) {
-        for (uint32_t i = 0; i < imageCount; i++) {
+        for (uint32_t i = 0; i < imageCount; ++i) {
             vkDestroyImageView(m_device, buffers[i].view, nullptr);
         }
     }

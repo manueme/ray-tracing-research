@@ -286,7 +286,7 @@ void HyRayTracingPipeline::createDescriptorSets(VkDescriptorPool t_descriptorPoo
     m_descriptorSets.set1Scene.resize(t_swapChainCount);
     CHECK_RESULT(
         vkAllocateDescriptorSets(m_device, &set1AllocInfo, m_descriptorSets.set1Scene.data()))
-    for (size_t i = 0; i < t_swapChainCount; i++) {
+    for (size_t i = 0; i < t_swapChainCount; ++i) {
         VkWriteDescriptorSet uniformBufferWrite
             = initializers::writeDescriptorSet(m_descriptorSets.set1Scene[i],
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
