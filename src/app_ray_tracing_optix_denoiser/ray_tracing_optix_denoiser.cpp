@@ -398,6 +398,8 @@ void RayTracingOptixDenoiser::render()
     timelineInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
     timelineInfo.signalSemaphoreValueCount = 1;
     timelineInfo.pSignalSemaphoreValues = &m_denoiserData.timelineValue;
+    timelineInfo.waitSemaphoreValueCount = 1;
+    timelineInfo.pWaitSemaphoreValues = &m_denoiserData.timelineValue;
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
