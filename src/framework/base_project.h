@@ -250,6 +250,8 @@ protected:
 
     /** @brief Called when a key is pressed */
     virtual void onKeyEvent(int t_key, int t_scancode, int t_action, int t_mods);
+
+    void saveScreenshot(const char* filename);
 };
 
 #endif // MANUEME_BASE_PROJECT_H

@@ -72,7 +72,7 @@ void HybridPipelineRT::render()
         if (m_sceneUniformData.frame > 6000) {
             m_sceneUniformData.frame = 0;
         }
-        std::cout << '\r' << "FPS: " << m_lastFps << std::flush;
+        std::cout << '\r' << "FPS: " << m_lastFps << "  " << std::flush;
     }
 }
 
@@ -851,7 +851,7 @@ void HybridPipelineRT::setupScene()
         VERTEX_COMPONENT_TANGENT,
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
-    m_scene = m_rayTracing->createRTScene(m_queue, "assets/pool/Pool.fbx", m_vertexLayout);
+    m_scene = m_rayTracing->createRTScene(m_queue, "assets/pool/Pool_I.fbx", m_vertexLayout);
     auto camera = m_scene->getCamera();
     camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);

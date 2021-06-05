@@ -63,6 +63,17 @@ void setImageLayout(VkCommandBuffer t_cmdbuffer, VkImage t_image, VkImageAspectF
     VkPipelineStageFlags t_srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
     VkPipelineStageFlags t_dstStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
+void insertImageMemoryBarrier(
+    VkCommandBuffer cmdbuffer,
+    VkImage image,
+    VkAccessFlags srcAccessMask,
+    VkAccessFlags dstAccessMask,
+    VkImageLayout oldImageLayout,
+    VkImageLayout newImageLayout,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    VkImageSubresourceRange subresourceRange);
+
 /** @brief Load a SPIR-V shader (binary) **/
 VkShaderModule loadShader(const char* t_fileName, VkDevice t_device);
 

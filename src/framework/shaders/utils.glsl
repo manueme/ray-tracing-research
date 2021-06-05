@@ -73,6 +73,7 @@ void concentric_sample_disk(const float u1, const float u2, out vec2 p)
         p = r * vec2(cos(theta), sin(theta));
     }
 }
+
 // Malley’s Method
 void cosine_sample_hemisphere(const float u1, const float u2, out vec3 p)
 {

@@ -39,7 +39,7 @@ public:
         BufferCuda* t_pixelBufferOut);
 
     void denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo,
-        uint32_t t_frameIteration, uint64_t& t_timelineValue);
+        float t_blendFactor, uint64_t& t_timelineValue);
 
 private:
     Device* m_vulkanDevice;

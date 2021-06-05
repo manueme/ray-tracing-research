@@ -120,7 +120,7 @@ void DenoiserOptixPipeline::destroy()
 }
 
 void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo,
-    uint32_t t_frameIteration, uint64_t& t_timelineValue)
+    float t_blendFactor, uint64_t& t_timelineValue)
 {
     try {
         OptixPixelFormat pixelFormat = OPTIX_PIXEL_FORMAT_FLOAT4;
@@ -184,26 +184,26 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
             m_dScratch,
             m_dSizes.withoutOverlapScratchSizeInBytes));
 
-        OptixDenoiserParams params {};
-        params.denoiseAlpha = 0;
-        params.hdrIntensity = m_dIntensity;
-        params.hdrAverageColor = m_dAverageRGB;
-        params.blendFactor = glm::min(t_frameIteration / 2000.0f, 1.0f);
-
-        OPTIX_CHECK(optixDenoiserInvoke(m_denoiser,
-            stream,
-            &params,
-            m_dState,
-            m_dSizes.stateSizeInBytes,
-            inputLayer.data(),
-            (uint32_t)inputLayer.size(),
-            0,
-            0,
-            &outputLayer,
-            m_dScratch,
-            m_dSizes.withoutOverlapScratchSizeInBytes));
-
-        CUDA_CHECK(cudaStreamSynchronize(stream)); // Making sure the denoiser is done
+        if (t_blendFactor < 1.0f) {
+            OptixDenoiserParams params {};
+            params.denoiseAlpha = 0;
+            params.hdrIntensity = m_dIntensity;
+            params.hdrAverageColor = m_dAverageRGB;
+            params.blendFactor = glm::max(0.0f, t_blendFactor);
+            OPTIX_CHECK(optixDenoiserInvoke(m_denoiser,
+                                            stream,
+                                            &params,
+                                            m_dState,
+                                            m_dSizes.stateSizeInBytes,
+                                            inputLayer.data(),
+                                            (uint32_t)inputLayer.size(),
+                                            0,
+                                            0,
+                                            &outputLayer,
+                                            m_dScratch,
+                                            m_dSizes.withoutOverlapScratchSizeInBytes));
+            CUDA_CHECK(cudaStreamSynchronize(stream)); // Making sure the denoiser is done
+        }
 
         cudaExternalSemaphoreSignalParams sigParams {};
         sigParams.flags = 0;

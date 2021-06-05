@@ -350,7 +350,7 @@ void RayTracingOptixDenoiser::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new DenoiseRayTracingPipeline(m_vulkanDevice, 8, 1);
+    m_rayTracing = new DenoiseRayTracingPipeline(m_vulkanDevice, 10, 1);
     m_autoExposure = new AutoExposureWithBuffersPipeline(m_vulkanDevice);
     m_postProcess = new PostProcessWithBuffersPipeline(m_vulkanDevice);
 
@@ -418,7 +418,7 @@ void RayTracingOptixDenoiser::render()
 
     m_denoiser->denoiseSubmit(&m_denoiserData.denoiseWaitFor,
         &m_denoiserData.denoiseSignalTo,
-        m_sceneUniformData.frameIteration,
+        0.0f,
         m_denoiserData.timelineValue);
 
     // Submit Compute Command Buffer:
@@ -446,6 +446,19 @@ void RayTracingOptixDenoiser::render()
         m_sceneUniformData.frameChanged = 0;
         ++m_sceneUniformData.frame;
         ++m_sceneUniformData.frameIteration;
+
+        /* MSE calculation screenshots
+        if (m_sceneUniformData.frame == 1 ||
+            m_sceneUniformData.frame == 10 ||
+            m_sceneUniformData.frame == 50 ||
+            m_sceneUniformData.frame == 100 ||
+            m_sceneUniformData.frame == 500 ||
+            m_sceneUniformData.frame == 1000 ||
+            m_sceneUniformData.frame == 5000 ||
+            m_sceneUniformData.frame == 10000 ||
+            m_sceneUniformData.frame == 50000) {
+            saveScreenshot(std::string("./monte_carlo_denoiser_exterior_" + std::to_string(m_sceneUniformData.frame) + ".ppm").c_str());
+        }*/
     }
 }
 

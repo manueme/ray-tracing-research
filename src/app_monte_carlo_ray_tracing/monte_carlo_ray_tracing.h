@@ -22,8 +22,7 @@ private:
     MCRayTracingPipeline* m_rayTracing;
     AutoExposurePipeline* m_autoExposure;
     PostProcessPipeline* m_postProcess;
-
-
+    
     // Images used to store ray traced image
     struct {
         Texture result;

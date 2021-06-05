@@ -347,7 +347,7 @@ void MonteCarloRTApp::prepare()
 {
     BaseProject::prepare();
 
-    m_rayTracing = new MCRayTracingPipeline(m_vulkanDevice, 4, 1);
+    m_rayTracing = new MCRayTracingPipeline(m_vulkanDevice, 10, 1);
     m_autoExposure = new AutoExposurePipeline(m_vulkanDevice);
     m_postProcess = new PostProcessPipeline(m_vulkanDevice);
 
@@ -410,6 +410,19 @@ void MonteCarloRTApp::render()
         m_sceneUniformData.frameChanged = 0;
         ++m_sceneUniformData.frameIteration;
         ++m_sceneUniformData.frame;
+
+        /* MSE calculation screenshots
+        if (m_sceneUniformData.frame == 1 ||
+            m_sceneUniformData.frame == 10 ||
+            m_sceneUniformData.frame == 50 ||
+            m_sceneUniformData.frame == 100 ||
+            m_sceneUniformData.frame == 500 ||
+            m_sceneUniformData.frame == 1000 ||
+            m_sceneUniformData.frame == 5000 ||
+            m_sceneUniformData.frame == 10000 ||
+            m_sceneUniformData.frame == 50000) {
+            saveScreenshot(std::string("./monte_carlo_interior_" + std::to_string(m_sceneUniformData.frame) + ".ppm").c_str());
+        }*/
 
         std::cout << '\r' << "| FPS: " << m_lastFps
                   << " -- Sample: " << m_sceneUniformData.frameIteration << " | " << std::flush;
