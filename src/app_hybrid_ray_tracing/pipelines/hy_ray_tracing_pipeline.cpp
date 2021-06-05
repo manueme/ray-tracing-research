@@ -8,8 +8,8 @@
 #include <array>
 #include <vector>
 
-HyRayTracingPipeline::HyRayTracingPipeline(
-    Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount)
+HyRayTracingPipeline::HyRayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth,
+    uint32_t t_sampleCount)
     : RayTracingBasePipeline(t_vulkanDevice, t_maxDepth, t_sampleCount)
 {
 }
@@ -27,8 +27,8 @@ HyRayTracingPipeline::~HyRayTracingPipeline()
     vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayouts.set6StorageImages, nullptr);
 };
 
-void HyRayTracingPipeline::buildCommandBuffer(
-    uint32_t t_index, VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height)
+void HyRayTracingPipeline::buildCommandBuffer(uint32_t t_index, VkCommandBuffer t_commandBuffer,
+    uint32_t t_width, uint32_t t_height)
 {
     vkCmdBindPipeline(t_commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
     std::vector<VkDescriptorSet> rtDescriptorSets = { m_descriptorSets.set0AccelerationStructure,
@@ -174,25 +174,30 @@ void HyRayTracingPipeline::createDescriptorSetsLayout(Scene* t_scene)
     // Set 5: Result Image
     setLayoutBindings.clear();
     setLayoutBindings.push_back(
-        // Binding 0 : Color input
+        // Binding 0 : Material input
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             0));
     setLayoutBindings.push_back(
-        // Binding 1 : Normals input
+        // Binding 1 : Albedo input
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             1));
     setLayoutBindings.push_back(
-        // Binding 2 : Reflection and Refraction input
+        // Binding 2 : Normals input
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             2));
     setLayoutBindings.push_back(
-        // Binding 3 : Depth input
+        // Binding 3 : Reflection and Refraction input
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             3));
+    setLayoutBindings.push_back(
+        // Binding 4 : Depth input
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+            4));
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
     CHECK_RESULT(vkCreateDescriptorSetLayout(m_device,
@@ -420,31 +425,37 @@ void HyRayTracingPipeline::createDescriptorSets(VkDescriptorPool t_descriptorPoo
 }
 
 void HyRayTracingPipeline::updateResultImageDescriptorSets(uint32_t t_index,
-    Texture* t_offscreenColor, Texture* t_offscreenNormals, Texture* t_offscreenReflectRefractMap,
-    Texture* t_offscreenDepth, Texture* t_result)
+    Texture* t_offscreenMaterial, Texture* t_offscreenAlbedo, Texture* t_offscreenNormals,
+    Texture* t_offscreenReflectRefractMap, Texture* t_offscreenDepth, Texture* t_result)
 {
     // Ray tracing sets
-    VkWriteDescriptorSet imageRTInputColorImageWrite
+    VkWriteDescriptorSet imageRTInputMaterialImageWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set5OffscreenImages[t_index],
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             0,
-            &t_offscreenColor->descriptor);
-    VkWriteDescriptorSet imageRTInputNormalsImageWrite
+            &t_offscreenMaterial->descriptor);
+    VkWriteDescriptorSet imageRTInputAlbedoImageWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set5OffscreenImages[t_index],
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             1,
+            &t_offscreenAlbedo->descriptor);
+    VkWriteDescriptorSet imageRTInputNormalsImageWrite
+        = initializers::writeDescriptorSet(m_descriptorSets.set5OffscreenImages[t_index],
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            2,
             &t_offscreenNormals->descriptor);
     VkWriteDescriptorSet imageRTInputReflectRefractImageWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set5OffscreenImages[t_index],
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            2,
+            3,
             &t_offscreenReflectRefractMap->descriptor);
     VkWriteDescriptorSet imageRTInputDepthWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set5OffscreenImages[t_index],
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            3,
+            4,
             &t_offscreenDepth->descriptor);
-    std::vector<VkWriteDescriptorSet> writeDescriptorSet5 = { imageRTInputColorImageWrite,
+    std::vector<VkWriteDescriptorSet> writeDescriptorSet5 = { imageRTInputMaterialImageWrite,
+        imageRTInputAlbedoImageWrite,
         imageRTInputNormalsImageWrite,
         imageRTInputReflectRefractImageWrite,
         imageRTInputDepthWrite };

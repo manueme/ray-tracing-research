@@ -18,10 +18,11 @@
 #include "../../framework/shaders/ray_tracing_apps/trace_shadow_ray_utils.glsl"
 #include "../../framework/shaders/utils.glsl"
 
-layout(binding = 0, set = 5) uniform sampler2D inputColor;
-layout(binding = 1, set = 5) uniform sampler2D inputNormals;
-layout(binding = 2, set = 5) uniform sampler2D inputReflectRefractMap;
-layout(binding = 3, set = 5) uniform sampler2D inputDepth;
+layout(binding = 0, set = 5) uniform sampler2D inputMaterial;
+layout(binding = 1, set = 5) uniform sampler2D inputAlbedo;
+layout(binding = 2, set = 5) uniform sampler2D inputNormals;
+layout(binding = 3, set = 5) uniform sampler2D inputReflectRefractMap;
+layout(binding = 4, set = 5) uniform sampler2D inputDepth;
 layout(binding = 0, set = 6, rgba8) uniform image2D resultImage;
 
 layout(push_constant) uniform Constants
@@ -45,7 +46,6 @@ void reset_payload()
     rayPayload.depth = 0;
     rayPayload.surfaceAttenuation = vec3(1.0f);
     rayPayload.surfaceRadiance = vec3(0.0f);
-    rayPayload.surfaceEmissive = vec3(0.0f);
     rayPayload.rayType = RAY_TYPE_UNDEFINED;
 }
 
@@ -70,28 +70,14 @@ void main()
         const vec4 reflectRefractData = texture(inputReflectRefractMap, inUV).xyzw;
         float alphaWithoutRefractives = reflectRefractData.w;
 
-        vec4 colorInformation = texture(inputColor, inUV);
-        vec2 inTexturesUV = colorInformation.xy;
-        uint materialIndex = uint(colorInformation.z);
-        MaterialProperties material = materials.m[materialIndex];
-        // ####  Compute surface albedo ####
-        vec4 surfaceAlbedo;
-        if (material.diffuseMapIndex >= 0) {
-            surfaceAlbedo
-                = texture(textures[nonuniformEXT(material.diffuseMapIndex)], inTexturesUV).rgba;
-        } else {
-            surfaceAlbedo = vec4(material.diffuse.rgb, material.opacity);
-        }
-        // ####  End compute surface albedo ####
-        // ####  Compute surface emission ####
-        vec3 surfaceEmissive;
-        if (material.emissiveMapIndex >= 0) {
-            surfaceEmissive
-                = texture(textures[nonuniformEXT(material.emissiveMapIndex)], inTexturesUV).rgb;
-        } else {
-            surfaceEmissive = material.emissive.rgb;
-        }
-        // ####  End compute surface emission ####
+        // ####  Get surface albedo ####
+        vec4 surfaceAlbedo = texture(inputAlbedo, inUV);
+
+        // ####  Get surface material information ####
+        vec4 matInformation = texture(inputMaterial, inUV);
+        float shininessStrength = matInformation.x;
+        float shininess = matInformation.y;
+        // uint materialIndex = uint(matInformation.z);
 
         // Trace recursive refractions and reflections
         float reflectionPercent = reflectRefractData.x;
@@ -104,7 +90,7 @@ void main()
             if (!is_zero(refractionRayDirection)) {
                 reset_payload();
                 trace_ray(refractionPoint, refractionRayDirection, 0.0f, CAMERA_FAR);
-                refractions = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance);
+                refractions = vec3(rayPayload.surfaceRadiance);
             } else {
                 refractionPercent = 0.0f;
             }
@@ -115,7 +101,7 @@ void main()
             vec3 reflectionPoint = hitPoint;
             reset_payload();
             trace_ray(reflectionPoint, reflectionRayDirection, 0.0f, CAMERA_FAR);
-            reflections = vec3(rayPayload.surfaceEmissive + rayPayload.surfaceRadiance);
+            reflections = vec3(rayPayload.surfaceRadiance);
         }
         reset_payload();
 
@@ -149,18 +135,18 @@ void main()
                 }
                 const float cosThetaLight = abs(dot(shadingNormal, lightDir));
                 diffuse += lightIntensity * cosThetaLight;
-                if (material.shininessStrength == 0) {
+                if (shininessStrength == 0) {
                     continue;
                 }
                 const vec3 r = reflect(lightDir, shadingNormal);
-                specular += lightIntensity * pow(max(0, dot(r, direction)), material.shininess)
-                    * material.shininessStrength;
+                specular += lightIntensity * pow(max(0, dot(r, direction)), shininess)
+                    * shininessStrength;
             }
             vec3 surfaceRadiance = (max(diffuse, ambient) + specular) * surfaceAlbedo.xyz;
 
             surfaceColor += vec4(surfaceRadiance * surfacePercent, 0.0);
         }
-        result = vec4(surfaceEmissive, 0) + surfaceColor;
+        result = clamp(surfaceColor, vec4(0.0), vec4(1.0));
     } else {
         result = vec4(sky_ray(-direction), 1.0);
     }

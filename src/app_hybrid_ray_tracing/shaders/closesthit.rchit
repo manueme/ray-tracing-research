@@ -79,11 +79,10 @@ void main()
             const vec3 refractionRayDirection = refract(hitDirection, shadingNormal, ior);
             if (!is_zero(refractionRayDirection)) {
                 rayPayload.surfaceRadiance = vec3(0.0);
-                rayPayload.surfaceEmissive = vec3(0.0);
                 rayPayload.rayType = RAY_TYPE_REFRACTION;
                 rayPayload.depth = currentDepth + 1;
                 trace_ray(hitPoint, refractionRayDirection, 0.0f, CAMERA_FAR);
-                refractions = rayPayload.surfaceEmissive + rayPayload.surfaceRadiance;
+                refractions = rayPayload.surfaceRadiance;
             } else {
                 // total internal reflection
                 reflectPercent += refractPercent;
@@ -92,11 +91,10 @@ void main()
         if (reflectPercent > 0.0f) { // REFLECT RAY
             vec3 reflectDirection = reflect(hitDirection, shadingNormal);
             rayPayload.surfaceRadiance = vec3(0.0);
-            rayPayload.surfaceEmissive = vec3(0.0);
             rayPayload.rayType = RAY_TYPE_REFLECTION;
             rayPayload.depth = currentDepth + 1;
             trace_ray(hitPoint, reflectDirection, 0.0f, CAMERA_FAR);
-            reflections = rayPayload.surfaceEmissive + rayPayload.surfaceRadiance;
+            reflections = rayPayload.surfaceRadiance;
         }
     }
     // #### End compute recursive reflections and refractions ####
@@ -129,10 +127,6 @@ void main()
 
     rayPayload.surfaceRadiance = reflections * reflectPercent + refractions * refractPercent
         + surfaceRadiance * surfacePercent;
-
-    // ####  Compute surface emission ####
-    rayPayload.surfaceEmissive = get_surface_emissive(material, hitUV).rgb;
-    // ####  End compute surface emission ####
 
     rayPayload.rayType = RAY_TYPE_DIFFUSE;
     rayPayload.hitDistance = gl_HitTEXT;

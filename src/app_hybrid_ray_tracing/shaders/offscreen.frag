@@ -30,8 +30,9 @@ layout(location = 3) in vec3 inBitangent;
 layout(location = 4) in vec3 inEyePos;
 
 layout(location = 0) out vec4 outFragMaterial;
-layout(location = 1) out vec4 outFragNormals;
-layout(location = 2) out vec4 outFragReflectRefractMap;
+layout(location = 1) out vec4 outFragAlbedo;
+layout(location = 2) out vec4 outFragNormals;
+layout(location = 3) out vec4 outFragReflectRefractMap;
 
 void main()
 {
@@ -88,6 +89,8 @@ void main()
 
     outFragNormals = vec4(vec3(transpose(scene.view) * vec4(shadingNormal, 1.0f)).xyz,
         surfaceAlbedo.a); // transform them back to view space
+    outFragAlbedo = surfaceAlbedo;
     outFragReflectRefractMap = vec4(reflectPercent, refractPercent, ior, alphaWithoutRefractives);
-    outFragMaterial = vec4(inUV.x, inUV.y, float(materialIndex.i), 1.0);
+    outFragMaterial
+        = vec4(material.shininessStrength, material.shininess, float(materialIndex.i), 1.0);
 }

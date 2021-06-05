@@ -29,7 +29,8 @@ public:
         uint32_t t_swapChainCount, std::vector<Buffer>& t_sceneBuffers, Buffer* t_instancesBuffer,
         Buffer* t_lightsBuffer, Buffer* t_materialsBuffer);
 
-    void updateResultImageDescriptorSets(uint32_t t_index, Texture* t_offscreenColor,
+    void updateResultImageDescriptorSets(uint32_t t_index,
+        Texture* t_offscreenMaterial, Texture* t_offscreenAlbedo,
         Texture* t_offscreenNormals, Texture* t_offscreenReflectRefractMap,
         Texture* t_offscreenDepth, Texture* t_result);
 

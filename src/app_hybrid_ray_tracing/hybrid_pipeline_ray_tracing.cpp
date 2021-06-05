@@ -82,11 +82,12 @@ void HybridPipelineRT::buildCommandBuffers()
     VkCommandBufferBeginInfo drawCmdBufInfo = {};
     drawCmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    std::array<VkClearValue, 4> rasterClearValues = {};
+    std::array<VkClearValue, 5> rasterClearValues = {};
     rasterClearValues[0].color = m_default_clear_color;
     rasterClearValues[1].color = m_default_clear_color;
     rasterClearValues[2].color = m_default_clear_color;
-    rasterClearValues[3].depthStencil = { 1.0f, 0 };
+    rasterClearValues[3].color = m_default_clear_color;
+    rasterClearValues[4].depthStencil = { 1.0f, 0 };
     VkRenderPassBeginInfo rasterPassBeginInfo = {};
     rasterPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rasterPassBeginInfo.renderPass = m_offscreenRenderPass;
@@ -215,7 +216,7 @@ void HybridPipelineRT::createDescriptorPool()
     const auto sceneSets = 1 * m_swapChain.imageCount;
     const auto exposurePipelineSets = 2 * m_swapChain.imageCount;
     const auto postProcessPipelineSets = 4 * m_swapChain.imageCount;
-    const auto rayTracingPipelineSets = 4 + 3 * m_swapChain.imageCount;
+    const auto rayTracingPipelineSets = 5 + 3 * m_swapChain.imageCount;
     const auto offscreenPipelineSets = 2 + 1 * m_swapChain.imageCount;
     uint32_t maxSetsForPool = sceneSets + exposurePipelineSets + postProcessPipelineSets
         + rayTracingPipelineSets + offscreenPipelineSets;
@@ -430,6 +431,13 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_SAMPLE_COUNT_1_BIT,
             VK_IMAGE_USAGE_SAMPLED_BIT);
+        m_storageImages[i].offscreenAlbedo.toColorAttachment(VK_FORMAT_R8G8B8A8_UNORM,
+            m_width,
+            m_height,
+            m_vulkanDevice,
+            m_queue,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_IMAGE_USAGE_SAMPLED_BIT);
         m_storageImages[i].offscreenNormals.toColorAttachment(VK_FORMAT_R32G32B32A32_SFLOAT,
             m_width,
             m_height,
@@ -473,8 +481,8 @@ void HybridPipelineRT::createStorageImages()
 
 void HybridPipelineRT::createOffscreenRenderPass()
 {
-    std::array<VkAttachmentDescription, 4> attachmentDescriptions = {};
-    // Color attachment
+    std::array<VkAttachmentDescription, 5> attachmentDescriptions = {};
+    // Material attachment
     attachmentDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     attachmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -484,8 +492,8 @@ void HybridPipelineRT::createOffscreenRenderPass()
     attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    // Normals attachment
-    attachmentDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    // Albedo attachment
+    attachmentDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
     attachmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -494,7 +502,7 @@ void HybridPipelineRT::createOffscreenRenderPass()
     attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    // Reflection and Refraction map attachment
+    // Normals attachment
     attachmentDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     attachmentDescriptions[2].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -504,30 +512,43 @@ void HybridPipelineRT::createOffscreenRenderPass()
     attachmentDescriptions[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachmentDescriptions[2].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    // Depth attachment
-    attachmentDescriptions[3].format = VK_FORMAT_D32_SFLOAT;
+    // Reflection and Refraction map attachment
+    attachmentDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     attachmentDescriptions[3].samples = VK_SAMPLE_COUNT_1_BIT;
     attachmentDescriptions[3].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     attachmentDescriptions[3].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachmentDescriptions[3].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescriptions[3].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescriptions[3].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescriptions[3].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    attachmentDescriptions[3].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    VkAttachmentReference colorReference = {};
-    colorReference.attachment = 0;
-    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    // Depth attachment
+    attachmentDescriptions[4].format = VK_FORMAT_D32_SFLOAT;
+    attachmentDescriptions[4].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[4].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[4].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[4].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[4].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[4].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[4].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference materialReference = {};
+    materialReference.attachment = 0;
+    materialReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference albedoReference = {};
+    albedoReference.attachment = 1;
+    albedoReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     VkAttachmentReference normalsReference = {};
-    normalsReference.attachment = 1;
+    normalsReference.attachment = 2;
     normalsReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     VkAttachmentReference reflectRefractReference = {};
-    reflectRefractReference.attachment = 2;
+    reflectRefractReference.attachment = 3;
     reflectRefractReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    std::array<VkAttachmentReference, 3> colorAttachmentReferences
-        = { colorReference, normalsReference, reflectRefractReference };
+    std::array<VkAttachmentReference, 4> colorAttachmentReferences
+        = { materialReference, albedoReference, normalsReference, reflectRefractReference };
 
     VkAttachmentReference depthReference = {};
-    depthReference.attachment = 3;
+    depthReference.attachment = 4;
     depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpassDescription = {};
@@ -571,11 +592,12 @@ void HybridPipelineRT::createOffscreenFramebuffers()
 {
     m_offscreenFramebuffers.resize(m_swapChain.imageCount);
     for (uint32_t i = 0; i < m_swapChain.imageCount; ++i) {
-        std::array<VkImageView, 4> attachments = {};
+        std::array<VkImageView, 5> attachments = {};
         attachments[0] = m_storageImages[i].offscreenMaterial.getImageView();
-        attachments[1] = m_storageImages[i].offscreenNormals.getImageView();
-        attachments[2] = m_storageImages[i].offscreenReflectRefractMap.getImageView();
-        attachments[3] = m_storageImages[i].offscreenDepth.getImageView();
+        attachments[1] = m_storageImages[i].offscreenAlbedo.getImageView();
+        attachments[2] = m_storageImages[i].offscreenNormals.getImageView();
+        attachments[3] = m_storageImages[i].offscreenReflectRefractMap.getImageView();
+        attachments[4] = m_storageImages[i].offscreenDepth.getImageView();
 
         VkFramebufferCreateInfo framebufferCreateInfo {};
         framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -598,6 +620,7 @@ void HybridPipelineRT::updateResultImageDescriptorSets()
         // Ray tracing sets
         m_rayTracing->updateResultImageDescriptorSets(i,
             &m_storageImages[i].offscreenMaterial,
+            &m_storageImages[i].offscreenAlbedo,
             &m_storageImages[i].offscreenNormals,
             &m_storageImages[i].offscreenReflectRefractMap,
             &m_storageImages[i].offscreenDepth,
@@ -625,6 +648,7 @@ void HybridPipelineRT::onSwapChainRecreation()
         m_storageImages[i].rtResultImage.destroy();
         m_storageImages[i].postProcessResultImage.destroy();
         m_storageImages[i].offscreenMaterial.destroy();
+        m_storageImages[i].offscreenAlbedo.destroy();
         m_storageImages[i].offscreenDepth.destroy();
         m_storageImages[i].offscreenNormals.destroy();
         m_storageImages[i].offscreenReflectRefractMap.destroy();
@@ -695,8 +719,9 @@ void HybridPipelineRT::createRasterPipeline()
             VK_CULL_MODE_BACK_BIT,
             VK_FRONT_FACE_CLOCKWISE,
             0);
-    std::array<VkPipelineColorBlendAttachmentState, 3> blendAttachmentStates
+    std::array<VkPipelineColorBlendAttachmentState, 4> blendAttachmentStates
         = { initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
+              initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
               initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE),
               initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE) };
     VkPipelineColorBlendStateCreateInfo colorBlendState
@@ -909,6 +934,7 @@ HybridPipelineRT::~HybridPipelineRT()
         offscreenImage.rtResultImage.destroy();
         offscreenImage.postProcessResultImage.destroy();
         offscreenImage.offscreenMaterial.destroy();
+        offscreenImage.offscreenAlbedo.destroy();
         offscreenImage.offscreenDepth.destroy();
         offscreenImage.offscreenNormals.destroy();
         offscreenImage.offscreenReflectRefractMap.destroy();
