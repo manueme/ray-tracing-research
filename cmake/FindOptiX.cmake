@@ -11,16 +11,16 @@ set(OPTIX_PATH $ENV{OPTIX_PATH})
 if ("${OPTIX_PATH}" STREQUAL "")
     if (WIN32)
         # Try finding it inside the default installation directory under Windows first.
-        set(OPTIX_PATH "C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.2.0")
+        set(OPTIX_PATH "C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.3.0")
     else()
-        # Adjust this if the OptiX SDK 7.2.0 installation is in a different location.
-        set(OPTIX_PATH "~/NVIDIA-OptiX-SDK-7.2.0-linux64")
+        # Adjust this if the OptiX SDK 7.3.0 installation is in a different location.
+        set(OPTIX_PATH "~/NVIDIA-OptiX-SDK-7.3.0-linux64")
     endif()
 endif()
 
 find_path(OPTIX_INCLUDE_DIR optix_7_host.h ${OPTIX_PATH}/include)
 
-# message("OPTIX72_INCLUDE_DIR = " "${OPTIX72_INCLUDE_DIR}")
+# message("OPTIX73_INCLUDE_DIR = " "${OPTIX73_INCLUDE_DIR}")
 
 include(FindPackageHandleStandardArgs)
 

@@ -105,18 +105,18 @@ Install the CUDA SDK from [Cuda Zone](https://developer.nvidia.com/cuda-zone)
 
 ### Optix (only required for to run the denoiser app)
 
-Install Optix 7.2 from the [NVIDIA Developer page](https://developer.nvidia.com/designworks/optix/download), you will
+Install **Optix 3.0** from the [NVIDIA Developer page](https://developer.nvidia.com/designworks/optix/download), you will
 probably need an NVIDIA developer account for this.
 
 #### Linux
 
 By default the **Find OptiX** will look for `OPTIX_PATH` as an environment variable with the installation path or
-into _"~/NVIDIA-OptiX-SDK-7.2.0-linux64"_. You can change the path defined in `cmake/FindOptiX.cmake`.
+into _"~/NVIDIA-OptiX-SDK-3.0.0-linux64"_. You can change the path defined in `cmake/FindOptiX.cmake`.
 
 #### Windows
 
 By default the **Find OptiX** will look for `OPTIX_PATH` as an environment variable with the installation path or
-into "_C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.2.0"_, Optix should be installed there by default, if not, you can
+into "_C:/ProgramData/NVIDIA Corporation/OptiX SDK 3.0.0"_, Optix should be installed there by default, if not, you can
 change the path defined in `cmake/FindOptiX.cmake`.
 
 ## Assets

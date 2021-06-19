@@ -360,8 +360,8 @@ void RayTracingOptixDenoiser::prepare()
 
     m_denoiser->allocateBuffers({ m_width, m_height },
         &m_denoiserData.pixelBufferInRawResult,
-        &m_denoiserData.pixelBufferInNormal,
         &m_denoiserData.pixelBufferInAlbedo,
+        &m_denoiserData.pixelBufferInNormal,
         &m_denoiserData.pixelBufferOut);
 
     setupScene();
@@ -419,6 +419,7 @@ void RayTracingOptixDenoiser::render()
     m_denoiser->denoiseSubmit(&m_denoiserData.denoiseWaitFor,
         &m_denoiserData.denoiseSignalTo,
         0.0f,
+        m_sceneUniformData.frameIteration == 0,
         m_denoiserData.timelineValue);
 
     // Submit Compute Command Buffer:
@@ -447,18 +448,19 @@ void RayTracingOptixDenoiser::render()
         ++m_sceneUniformData.frame;
         ++m_sceneUniformData.frameIteration;
 
-        /* MSE calculation screenshots
-        if (m_sceneUniformData.frame == 1 ||
-            m_sceneUniformData.frame == 10 ||
-            m_sceneUniformData.frame == 50 ||
-            m_sceneUniformData.frame == 100 ||
-            m_sceneUniformData.frame == 500 ||
-            m_sceneUniformData.frame == 1000 ||
-            m_sceneUniformData.frame == 5000 ||
-            m_sceneUniformData.frame == 10000 ||
-            m_sceneUniformData.frame == 50000) {
-            saveScreenshot(std::string("./monte_carlo_denoiser_exterior_" + std::to_string(m_sceneUniformData.frame) + ".ppm").c_str());
-        }*/
+        // MSE calculation screenshots
+        //        if (m_sceneUniformData.frame == 1 ||
+        //            m_sceneUniformData.frame == 10 ||
+        //            m_sceneUniformData.frame == 50 ||
+        //            m_sceneUniformData.frame == 100 ||
+        //            m_sceneUniformData.frame == 500 ||
+        //            m_sceneUniformData.frame == 1000 ||
+        //            m_sceneUniformData.frame == 5000 ||
+        //            m_sceneUniformData.frame == 10000 ||
+        //            m_sceneUniformData.frame == 50000) {
+        //            saveScreenshot(std::string("./monte_carlo_denoiser_exterior_" +
+        //            std::to_string(m_sceneUniformData.frame) + ".ppm").c_str());
+        //        }
     }
 }
 
@@ -513,8 +515,8 @@ void RayTracingOptixDenoiser::onSwapChainRecreation()
     m_denoiserData.pixelBufferOut.destroy();
     m_denoiser->allocateBuffers({ m_width, m_height },
         &m_denoiserData.pixelBufferInRawResult,
-        &m_denoiserData.pixelBufferInNormal,
         &m_denoiserData.pixelBufferInAlbedo,
+        &m_denoiserData.pixelBufferInNormal,
         &m_denoiserData.pixelBufferOut);
 
     updateResultImageDescriptorSets();

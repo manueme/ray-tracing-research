@@ -39,10 +39,12 @@ int DenoiserOptixPipeline::initOptiX()
     OPTIX_CHECK(optixDeviceContextCreate(cuCtx, nullptr, &m_optixDevice))
     OPTIX_CHECK(optixDeviceContextSetLogCallback(m_optixDevice, context_log_cb, nullptr, 4))
 
-    m_dOptions.inputKind = OPTIX_DENOISER_INPUT_RGB_ALBEDO_NORMAL;
-    OPTIX_CHECK(optixDenoiserCreate(m_optixDevice, &m_dOptions, &m_denoiser));
-    OPTIX_CHECK(optixDenoiserSetModel(m_denoiser, OPTIX_DENOISER_MODEL_KIND_AOV, nullptr, 0));
-
+    m_dOptions.guideAlbedo = true;
+    m_dOptions.guideNormal = true;
+    OPTIX_CHECK(optixDenoiserCreate(m_optixDevice,
+        OPTIX_DENOISER_MODEL_KIND_TEMPORAL,
+        &m_dOptions,
+        &m_denoiser));
     return 1;
 }
 
@@ -91,6 +93,10 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize,
     CUDA_CHECK(cudaMalloc((void**)&m_dScratch, m_dSizes.withoutOverlapScratchSizeInBytes));
     CUDA_CHECK(cudaMalloc((void**)&m_dIntensity, sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**)&m_dAverageRGB, 4 * sizeof(float)));
+    // Initialize pixel flow in zero
+    auto bufferFlow = m_imageSize.width * m_imageSize.height * 2 * sizeof(float);
+    CUDA_CHECK(cudaMalloc((void**)&m_pixelBufferInPixelFlow, bufferFlow));
+    CUDA_CHECK(cudaMemset((void**)&m_pixelBufferInPixelFlow, 0, bufferFlow));
 
     CUstream stream = nullptr;
     OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
@@ -117,51 +123,68 @@ void DenoiserOptixPipeline::destroy()
     if (m_dAverageRGB != 0) {
         CUDA_CHECK(cudaFree((void*)m_dAverageRGB));
     }
+    if (m_pixelBufferInPixelFlow != 0) {
+        CUDA_CHECK(cudaFree((void*)m_pixelBufferInPixelFlow));
+    }
 }
 
 void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo,
-    float t_blendFactor, uint64_t& t_timelineValue)
+    float t_blendFactor, bool t_firstFrame, uint64_t& t_timelineValue)
 {
     try {
         OptixPixelFormat pixelFormat = OPTIX_PIXEL_FORMAT_FLOAT4;
         uint32_t rowStrideInBytes = 4 * sizeof(float) * m_imageSize.width;
 
-        std::vector<OptixImage2D> inputLayer; // Order: RGB, Albedo, Normal
+        OptixDenoiserLayer inputLayer;
+        OptixDenoiserGuideLayer inputGuideLayer;
 
         // RGB
-        inputLayer.push_back(OptixImage2D { (CUdeviceptr)m_pixelBufferInRawResult->getCudaPointer(),
-            m_imageSize.width,
-            m_imageSize.height,
-            rowStrideInBytes,
-            0,
-            pixelFormat });
-        // ALBEDO
-        if (m_dOptions.inputKind == OPTIX_DENOISER_INPUT_RGB_ALBEDO
-            || m_dOptions.inputKind == OPTIX_DENOISER_INPUT_RGB_ALBEDO_NORMAL) {
-            inputLayer.push_back(
-                OptixImage2D { (CUdeviceptr)m_pixelBufferInAlbedo->getCudaPointer(),
-                    m_imageSize.width,
-                    m_imageSize.height,
-                    rowStrideInBytes,
-                    0,
-                    pixelFormat });
-        }
-        // NORMAL
-        if (m_dOptions.inputKind == OPTIX_DENOISER_INPUT_RGB_ALBEDO_NORMAL) {
-            inputLayer.push_back(
-                OptixImage2D { (CUdeviceptr)m_pixelBufferInNormal->getCudaPointer(),
-                    m_imageSize.width,
-                    m_imageSize.height,
-                    rowStrideInBytes,
-                    0,
-                    pixelFormat });
-        }
-        OptixImage2D outputLayer = { (CUdeviceptr)m_pixelBufferOut->getCudaPointer(),
+        inputLayer.input = OptixImage2D { (CUdeviceptr)m_pixelBufferInRawResult->getCudaPointer(),
             m_imageSize.width,
             m_imageSize.height,
             rowStrideInBytes,
             0,
             pixelFormat };
+        if (t_firstFrame) {
+            inputLayer.previousOutput = inputLayer.input;
+        } else {
+            inputLayer.previousOutput = { (CUdeviceptr)m_pixelBufferOut->getCudaPointer(),
+                m_imageSize.width,
+                m_imageSize.height,
+                rowStrideInBytes,
+                0,
+                pixelFormat };
+        }
+        inputLayer.output = { (CUdeviceptr)m_pixelBufferOut->getCudaPointer(),
+            m_imageSize.width,
+            m_imageSize.height,
+            rowStrideInBytes,
+            0,
+            pixelFormat };
+
+        // PIXEL FLOW
+        inputGuideLayer.flow = OptixImage2D { m_pixelBufferInPixelFlow,
+            m_imageSize.width,
+            m_imageSize.height,
+            static_cast<uint32_t>(2 * sizeof(float) * m_imageSize.width),
+            0,
+            OPTIX_PIXEL_FORMAT_FLOAT2 };
+        // ALBEDO
+        inputGuideLayer.albedo
+            = OptixImage2D { (CUdeviceptr)m_pixelBufferInAlbedo->getCudaPointer(),
+                  m_imageSize.width,
+                  m_imageSize.height,
+                  rowStrideInBytes,
+                  0,
+                  pixelFormat };
+        // NORMAL
+        inputGuideLayer.normal
+            = OptixImage2D { (CUdeviceptr)m_pixelBufferInNormal->getCudaPointer(),
+                  m_imageSize.width,
+                  m_imageSize.height,
+                  rowStrideInBytes,
+                  0,
+                  pixelFormat };
 
         cudaExternalSemaphoreWaitParams waitParams {};
         waitParams.flags = 0;
@@ -172,14 +195,14 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
         CUstream stream = nullptr;
         OPTIX_CHECK(optixDenoiserComputeIntensity(m_denoiser,
             stream,
-            &inputLayer[0],
+            &inputLayer.input,
             m_dIntensity,
             m_dScratch,
             m_dSizes.withoutOverlapScratchSizeInBytes));
 
         OPTIX_CHECK(optixDenoiserComputeAverageColor(m_denoiser,
             stream,
-            &inputLayer[0],
+            &inputLayer.input,
             m_dAverageRGB,
             m_dScratch,
             m_dSizes.withoutOverlapScratchSizeInBytes));
@@ -191,17 +214,17 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
             params.hdrAverageColor = m_dAverageRGB;
             params.blendFactor = glm::max(0.0f, t_blendFactor);
             OPTIX_CHECK(optixDenoiserInvoke(m_denoiser,
-                                            stream,
-                                            &params,
-                                            m_dState,
-                                            m_dSizes.stateSizeInBytes,
-                                            inputLayer.data(),
-                                            (uint32_t)inputLayer.size(),
-                                            0,
-                                            0,
-                                            &outputLayer,
-                                            m_dScratch,
-                                            m_dSizes.withoutOverlapScratchSizeInBytes));
+                stream,
+                &params,
+                m_dState,
+                m_dSizes.stateSizeInBytes,
+                &inputGuideLayer,
+                &inputLayer,
+                1,
+                0,
+                0,
+                m_dScratch,
+                m_dSizes.withoutOverlapScratchSizeInBytes));
             CUDA_CHECK(cudaStreamSynchronize(stream)); // Making sure the denoiser is done
         }
 

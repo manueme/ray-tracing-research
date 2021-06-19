@@ -118,6 +118,8 @@ void main()
             direction = rayPayload.nextRayDirection;
             if (depth == 0) {
                 resultDistance = rayPayload.hitDistance;
+                hitNormal += rayPayload.surfaceNormal;
+                hitAlbedo += min(rayPayload.surfaceEmissive + rayPayload.surfaceAttenuation, vec3(1.0f));
             }
             if (rayPayload.rayType == RAY_TYPE_DIFFUSE) {
                 sampleResult = rayPayload.surfaceEmissive + rayPayload.surfaceRadiance / M_PIf;
@@ -135,8 +137,6 @@ void main()
 #ifdef STORE_DEPTH_MAP
         hitDistance += resultDistance / RAY_DISTANCE;
 #endif
-        hitAlbedo += min(rayPayload.surfaceEmissive + rayPayload.surfaceAttenuation, vec3(1.0f));
-        hitNormal += rayPayload.surfaceNormal;
 
         // Indirect Illum
         for (depth; depth < maxDepth; ++depth) {
