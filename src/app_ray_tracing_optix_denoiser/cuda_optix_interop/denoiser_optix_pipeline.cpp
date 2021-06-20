@@ -50,7 +50,8 @@ int DenoiserOptixPipeline::initOptiX()
 
 void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize,
     BufferCuda* t_pixelBufferInRawResult, BufferCuda* t_pixelBufferInAlbedo,
-    BufferCuda* t_pixelBufferInNormal, BufferCuda* t_pixelBufferOut)
+    BufferCuda* t_pixelBufferInNormal, BufferCuda* t_pixelBufferInFlow,
+    BufferCuda* t_pixelBufferOut)
 {
     m_imageSize = imgSize;
 
@@ -73,6 +74,10 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bufferSize);
+    t_pixelBufferInFlow->create(m_vulkanDevice,
+        usage,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        m_imageSize.width * m_imageSize.height * 2 * sizeof(float));
     t_pixelBufferOut->create(m_vulkanDevice,
         usage,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -81,6 +86,7 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize,
     m_pixelBufferInRawResult = t_pixelBufferInRawResult;
     m_pixelBufferInAlbedo = t_pixelBufferInAlbedo;
     m_pixelBufferInNormal = t_pixelBufferInNormal;
+    m_pixelBufferInPixelFlow = t_pixelBufferInFlow;
     m_pixelBufferOut = t_pixelBufferOut;
 
     // Computing the amount of memory needed to do the denoiser
@@ -93,10 +99,6 @@ void DenoiserOptixPipeline::allocateBuffers(const VkExtent2D& imgSize,
     CUDA_CHECK(cudaMalloc((void**)&m_dScratch, m_dSizes.withoutOverlapScratchSizeInBytes));
     CUDA_CHECK(cudaMalloc((void**)&m_dIntensity, sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**)&m_dAverageRGB, 4 * sizeof(float)));
-    // Initialize pixel flow in zero
-    auto bufferFlow = m_imageSize.width * m_imageSize.height * 2 * sizeof(float);
-    CUDA_CHECK(cudaMalloc((void**)&m_pixelBufferInPixelFlow, bufferFlow));
-    CUDA_CHECK(cudaMemset((void**)&m_pixelBufferInPixelFlow, 0, bufferFlow));
 
     CUstream stream = nullptr;
     OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
@@ -123,9 +125,6 @@ void DenoiserOptixPipeline::destroy()
     if (m_dAverageRGB != 0) {
         CUDA_CHECK(cudaFree((void*)m_dAverageRGB));
     }
-    if (m_pixelBufferInPixelFlow != 0) {
-        CUDA_CHECK(cudaFree((void*)m_pixelBufferInPixelFlow));
-    }
 }
 
 void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo,
@@ -139,7 +138,8 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
         OptixDenoiserGuideLayer inputGuideLayer;
 
         // RGB
-        inputLayer.input = OptixImage2D { (CUdeviceptr)m_pixelBufferInRawResult->getCudaPointer(),
+        inputLayer.input = OptixImage2D { reinterpret_cast<CUdeviceptr>(
+                                              m_pixelBufferInRawResult->getCudaPointer()),
             m_imageSize.width,
             m_imageSize.height,
             rowStrideInBytes,
@@ -147,31 +147,34 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
             pixelFormat };
         if (t_firstFrame) {
             inputLayer.previousOutput = inputLayer.input;
-        } else {
-            inputLayer.previousOutput = { (CUdeviceptr)m_pixelBufferOut->getCudaPointer(),
+            inputLayer.output = { reinterpret_cast<CUdeviceptr>(m_pixelBufferOut->getCudaPointer()),
                 m_imageSize.width,
                 m_imageSize.height,
                 rowStrideInBytes,
                 0,
                 pixelFormat };
+        } else {
+            inputLayer.previousOutput
+                = { reinterpret_cast<CUdeviceptr>(m_pixelBufferOut->getCudaPointer()),
+                      m_imageSize.width,
+                      m_imageSize.height,
+                      rowStrideInBytes,
+                      0,
+                      pixelFormat };
+            inputLayer.output = inputLayer.previousOutput;
         }
-        inputLayer.output = { (CUdeviceptr)m_pixelBufferOut->getCudaPointer(),
-            m_imageSize.width,
-            m_imageSize.height,
-            rowStrideInBytes,
-            0,
-            pixelFormat };
 
         // PIXEL FLOW
-        inputGuideLayer.flow = OptixImage2D { m_pixelBufferInPixelFlow,
+        inputGuideLayer.flow = OptixImage2D { reinterpret_cast<CUdeviceptr>(
+                                                  m_pixelBufferInPixelFlow->getCudaPointer()),
             m_imageSize.width,
             m_imageSize.height,
-            static_cast<uint32_t>(2 * sizeof(float) * m_imageSize.width),
+            static_cast<unsigned int>(2 * sizeof(float) * m_imageSize.width),
             0,
             OPTIX_PIXEL_FORMAT_FLOAT2 };
         // ALBEDO
         inputGuideLayer.albedo
-            = OptixImage2D { (CUdeviceptr)m_pixelBufferInAlbedo->getCudaPointer(),
+            = OptixImage2D { reinterpret_cast<CUdeviceptr>(m_pixelBufferInAlbedo->getCudaPointer()),
                   m_imageSize.width,
                   m_imageSize.height,
                   rowStrideInBytes,
@@ -179,7 +182,7 @@ void DenoiserOptixPipeline::denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCud
                   pixelFormat };
         // NORMAL
         inputGuideLayer.normal
-            = OptixImage2D { (CUdeviceptr)m_pixelBufferInNormal->getCudaPointer(),
+            = OptixImage2D { reinterpret_cast<CUdeviceptr>(m_pixelBufferInNormal->getCudaPointer()),
                   m_imageSize.width,
                   m_imageSize.height,
                   rowStrideInBytes,

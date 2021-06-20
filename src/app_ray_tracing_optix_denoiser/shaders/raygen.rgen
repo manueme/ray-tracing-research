@@ -24,7 +24,9 @@ layout(binding = 0, set = 6) buffer ImageNormal_ { vec4 data[]; }
 imageNormal;
 layout(binding = 1, set = 6) buffer ImageAlbedo_ { vec4 data[]; }
 imageAlbedo;
-layout(binding = 2, set = 6) buffer ImageResult_ { vec4 data[]; }
+layout(binding = 2, set = 6) buffer ImagePixelFLow_ { float data[]; }
+imagePixelFlow;
+layout(binding = 3, set = 6) buffer ImageResult_ { vec4 data[]; }
 imageResult;
 
 layout(push_constant) uniform Constants
@@ -60,6 +62,7 @@ void main()
     vec3 hitDistance = vec3(0.0f);
     vec3 hitNormal = vec3(0.0f);
     vec3 hitAlbedo = vec3(0.0f);
+    vec3 hitWorldPosition = vec3(0.0f);
 #ifdef DEPTH_OF_FIELD
     const float focalLength = estimateFocalDepth();
 #endif
@@ -119,7 +122,9 @@ void main()
             if (depth == 0) {
                 resultDistance = rayPayload.hitDistance;
                 hitNormal += rayPayload.surfaceNormal;
-                hitAlbedo += min(rayPayload.surfaceEmissive + rayPayload.surfaceAttenuation, vec3(1.0f));
+                hitAlbedo
+                    += min(rayPayload.surfaceEmissive + rayPayload.surfaceAttenuation, vec3(1.0f));
+                hitWorldPosition = rayPayload.nextRayOrigin;
             }
             if (rayPayload.rayType == RAY_TYPE_DIFFUSE) {
                 sampleResult = rayPayload.surfaceEmissive + rayPayload.surfaceRadiance / M_PIf;
@@ -173,6 +178,7 @@ void main()
 
     hitAlbedo /= float(samples);
     hitNormal /= float(samples);
+    hitWorldPosition /= float(samples);
 
 #endif
 
@@ -196,5 +202,20 @@ void main()
     imageStore(imageDepth, ivec2(gl_LaunchIDEXT.xy), vec4(hitDistance, 1.0f));
 #endif
     imageAlbedo.data[bufferImageIdx] = vec4(hitAlbedo, 1.0f);
-    imageNormal.data[bufferImageIdx] = vec4(normalize(hitNormal * 0.5 + 0.5), 1.0f);
+    imageNormal.data[bufferImageIdx] = vec4(normalize(hitNormal * 0.5f + 0.5f), 1.0f);
+
+    // Calculate pixel flow as another denoiser input
+    uint floatBufferImageIdx = bufferImageIdx * 2;
+    if (scene.frame > 0) {
+        vec4 prevPosition
+            = normalize(scene.prevProjection * scene.prevView * vec4(hitWorldPosition.xyz, 1.0f));
+        vec4 currentPosition = normalize(
+            scene.currentProjection * scene.currentView * vec4(hitWorldPosition.xyz, 1.0f));
+        vec2 pixelFlow = (currentPosition.xy - prevPosition.xy) * vec2(gl_LaunchSizeEXT.xy);
+        imagePixelFlow.data[floatBufferImageIdx] = pixelFlow.x;
+        imagePixelFlow.data[floatBufferImageIdx + 1] = pixelFlow.y;
+    } else {
+        imagePixelFlow.data[floatBufferImageIdx] = 0.0f;
+        imagePixelFlow.data[floatBufferImageIdx + 1] = 0.0f;
+    }
 }

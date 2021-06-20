@@ -8,8 +8,8 @@
 #include <array>
 #include <vector>
 
-DenoiseRayTracingPipeline::DenoiseRayTracingPipeline(
-    Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount)
+DenoiseRayTracingPipeline::DenoiseRayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth,
+    uint32_t t_sampleCount)
     : RayTracingBasePipeline(t_vulkanDevice, t_maxDepth, t_sampleCount)
 {
 }
@@ -27,8 +27,8 @@ DenoiseRayTracingPipeline::~DenoiseRayTracingPipeline()
     vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayouts.set6ResultBuffers, nullptr);
 };
 
-void DenoiseRayTracingPipeline::buildCommandBuffer(
-    VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height)
+void DenoiseRayTracingPipeline::buildCommandBuffer(VkCommandBuffer t_commandBuffer,
+    uint32_t t_width, uint32_t t_height)
 {
     /*
     Dispatch the ray tracing commands
@@ -196,10 +196,14 @@ void DenoiseRayTracingPipeline::createDescriptorSetsLayout(Scene* t_scene)
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             1),
-        // Binding 2 : Result image
+        // Binding 2 : PixelFlow image
         initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_SHADER_STAGE_RAYGEN_BIT_KHR,
             2),
+        // Binding 3 : Result image
+        initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+            3),
     };
     descriptorLayout = initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(),
         setLayoutBindings.size());
@@ -407,8 +411,9 @@ void DenoiseRayTracingPipeline::createDescriptorSets(VkDescriptorPool t_descript
     // ----
 }
 
-void DenoiseRayTracingPipeline::updateResultImageDescriptorSets(
-    Texture* t_depthMap, Buffer* t_normalsBuffer, Buffer* t_albedoBuffer, Buffer* t_outImageBuffer)
+void DenoiseRayTracingPipeline::updateResultImageDescriptorSets(Texture* t_depthMap,
+    Buffer* t_albedoBuffer, Buffer* t_normalsBuffer, Buffer* t_pixelFlowBuffer,
+    Buffer* t_outImageBuffer)
 {
     VkWriteDescriptorSet normalsBufferWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set6ResultBuffers,
@@ -420,14 +425,19 @@ void DenoiseRayTracingPipeline::updateResultImageDescriptorSets(
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             1,
             &t_albedoBuffer->descriptor);
-    VkWriteDescriptorSet rtResultBufferWrite
+    VkWriteDescriptorSet pixelFlowBufferWrite
         = initializers::writeDescriptorSet(m_descriptorSets.set6ResultBuffers,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             2,
+            &t_pixelFlowBuffer->descriptor);
+    VkWriteDescriptorSet rtResultBufferWrite
+        = initializers::writeDescriptorSet(m_descriptorSets.set6ResultBuffers,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            3,
             &t_outImageBuffer->descriptor);
 
     std::vector<VkWriteDescriptorSet> writeDescriptorSet6
-        = { normalsBufferWrite, albedoBufferWrite, rtResultBufferWrite };
+        = { normalsBufferWrite, albedoBufferWrite, pixelFlowBufferWrite, rtResultBufferWrite };
     vkUpdateDescriptorSets(m_device,
         static_cast<uint32_t>(writeDescriptorSet6.size()),
         writeDescriptorSet6.data(),

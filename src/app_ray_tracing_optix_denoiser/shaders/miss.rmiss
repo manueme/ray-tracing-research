@@ -23,4 +23,5 @@ void main()
     rayInPayload.hitDistance = RAY_MAX_HIT;
     rayInPayload.rayType = RAY_TYPE_MISS;
     rayInPayload.surfaceNormal = vec3(0.0f);
+    rayInPayload.nextRayOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * RAY_MAX_HIT;
 }

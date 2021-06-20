@@ -36,7 +36,7 @@ public:
      */
     void allocateBuffers(const VkExtent2D& imgSize, BufferCuda* t_pixelBufferInRawResult,
         BufferCuda* t_pixelBufferInAlbedo, BufferCuda* t_pixelBufferInNormal,
-        BufferCuda* t_pixelBufferOut);
+        BufferCuda* t_pixelBufferInFlow, BufferCuda* t_pixelBufferOut);
 
     void denoiseSubmit(SemaphoreCuda* t_waitFor, SemaphoreCuda* t_signalTo, float t_blendFactor,
         bool t_firstFrame, uint64_t& t_timelineValue);
@@ -52,7 +52,6 @@ private:
     CUdeviceptr m_dScratch { 0 };
     CUdeviceptr m_dIntensity { 0 };
     CUdeviceptr m_dAverageRGB { 0 };
-    CUdeviceptr m_pixelBufferInPixelFlow { 0 };
 
     // Holding the Buffer for Cuda interop
     VkExtent2D m_imageSize;
@@ -61,6 +60,7 @@ private:
     BufferCuda* m_pixelBufferInAlbedo;
     BufferCuda* m_pixelBufferInNormal;
     BufferCuda* m_pixelBufferOut;
+    BufferCuda* m_pixelBufferInPixelFlow;
 
     int initOptiX();
 };

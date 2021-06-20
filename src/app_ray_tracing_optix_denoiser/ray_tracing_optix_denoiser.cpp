@@ -242,8 +242,9 @@ void RayTracingOptixDenoiser::updateResultImageDescriptorSets()
 {
     // Ray Tracing
     m_rayTracing->updateResultImageDescriptorSets(&m_storageImage.depthMap,
-        &m_denoiserData.pixelBufferInNormal,
         &m_denoiserData.pixelBufferInAlbedo,
+        &m_denoiserData.pixelBufferInNormal,
+        &m_denoiserData.pixelBufferInPixelFlow,
         &m_denoiserData.pixelBufferInRawResult);
 
     // Post Process
@@ -362,6 +363,7 @@ void RayTracingOptixDenoiser::prepare()
         &m_denoiserData.pixelBufferInRawResult,
         &m_denoiserData.pixelBufferInAlbedo,
         &m_denoiserData.pixelBufferInNormal,
+        &m_denoiserData.pixelBufferInPixelFlow,
         &m_denoiserData.pixelBufferOut);
 
     setupScene();
@@ -419,8 +421,9 @@ void RayTracingOptixDenoiser::render()
     m_denoiser->denoiseSubmit(&m_denoiserData.denoiseWaitFor,
         &m_denoiserData.denoiseSignalTo,
         0.0f,
-        m_sceneUniformData.frameIteration == 0,
+        m_sceneUniformData.frame == 0,
         m_denoiserData.timelineValue);
+
 
     // Submit Compute Command Buffer:
     VkSubmitInfo computeSubmitInfo {};
@@ -447,6 +450,8 @@ void RayTracingOptixDenoiser::render()
         m_sceneUniformData.frameChanged = 0;
         ++m_sceneUniformData.frame;
         ++m_sceneUniformData.frameIteration;
+        m_sceneUniformData.prevProjection = m_sceneUniformData.currentProjection;
+        m_sceneUniformData.prevView = m_sceneUniformData.currentView;
 
         // MSE calculation screenshots
         //        if (m_sceneUniformData.frame == 1 ||
@@ -478,6 +483,7 @@ RayTracingOptixDenoiser::~RayTracingOptixDenoiser()
 
     m_denoiserData.pixelBufferInAlbedo.destroy();
     m_denoiserData.pixelBufferInNormal.destroy();
+    m_denoiserData.pixelBufferInPixelFlow.destroy();
     m_denoiserData.pixelBufferInRawResult.destroy();
     m_denoiserData.pixelBufferOut.destroy();
 
@@ -496,8 +502,16 @@ void RayTracingOptixDenoiser::viewChanged()
         static_cast<float>(m_width) / static_cast<float>(m_height),
         CAMERA_NEAR,
         CAMERA_FAR);
-    m_sceneUniformData.projection = camera->matrices.perspective;
-    m_sceneUniformData.view = camera->matrices.view;
+    if (m_sceneUniformData.frame == 0) {
+        m_sceneUniformData.prevProjection = camera->matrices.perspective;
+        m_sceneUniformData.prevView = camera->matrices.view;
+    } else {
+        m_sceneUniformData.prevProjection = m_sceneUniformData.currentProjection;
+        m_sceneUniformData.prevView = m_sceneUniformData.currentView;
+    }
+    m_sceneUniformData.currentProjection = camera->matrices.perspective;
+    m_sceneUniformData.currentView = camera->matrices.view;
+
     m_sceneUniformData.projInverse = glm::inverse(camera->matrices.perspective);
     m_sceneUniformData.viewInverse = glm::inverse(camera->matrices.view);
     m_sceneUniformData.frameIteration = 0;
@@ -511,12 +525,14 @@ void RayTracingOptixDenoiser::onSwapChainRecreation()
     createStorageImages();
     m_denoiserData.pixelBufferInAlbedo.destroy();
     m_denoiserData.pixelBufferInNormal.destroy();
+    m_denoiserData.pixelBufferInPixelFlow.destroy();
     m_denoiserData.pixelBufferInRawResult.destroy();
     m_denoiserData.pixelBufferOut.destroy();
     m_denoiser->allocateBuffers({ m_width, m_height },
         &m_denoiserData.pixelBufferInRawResult,
         &m_denoiserData.pixelBufferInAlbedo,
         &m_denoiserData.pixelBufferInNormal,
+        &m_denoiserData.pixelBufferInPixelFlow,
         &m_denoiserData.pixelBufferOut);
 
     updateResultImageDescriptorSets();
@@ -547,6 +563,7 @@ void RayTracingOptixDenoiser::windowResized()
 {
     BaseProject::windowResized();
     m_sceneUniformData.frameChanged = 1;
+    m_sceneUniformData.frame = 0;
 }
 
 void RayTracingOptixDenoiser::getEnabledFeatures()

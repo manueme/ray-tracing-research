@@ -40,8 +40,10 @@ private:
     Buffer m_materialsBuffer;
 
     struct UniformData {
-        glm::mat4 view;
-        glm::mat4 projection;
+        glm::mat4 prevView { glm::mat4(0.0) };
+        glm::mat4 currentView { glm::mat4(0.0) };
+        glm::mat4 prevProjection { glm::mat4(0.0) };
+        glm::mat4 currentProjection { glm::mat4(0.0) };
         glm::mat4 viewInverse { glm::mat4(0.0) };
         glm::mat4 projInverse { glm::mat4(0.0) };
         glm::vec4 overrideSunDirection { glm::vec4(0.0) };
@@ -66,6 +68,7 @@ private:
         BufferCuda pixelBufferInRawResult;
         BufferCuda pixelBufferInAlbedo;
         BufferCuda pixelBufferInNormal;
+        BufferCuda pixelBufferInPixelFlow;
         BufferCuda pixelBufferOut;
     } m_denoiserData;
 

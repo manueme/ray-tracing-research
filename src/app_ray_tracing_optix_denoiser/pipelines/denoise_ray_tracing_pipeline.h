@@ -20,8 +20,7 @@ public:
     DenoiseRayTracingPipeline(Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount);
     ~DenoiseRayTracingPipeline();
 
-    void buildCommandBuffer(
-        VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height);
+    void buildCommandBuffer(VkCommandBuffer t_commandBuffer, uint32_t t_width, uint32_t t_height);
 
     void createDescriptorSetsLayout(Scene* t_scene) override;
 
@@ -29,8 +28,9 @@ public:
         Buffer* t_sceneBuffer, Buffer* t_instancesBuffer, Buffer* t_lightsBuffer,
         Buffer* t_materialsBuffer);
 
-    void updateResultImageDescriptorSets(Texture* t_depthMap, Buffer* t_normalsBuffer,
-        Buffer* t_albedoBuffer, Buffer* t_outImageBuffer);
+    void updateResultImageDescriptorSets(Texture* t_depthMap, Buffer* t_albedoBuffer,
+        Buffer* t_normalsBuffer, Buffer* t_pixelFlowBuffer, Buffer* t_outImageBuffer);
+
 private:
     struct {
         VkDescriptorSet set0AccelerationStructure;
