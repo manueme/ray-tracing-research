@@ -259,12 +259,14 @@ bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout
         // Vertex buffer
         vertices.create(t_device,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
                 | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | t_createInfo->memoryPropertyFlags,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             vBufferSize);
         // Index buffer
         indices.create(t_device,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
                 | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | t_createInfo->memoryPropertyFlags,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             iBufferSize);
