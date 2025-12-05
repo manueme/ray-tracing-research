@@ -18,6 +18,10 @@ VkResult setupDebugging(
 // Clear debug callback
 void freeDebugCallback(VkInstance t_instance);
 
+// Set debug label for Vulkan object
+void setObjectName(VkDevice device, uint64_t object, VkObjectType objectType, const char* name);
+void setObjectTag(VkDevice device, uint64_t object, VkObjectType objectType, uint64_t tagName, size_t tagSize, const void* tag);
+
 static inline void printPercentage(int step, int length) {
     std::cout << '\r' << std::round(100.0f * (step + 1.0f) / length) << "%" << std::flush;
 }

@@ -22,7 +22,6 @@ HybridPipelineRT::HybridPipelineRT()
     m_settings.vsync = false;
     m_settings.useRayTracing = true;
     m_settings.useCompute = true;
-    m_maxFramesInFlight = 3;
 }
 
 void HybridPipelineRT::render()
@@ -35,36 +34,39 @@ void HybridPipelineRT::render()
 
     updateUniformBuffers(imageIndex);
 
+    // Get the frame index that was used for acquisition (needed for the acquisition semaphore)
+    size_t frameIndex = m_imageToFrameIndex[imageIndex];
+
     // Submit the draw command buffer
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[m_currentFrame];
+    submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[frameIndex];
     VkPipelineStageFlags drawWaitStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     submitInfo.pWaitDstStageMask = &drawWaitStageMask;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &m_drawCmdBuffers[imageIndex];
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &m_compute.semaphores[m_currentFrame];
-    vkResetFences(m_device, 1, &m_inFlightFences[m_currentFrame]);
-    CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[m_currentFrame]))
+    submitInfo.pSignalSemaphores = &m_compute.semaphores[imageIndex];
+    vkResetFences(m_device, 1, &m_inFlightFences[imageIndex]);
+    CHECK_RESULT(vkQueueSubmit(m_queue, 1, &submitInfo, m_inFlightFences[imageIndex]))
     // ----
 
     // Submit Compute Command Buffer:
-    vkWaitForFences(m_device, 1, &m_compute.fences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(m_device, 1, &m_compute.fences[imageIndex], VK_TRUE, UINT64_MAX);
     VkSubmitInfo computeSubmitInfo {};
     computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     computeSubmitInfo.commandBufferCount = 1;
     computeSubmitInfo.pCommandBuffers = &m_compute.commandBuffers[imageIndex];
     computeSubmitInfo.waitSemaphoreCount = 1;
-    computeSubmitInfo.pWaitSemaphores = &m_compute.semaphores[m_currentFrame];
+    computeSubmitInfo.pWaitSemaphores = &m_compute.semaphores[imageIndex];
     computeSubmitInfo.signalSemaphoreCount = 1;
-    computeSubmitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[m_currentFrame];
+    computeSubmitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
     VkPipelineStageFlags computeWaitStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     computeSubmitInfo.pWaitDstStageMask = &computeWaitStageMask;
-    vkResetFences(m_device, 1, &m_compute.fences[m_currentFrame]);
+    vkResetFences(m_device, 1, &m_compute.fences[imageIndex]);
     CHECK_RESULT(
-        vkQueueSubmit(m_compute.queue, 1, &computeSubmitInfo, m_compute.fences[m_currentFrame]));
+        vkQueueSubmit(m_compute.queue, 1, &computeSubmitInfo, m_compute.fences[imageIndex]));
     // ----
 
     if (BaseProject::queuePresentSwapChain(imageIndex) == VK_SUCCESS) {
@@ -195,19 +197,25 @@ void HybridPipelineRT::buildCommandBuffers()
 
 void HybridPipelineRT::createDescriptorPool()
 {
+    // Calculate the number of textures needed
+    // Textures are used in TWO descriptor sets: raster (set1Materials) and ray tracing (set3Materials)
+    // Each set needs textureCount descriptors, so we need textureCount * 2 total
+    uint32_t textureCount = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
+    uint32_t totalTextureDescriptors = textureCount * 2; // One set for raster, one for ray tracing
+    
     std::vector<VkDescriptorPoolSize> poolSizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         // Scene uniform buffer
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_swapChain.imageCount },
         // Vertex, Index and Material Indexes
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, m_swapChain.imageCount },
-        // Textures
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_swapChain.imageCount },
+        // Textures (needs to accommodate textures used in both raster and ray tracing descriptor sets)
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, totalTextureDescriptors },
         // Material array
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
         // Lights array
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
-        // Offscreen images
+        // Offscreen images (per swapchain image)
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_swapChain.imageCount },
         // Storage images
         { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_swapChain.imageCount },
@@ -468,7 +476,9 @@ void HybridPipelineRT::createStorageImages()
             m_queue,
             VK_FILTER_LINEAR,
             VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-        m_storageImages[i].postProcessResultImage.fromNothing(m_swapChain.colorFormat,
+        // Use R8G8B8A8_UNORM explicitly to match the shader format specification (rgba8)
+        // The shader expects rgba8 which corresponds to VK_FORMAT_R8G8B8A8_UNORM
+        m_storageImages[i].postProcessResultImage.fromNothing(VK_FORMAT_R8G8B8A8_UNORM,
             m_width,
             m_height,
             1,

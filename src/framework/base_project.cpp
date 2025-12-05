@@ -6,7 +6,9 @@
 #include "base_project.h"
 
 #include "scene/scene.h"
+#include "tools/debug.h"
 #include <cmath>
+#include <string>
 #include <utility>
 
 VkResult BaseProject::createInstance(bool t_enableValidation)
@@ -67,7 +69,16 @@ VkResult BaseProject::createInstance(bool t_enableValidation)
 
 uint32_t BaseProject::acquireNextImage()
 {
-    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    // Before reusing the acquisition semaphore, wait for the fence of the last image
+    // that used this semaphore to ensure it has been consumed
+    if (m_frameToImageIndex[m_currentFrame] != SIZE_MAX) {
+        vkWaitForFences(m_device,
+            1,
+            &m_inFlightFences[m_frameToImageIndex[m_currentFrame]],
+            VK_TRUE,
+            UINT64_MAX);
+    }
+
     // Acquire the next image from the swap chain
     uint32_t imageIndex = 0;
     VkResult result
@@ -76,26 +87,30 @@ uint32_t BaseProject::acquireNextImage()
     // (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
     if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
         handleWindowResize();
+        // After resize, acquireNextImage will be called again, so return early
+        return 0;
     } else {
         CHECK_RESULT(result)
     }
 
-    // Check if a previous frame is using this image (i.e. there is its fence to
-    // wait on)
-    if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-        vkWaitForFences(m_device, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+    // Note that imageIndex is not necessarily always the same for a given frame index
+    if (m_frameToImageIndex[m_currentFrame] != imageIndex) {
+        vkWaitForFences(m_device, 1, &m_inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
+        // Store which frame index was used for acquisition (needed for submit)
+        m_imageToFrameIndex[imageIndex] = m_currentFrame;
+        // Store which imageIndex used this frame index (needed for next acquisition)
+        m_frameToImageIndex[m_currentFrame] = imageIndex;
     }
-    // Mark the image as now being in use by this frame
-    m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
     return imageIndex;
 };
 
 VkResult BaseProject::queuePresentSwapChain(uint32_t t_imageIndex)
 {
+    // Use imageIndex for the semaphore that was signaled in the compute submit
     auto result = m_swapChain.queuePresent(m_queue,
         t_imageIndex,
-        &m_renderFinishedSemaphores[m_currentFrame]);
+        &m_renderFinishedSemaphores[t_imageIndex]);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
         m_framebufferResized = false;
@@ -103,7 +118,8 @@ VkResult BaseProject::queuePresentSwapChain(uint32_t t_imageIndex)
     } else if (result != VK_SUCCESS) {
         CHECK_RESULT(result)
     }
-    m_currentFrame = (m_currentFrame + 1) % m_maxFramesInFlight;
+    // Rotate frame index after presenting (for next frame's acquisition)
+    m_currentFrame = (m_currentFrame + 1) % m_swapChain.imageCount;
 
     return result;
 }
@@ -178,14 +194,23 @@ void BaseProject::prepareCompute()
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    m_compute.fences.resize(m_maxFramesInFlight);
-    m_compute.semaphores.resize(m_maxFramesInFlight);
-    for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
+    m_compute.fences.resize(m_swapChain.imageCount);
+    m_compute.semaphores.resize(m_swapChain.imageCount);
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fences[i]))
-        CHECK_RESULT(vkCreateSemaphore(m_device,
-            &semaphoreCreateInfo,
-            nullptr,
-            &m_compute.semaphores[i]))
+        std::string name = "ComputeFence[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_compute.fences[i],
+            VK_OBJECT_TYPE_FENCE,
+            name.c_str());
+
+        CHECK_RESULT(
+            vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_compute.semaphores[i]))
+        name = "ComputeSemaphore[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_compute.semaphores[i],
+            VK_OBJECT_TYPE_SEMAPHORE,
+            name.c_str());
     }
 }
 
@@ -206,8 +231,8 @@ void BaseProject::prepare()
     }
 }
 
-VkPipelineShaderStageCreateInfo BaseProject::loadShader(
-    const std::string& t_fileName, VkShaderStageFlagBits t_stage)
+VkPipelineShaderStageCreateInfo BaseProject::loadShader(const std::string& t_fileName,
+    VkShaderStageFlagBits t_stage)
 {
     VkPipelineShaderStageCreateInfo shaderStage = {};
     shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -257,24 +282,33 @@ BaseProject::BaseProject(std::string t_appName, std::string t_windowTitle, bool 
     m_settings.validation = t_enableValidation;
 }
 
-void BaseProject::saveScreenshot(const char *filename)
+void BaseProject::saveScreenshot(const char* filename)
 {
     bool supportsBlit = true;
 
     // Check blit support for source and destination
     VkFormatProperties formatProps;
 
-    // Check if the device supports blitting from optimal images (the swapchain images are in optimal format)
-    vkGetPhysicalDeviceFormatProperties(m_vulkanDevice->physicalDevice, m_swapChain.colorFormat, &formatProps);
+    // Check if the device supports blitting from optimal images (the swapchain images are in
+    // optimal format)
+    vkGetPhysicalDeviceFormatProperties(m_vulkanDevice->physicalDevice,
+        m_swapChain.colorFormat,
+        &formatProps);
     if (!(formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT)) {
-        std::cerr << "Device does not support blitting from optimal tiled images, using copy instead of blit!" << std::endl;
+        std::cerr << "Device does not support blitting from optimal tiled images, using copy "
+                     "instead of blit!"
+                  << std::endl;
         supportsBlit = false;
     }
 
     // Check if the device supports blitting to linear images
-    vkGetPhysicalDeviceFormatProperties(m_vulkanDevice->physicalDevice, VK_FORMAT_R8G8B8A8_UNORM, &formatProps);
+    vkGetPhysicalDeviceFormatProperties(m_vulkanDevice->physicalDevice,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        &formatProps);
     if (!(formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
-        std::cerr << "Device does not support blitting to linear tiled images, using copy instead of blit!" << std::endl;
+        std::cerr << "Device does not support blitting to linear tiled images, using copy instead "
+                     "of blit!"
+                  << std::endl;
         supportsBlit = false;
     }
 
@@ -285,7 +319,8 @@ void BaseProject::saveScreenshot(const char *filename)
     VkImageCreateInfo imageCreateCI = {};
     imageCreateCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCreateCI.imageType = VK_IMAGE_TYPE_2D;
-    // Note that vkCmdBlitImage (if supported) will also do format conversions if the swapchain color format would differ
+    // Note that vkCmdBlitImage (if supported) will also do format conversions if the swapchain
+    // color format would differ
     imageCreateCI.format = VK_FORMAT_R8G8B8A8_UNORM;
     imageCreateCI.extent.width = m_width;
     imageCreateCI.extent.height = m_height;
@@ -307,16 +342,17 @@ void BaseProject::saveScreenshot(const char *filename)
     vkGetImageMemoryRequirements(m_device, dstImage, &memRequirements);
     memAllocInfo.allocationSize = memRequirements.size;
     // Memory must be host visible to copy from
-    memAllocInfo.memoryTypeIndex = m_vulkanDevice->getMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    memAllocInfo.memoryTypeIndex = m_vulkanDevice->getMemoryType(memRequirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     CHECK_RESULT(vkAllocateMemory(m_device, &memAllocInfo, nullptr, &dstImageMemory));
     CHECK_RESULT(vkBindImageMemory(m_device, dstImage, dstImageMemory, 0));
 
     // Do the actual blit from the swapchain image to our host visible destination image
-    VkCommandBuffer copyCmd = m_vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+    VkCommandBuffer copyCmd
+        = m_vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
 
     // Transition destination image to transfer destination layout
-    tools::insertImageMemoryBarrier(
-        copyCmd,
+    tools::insertImageMemoryBarrier(copyCmd,
         dstImage,
         0,
         VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -324,11 +360,10 @@ void BaseProject::saveScreenshot(const char *filename)
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+        VkImageSubresourceRange { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 
     // Transition swapchain image from present to transfer source layout
-    tools::insertImageMemoryBarrier(
-        copyCmd,
+    tools::insertImageMemoryBarrier(copyCmd,
         srcImage,
         VK_ACCESS_MEMORY_READ_BIT,
         VK_ACCESS_TRANSFER_READ_BIT,
@@ -336,17 +371,17 @@ void BaseProject::saveScreenshot(const char *filename)
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+        VkImageSubresourceRange { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 
-    // If source and destination support blit we'll blit as this also does automatic format conversion (e.g. from BGR to RGB)
-    if (supportsBlit)
-    {
+    // If source and destination support blit we'll blit as this also does automatic format
+    // conversion (e.g. from BGR to RGB)
+    if (supportsBlit) {
         // Define the region to blit (we will blit the whole swapchain image)
         VkOffset3D blitSize;
         blitSize.x = m_width;
         blitSize.y = m_height;
         blitSize.z = 1;
-        VkImageBlit imageBlitRegion{};
+        VkImageBlit imageBlitRegion {};
         imageBlitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageBlitRegion.srcSubresource.layerCount = 1;
         imageBlitRegion.srcOffsets[1] = blitSize;
@@ -355,18 +390,17 @@ void BaseProject::saveScreenshot(const char *filename)
         imageBlitRegion.dstOffsets[1] = blitSize;
 
         // Issue the blit command
-        vkCmdBlitImage(
-            copyCmd,
-            srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        vkCmdBlitImage(copyCmd,
+            srcImage,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            dstImage,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,
             &imageBlitRegion,
             VK_FILTER_NEAREST);
-    }
-    else
-    {
+    } else {
         // Otherwise use image copy (requires us to manually flip components)
-        VkImageCopy imageCopyRegion{};
+        VkImageCopy imageCopyRegion {};
         imageCopyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageCopyRegion.srcSubresource.layerCount = 1;
         imageCopyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -376,17 +410,18 @@ void BaseProject::saveScreenshot(const char *filename)
         imageCopyRegion.extent.depth = 1;
 
         // Issue the copy command
-        vkCmdCopyImage(
-            copyCmd,
-            srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        vkCmdCopyImage(copyCmd,
+            srcImage,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            dstImage,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,
             &imageCopyRegion);
     }
 
-    // Transition destination image to general layout, which is the required layout for mapping the image memory later on
-    tools::insertImageMemoryBarrier(
-        copyCmd,
+    // Transition destination image to general layout, which is the required layout for mapping the
+    // image memory later on
+    tools::insertImageMemoryBarrier(copyCmd,
         dstImage,
         VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_ACCESS_MEMORY_READ_BIT,
@@ -394,11 +429,10 @@ void BaseProject::saveScreenshot(const char *filename)
         VK_IMAGE_LAYOUT_GENERAL,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+        VkImageSubresourceRange { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 
     // Transition back the swap chain image after the blit is done
-    tools::insertImageMemoryBarrier(
-        copyCmd,
+    tools::insertImageMemoryBarrier(copyCmd,
         srcImage,
         VK_ACCESS_TRANSFER_READ_BIT,
         VK_ACCESS_MEMORY_READ_BIT,
@@ -406,7 +440,7 @@ void BaseProject::saveScreenshot(const char *filename)
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
+        VkImageSubresourceRange { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 
     m_vulkanDevice->flushCommandBuffer(copyCmd, m_queue);
 
@@ -425,30 +459,28 @@ void BaseProject::saveScreenshot(const char *filename)
     // ppm header
     file << "P6\n" << m_width << "\n" << m_height << "\n" << 255 << "\n";
 
-    // If source is BGR (destination is always RGB) and we can't use blit (which does automatic conversion), we'll have to manually swizzle color components
+    // If source is BGR (destination is always RGB) and we can't use blit (which does automatic
+    // conversion), we'll have to manually swizzle color components
     bool colorSwizzle = false;
     // Check if source is BGR
-    // Note: Not complete, only contains most common and basic BGR surface formats for demonstration purposes
-    if (!supportsBlit)
-    {
-        std::vector<VkFormat> formatsBGR = { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM };
-        colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), m_swapChain.colorFormat) != formatsBGR.end());
+    // Note: Not complete, only contains most common and basic BGR surface formats for demonstration
+    // purposes
+    if (!supportsBlit) {
+        std::vector<VkFormat> formatsBGR
+            = { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SNORM };
+        colorSwizzle = (std::find(formatsBGR.begin(), formatsBGR.end(), m_swapChain.colorFormat)
+            != formatsBGR.end());
     }
 
     // ppm binary pixel data
-    for (uint32_t y = 0; y < m_height; y++)
-    {
-        auto *row = (unsigned int*)data;
-        for (uint32_t x = 0; x < m_width; x++)
-        {
-            if (colorSwizzle)
-            {
-                file.write(reinterpret_cast<char*>(row)+2, 1);
-                file.write(reinterpret_cast<char*>(row)+1, 1);
+    for (uint32_t y = 0; y < m_height; y++) {
+        auto* row = (unsigned int*)data;
+        for (uint32_t x = 0; x < m_width; x++) {
+            if (colorSwizzle) {
+                file.write(reinterpret_cast<char*>(row) + 2, 1);
+                file.write(reinterpret_cast<char*>(row) + 1, 1);
                 file.write(reinterpret_cast<char*>(row), 1);
-            }
-            else
-            {
+            } else {
                 file.write(reinterpret_cast<char*>(row), 3);
             }
             row++;
@@ -489,17 +521,25 @@ BaseProject::~BaseProject()
 
     vkDestroyCommandPool(m_device, m_cmdPool, nullptr);
 
-    for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
-        vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
+    // Destroy all semaphores (created based on imageCount)
+    for (size_t i = 0; i < m_imageAvailableSemaphores.size(); ++i) {
         vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
+    }
+    for (size_t i = 0; i < m_renderFinishedSemaphores.size(); ++i) {
+        vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
+    }
+    // Destroy all fences (created based on imageCount)
+    for (size_t i = 0; i < m_inFlightFences.size(); ++i) {
         vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
     }
 
     if (m_settings.useCompute) {
         destroyComputeCommandBuffers();
         vkDestroyCommandPool(m_device, m_compute.commandPool, nullptr);
-        for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
+        for (size_t i = 0; i < m_compute.semaphores.size(); ++i) {
             vkDestroySemaphore(m_device, m_compute.semaphores[i], nullptr);
+        }
+        for (size_t i = 0; i < m_compute.fences.size(); ++i) {
             vkDestroyFence(m_device, m_compute.fences[i], nullptr);
         }
     }
@@ -573,7 +613,8 @@ bool BaseProject::initVulkan()
     vkGetDeviceQueue(m_device, m_vulkanDevice->queueFamilyIndices.graphics, 0, &m_queue);
 
     // Find a suitable depth format
-    VkBool32 validDepthFormat = tools::getSupportedDepthFormat(m_vulkanDevice->physicalDevice, &m_depthFormat);
+    VkBool32 validDepthFormat
+        = tools::getSupportedDepthFormat(m_vulkanDevice->physicalDevice, &m_depthFormat);
     assert(validDepthFormat);
 
     m_swapChain.connect(m_instance, m_vulkanDevice->physicalDevice, m_device);
@@ -590,25 +631,49 @@ void BaseProject::buildCommandBuffers() { }
 void BaseProject::createSynchronizationPrimitives()
 {
     // Create synchronization objects
-    m_imageAvailableSemaphores.resize(m_maxFramesInFlight);
-    m_renderFinishedSemaphores.resize(m_maxFramesInFlight);
-    m_inFlightFences.resize(m_maxFramesInFlight);
-    m_imagesInFlight.resize(m_swapChain.imageCount, VK_NULL_HANDLE);
+    // Use one semaphore per swapchain image to avoid semaphore reuse issues
+    // This ensures each swapchain image has its own semaphore pair
+    // Use imageCount for all synchronization primitives to maximize parallelism
+    m_imageAvailableSemaphores.resize(m_swapChain.imageCount);
+    m_renderFinishedSemaphores.resize(m_swapChain.imageCount);
+    m_inFlightFences.resize(m_swapChain.imageCount);
+    m_imageToFrameIndex.resize(m_swapChain.imageCount, SIZE_MAX);
+    m_frameToImageIndex.resize(m_swapChain.imageCount, SIZE_MAX);
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (size_t i = 0; i < m_maxFramesInFlight; ++i) {
+    // Create semaphores for each swapchain image
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
             nullptr,
             &m_imageAvailableSemaphores[i]))
+        std::string name = "ImageAvailableSemaphore[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_imageAvailableSemaphores[i],
+            VK_OBJECT_TYPE_SEMAPHORE,
+            name.c_str());
+
         CHECK_RESULT(vkCreateSemaphore(m_device,
             &semaphoreCreateInfo,
             nullptr,
             &m_renderFinishedSemaphores[i]))
+        name = "RenderFinishedSemaphore[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_renderFinishedSemaphores[i],
+            VK_OBJECT_TYPE_SEMAPHORE,
+            name.c_str());
+    }
+    // Create fences for each swapchain image
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
         CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_inFlightFences[i]))
+        std::string name = "InFlightFence[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_inFlightFences[i],
+            VK_OBJECT_TYPE_FENCE,
+            name.c_str());
     }
 }
 
@@ -884,6 +949,10 @@ void BaseProject::setupSwapChain() { m_swapChain.create(&m_width, &m_height, m_s
 
 void BaseProject::initWindow()
 {
+#if defined(__linux__)
+    // Force X11 platform on Linux to avoid Wayland/libdecor issues
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     if (!glfwVulkanSupported()) {
@@ -922,8 +991,8 @@ void BaseProject::mousePositionCallback(GLFWwindow* t_window, double t_x, double
     app->handleMousePositionChanged(x, y);
 }
 
-void BaseProject::keyCallback(
-    GLFWwindow* t_window, int t_key, int t_scancode, int t_action, int t_mods)
+void BaseProject::keyCallback(GLFWwindow* t_window, int t_key, int t_scancode, int t_action,
+    int t_mods)
 {
     auto app = reinterpret_cast<BaseProject*>(glfwGetWindowUserPointer(t_window));
     app->handleKeyEvent(t_key, t_scancode, t_action, t_mods);

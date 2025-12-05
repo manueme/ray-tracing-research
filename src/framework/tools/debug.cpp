@@ -13,6 +13,8 @@ namespace debug {
 
 PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT;
 PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT;
+PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT;
+PFN_vkSetDebugUtilsObjectTagEXT vkSetDebugUtilsObjectTagEXT;
 VkDebugUtilsMessengerEXT debugUtilsMessenger;
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugUtilsMessengerCallback(
@@ -60,6 +62,10 @@ VkResult setupDebugging(
         vkGetInstanceProcAddr(t_instance, "vkCreateDebugUtilsMessengerEXT"));
     vkDestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
         vkGetInstanceProcAddr(t_instance, "vkDestroyDebugUtilsMessengerEXT"));
+    vkSetDebugUtilsObjectNameEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+        vkGetInstanceProcAddr(t_instance, "vkSetDebugUtilsObjectNameEXT"));
+    vkSetDebugUtilsObjectTagEXT = reinterpret_cast<PFN_vkSetDebugUtilsObjectTagEXT>(
+        vkGetInstanceProcAddr(t_instance, "vkSetDebugUtilsObjectTagEXT"));
 
     VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI {};
     debugUtilsMessengerCI.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -79,6 +85,32 @@ void freeDebugCallback(VkInstance t_instance)
 {
     if (debugUtilsMessenger != VK_NULL_HANDLE) {
         vkDestroyDebugUtilsMessengerEXT(t_instance, debugUtilsMessenger, nullptr);
+    }
+}
+
+void setObjectName(VkDevice device, uint64_t object, VkObjectType objectType, const char* name)
+{
+    if (vkSetDebugUtilsObjectNameEXT && name) {
+        VkDebugUtilsObjectNameInfoEXT nameInfo = {};
+        nameInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        nameInfo.objectType = objectType;
+        nameInfo.objectHandle = object;
+        nameInfo.pObjectName = name;
+        vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
+    }
+}
+
+void setObjectTag(VkDevice device, uint64_t object, VkObjectType objectType, uint64_t tagName, size_t tagSize, const void* tag)
+{
+    if (vkSetDebugUtilsObjectTagEXT && tag) {
+        VkDebugUtilsObjectTagInfoEXT tagInfo = {};
+        tagInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_TAG_INFO_EXT;
+        tagInfo.objectType = objectType;
+        tagInfo.objectHandle = object;
+        tagInfo.tagName = tagName;
+        tagInfo.tagSize = tagSize;
+        tagInfo.pTag = tag;
+        vkSetDebugUtilsObjectTagEXT(device, &tagInfo);
     }
 }
 

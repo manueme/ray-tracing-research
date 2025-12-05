@@ -150,11 +150,13 @@ protected:
     SwapChain m_swapChain;
 
     // Synchronization
-    uint32_t m_maxFramesInFlight = 3;
     std::vector<VkSemaphore> m_imageAvailableSemaphores;
     std::vector<VkSemaphore> m_renderFinishedSemaphores;
     std::vector<VkFence> m_inFlightFences;
-    std::vector<VkFence> m_imagesInFlight;
+    // Maps imageIndex to the frame index used for its acquisition semaphore
+    std::vector<size_t> m_imageToFrameIndex;
+    // Maps frame index to the last imageIndex that used its acquisition semaphore
+    std::vector<size_t> m_frameToImageIndex;
     size_t m_currentFrame = 0;
 
     // Separated compute queue, commandPool, fence and buffer
