@@ -1,3 +1,9 @@
 [submodule "external_sources/glm"]
 	path = external_sources/glm
-	url = https://github.com/g-truc/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "external_sources/assimp"]
+	path = external_sources/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "external_sources/glfw"]
+	path = external_sources/glfw
+	url = https://github.com/glfw/glfw.git

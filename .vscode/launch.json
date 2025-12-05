@@ -1,0 +1,132 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: Monte Carlo Ray Tracing",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/src/app_monte_carlo_ray_tracing/monte_carlo_ray_tracing",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/src/app_monte_carlo_ray_tracing",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build: Monte Carlo Ray Tracing",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Debug: Hybrid Ray Tracing",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/src/app_hybrid_ray_tracing/hybrid_ray_tracing",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/src/app_hybrid_ray_tracing",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build: Hybrid Ray Tracing",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Debug: OptiX Denoiser",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/src/app_ray_tracing_optix_denoiser/ray_tracing_optix_denoiser",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/src/app_ray_tracing_optix_denoiser",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build: OptiX Denoiser",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Release: Monte Carlo Ray Tracing",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-release/src/app_monte_carlo_ray_tracing/monte_carlo_ray_tracing",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-release/src/app_monte_carlo_ray_tracing",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build Release: Monte Carlo Ray Tracing",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Release: Hybrid Ray Tracing",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-release/src/app_hybrid_ray_tracing/hybrid_ray_tracing",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-release/src/app_hybrid_ray_tracing",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build Release: Hybrid Ray Tracing",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Release: OptiX Denoiser",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-release/src/app_ray_tracing_optix_denoiser/ray_tracing_optix_denoiser",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-release/src/app_ray_tracing_optix_denoiser",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build Release: OptiX Denoiser",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}
+

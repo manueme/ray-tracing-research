@@ -36,7 +36,10 @@
 
 # Build dirs and external sources
 cmake-build-*/
-external_sources/
+external_sources/*
+!external_sources/glm/
+!external_sources/assimp/
+!external_sources/glfw/
 assets/
 tutorials/assets/
 build*/
@@ -45,7 +48,7 @@ out/
 compile_commands.json
 
 .vs/
-.vscode/
+.cache/
 *.zip
 
 CMakeSettings.json

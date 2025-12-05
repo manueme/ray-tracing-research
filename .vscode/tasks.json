@@ -1,0 +1,269 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build: Monte Carlo Ray Tracing",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "monte_carlo_ray_tracing"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Build: Hybrid Ray Tracing",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "hybrid_ray_tracing"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Build: OptiX Denoiser",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "ray_tracing_optix_denoiser"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Run: Monte Carlo Ray Tracing",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/src/app_monte_carlo_ray_tracing/monte_carlo_ray_tracing",
+            "options": {
+                "cwd": "${workspaceFolder}/build/src/app_monte_carlo_ray_tracing"
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "dependsOn": "Build: Monte Carlo Ray Tracing"
+        },
+        {
+            "label": "Run: Hybrid Ray Tracing",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/src/app_hybrid_ray_tracing/hybrid_ray_tracing",
+            "options": {
+                "cwd": "${workspaceFolder}/build/src/app_hybrid_ray_tracing"
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "dependsOn": "Build: Hybrid Ray Tracing"
+        },
+        {
+            "label": "Run: OptiX Denoiser",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/src/app_ray_tracing_optix_denoiser/ray_tracing_optix_denoiser",
+            "options": {
+                "cwd": "${workspaceFolder}/build/src/app_ray_tracing_optix_denoiser"
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "dependsOn": "Build: OptiX Denoiser"
+        },
+        {
+            "label": "Build All",
+            "type": "shell",
+            "command": "ninja",
+            "args": [],
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Configure Release Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}/build-release"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Build Release: Monte Carlo Ray Tracing",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "monte_carlo_ray_tracing"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build-release"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "dependsOn": "Configure Release Build"
+        },
+        {
+            "label": "Build Release: Hybrid Ray Tracing",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "hybrid_ray_tracing"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build-release"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "dependsOn": "Configure Release Build"
+        },
+        {
+            "label": "Build Release: OptiX Denoiser",
+            "type": "shell",
+            "command": "ninja",
+            "args": [
+                "ray_tracing_optix_denoiser"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build-release"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "dependsOn": "Configure Release Build"
+        },
+        {
+            "label": "Build Release: All",
+            "type": "shell",
+            "command": "ninja",
+            "args": [],
+            "options": {
+                "cwd": "${workspaceFolder}/build-release"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "dependsOn": "Configure Release Build"
+        },
+        {
+            "label": "Run Release: Monte Carlo Ray Tracing",
+            "type": "shell",
+            "command": "${workspaceFolder}/build-release/src/app_monte_carlo_ray_tracing/monte_carlo_ray_tracing",
+            "options": {
+                "cwd": "${workspaceFolder}/build-release/src/app_monte_carlo_ray_tracing"
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "dependsOn": "Build Release: Monte Carlo Ray Tracing"
+        },
+        {
+            "label": "Run Release: Hybrid Ray Tracing",
+            "type": "shell",
+            "command": "${workspaceFolder}/build-release/src/app_hybrid_ray_tracing/hybrid_ray_tracing",
+            "options": {
+                "cwd": "${workspaceFolder}/build-release/src/app_hybrid_ray_tracing"
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "dependsOn": "Build Release: Hybrid Ray Tracing"
+        },
+        {
+            "label": "Run Release: OptiX Denoiser",
+            "type": "shell",
+            "command": "${workspaceFolder}/build-release/src/app_ray_tracing_optix_denoiser/ray_tracing_optix_denoiser",
+            "options": {
+                "cwd": "${workspaceFolder}/build-release/src/app_ray_tracing_optix_denoiser"
+            },
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "focus": true
+            },
+            "dependsOn": "Build Release: OptiX Denoiser"
+        }
+    ]
+}
+
