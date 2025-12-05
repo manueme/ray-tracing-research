@@ -19,7 +19,7 @@
 
 RayTracingOptixDenoiser::RayTracingOptixDenoiser()
     : BaseProject("Monte Carlo Ray Tracing With Optix Denoiser",
-        "Monte Carlo Ray Tracing With Optix Denoiser", true)
+          "Monte Carlo Ray Tracing With Optix Denoiser", true)
 {
     m_settings.vsync = false;
     m_settings.useCompute = true;
@@ -117,11 +117,13 @@ void RayTracingOptixDenoiser::buildCommandBuffers()
 void RayTracingOptixDenoiser::createDescriptorPool()
 {
     // Calculate the number of textures needed
-    uint32_t textureCount = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
-    
-    // Storage images: ray tracing set5ResultImages (1 binding) + postprocess set3ResultImage (1 binding) = 2 total
+    uint32_t textureCount
+        = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
+
+    // Storage images: ray tracing set5ResultImages (1 binding) + postprocess set3ResultImage (1
+    // binding) = 2 total
     uint32_t storageImageCount = 2;
-    
+
     std::vector<VkDescriptorPoolSize> poolSizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         // Scene description
@@ -346,7 +348,8 @@ void RayTracingOptixDenoiser::setupScene()
         VERTEX_COMPONENT_TANGENT,
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
-    m_scene = m_rayTracing->createRTScene(m_queue, "assets/cornellbox/Cornellbox.fbx", m_vertexLayout);
+    m_scene
+        = m_rayTracing->createRTScene(m_queue, "assets/cornellbox/Cornellbox.fbx", m_vertexLayout);
     auto camera = m_scene->getCamera();
     camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);
@@ -396,8 +399,13 @@ void RayTracingOptixDenoiser::render()
     }
     const auto imageIndex = BaseProject::acquireNextImage();
 
+    // Skip frame if acquisition failed
+    if (imageIndex == UINT32_MAX) {
+        return;
+    }
+
     // Get the frame index that was used for acquisition (needed for the acquisition semaphore)
-    size_t frameIndex = m_imageToFrameIndex[imageIndex];
+    size_t frameIndex = getAcquisitionFrameIndex(imageIndex);
 
     vkWaitForFences(m_device, 1, &m_compute.fences[imageIndex], VK_TRUE, UINT64_MAX);
 
@@ -435,7 +443,6 @@ void RayTracingOptixDenoiser::render()
         0.0f,
         m_sceneUniformData.frame == 0,
         m_denoiserData.timelineValue);
-
 
     // Submit Compute Command Buffer:
     VkSubmitInfo computeSubmitInfo {};

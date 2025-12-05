@@ -67,40 +67,44 @@ VkResult BaseProject::createInstance(bool t_enableValidation)
     return vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance);
 }
 
+size_t BaseProject::getAcquisitionFrameIndex(uint32_t imageIndex) const
+{
+    size_t frameIndex = m_imageToFrameIndex[imageIndex];
+    // Safety check: if mapping is invalid, use imageIndex as fallback
+    if (frameIndex == SIZE_MAX) {
+        return imageIndex;
+    }
+    return frameIndex;
+}
+
 uint32_t BaseProject::acquireNextImage()
 {
-    // Before reusing the acquisition semaphore, wait for the fence of the last image
-    // that used this semaphore to ensure it has been consumed
-    if (m_frameToImageIndex[m_currentFrame] != SIZE_MAX) {
-        vkWaitForFences(m_device,
-            1,
-            &m_inFlightFences[m_frameToImageIndex[m_currentFrame]],
-            VK_TRUE,
-            UINT64_MAX);
-    }
+    // Before reusing the acquisition semaphore, wait for its fence to ensure it has been consumed
+    vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     // Acquire the next image from the swap chain
     uint32_t imageIndex = 0;
     VkResult result
         = m_swapChain.acquireNextImage(m_imageAvailableSemaphores[m_currentFrame], &imageIndex);
+
     // Recreate the SwapChain if it's no longer compatible with the surface
-    // (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
     if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
         handleWindowResize();
-        // After resize, acquireNextImage will be called again, so return early
-        return 0;
-    } else {
-        CHECK_RESULT(result)
+        return UINT32_MAX; // Skip this frame after resize
     }
 
-    // Note that imageIndex is not necessarily always the same for a given frame index
-    if (m_frameToImageIndex[m_currentFrame] != imageIndex) {
-        vkWaitForFences(m_device, 1, &m_inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
-        // Store which frame index was used for acquisition (needed for submit)
-        m_imageToFrameIndex[imageIndex] = m_currentFrame;
-        // Store which imageIndex used this frame index (needed for next acquisition)
-        m_frameToImageIndex[m_currentFrame] = imageIndex;
+    CHECK_RESULT(result)
+
+    // Validate imageIndex is within bounds
+    if (imageIndex >= m_swapChain.imageCount) {
+        return UINT32_MAX; // Invalid index, skip this frame
     }
+
+    // Wait for the fence of this image to ensure it's not being used by a previous frame
+    vkWaitForFences(m_device, 1, &m_inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
+
+    // Store which frame index was used for acquisition (needed for submit)
+    m_imageToFrameIndex[imageIndex] = m_currentFrame;
 
     return imageIndex;
 };
@@ -115,11 +119,14 @@ VkResult BaseProject::queuePresentSwapChain(uint32_t t_imageIndex)
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
         m_framebufferResized = false;
         handleWindowResize();
+        // After resize, m_currentFrame was reset to 0, so don't rotate it
+        // The next acquireNextImage will use m_currentFrame = 0
     } else if (result != VK_SUCCESS) {
         CHECK_RESULT(result)
+    } else {
+        // Only rotate frame index if present was successful and no resize occurred
+        m_currentFrame = (m_currentFrame + 1) % m_swapChain.imageCount;
     }
-    // Rotate frame index after presenting (for next frame's acquisition)
-    m_currentFrame = (m_currentFrame + 1) % m_swapChain.imageCount;
 
     return result;
 }
@@ -638,7 +645,6 @@ void BaseProject::createSynchronizationPrimitives()
     m_renderFinishedSemaphores.resize(m_swapChain.imageCount);
     m_inFlightFences.resize(m_swapChain.imageCount);
     m_imageToFrameIndex.resize(m_swapChain.imageCount, SIZE_MAX);
-    m_frameToImageIndex.resize(m_swapChain.imageCount, SIZE_MAX);
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceCreateInfo = {};
@@ -673,6 +679,58 @@ void BaseProject::createSynchronizationPrimitives()
         debug::setObjectName(m_device,
             (uint64_t)m_inFlightFences[i],
             VK_OBJECT_TYPE_FENCE,
+            name.c_str());
+    }
+}
+
+void BaseProject::destroySynchronizationPrimitives()
+{
+    // Destroy all semaphores and fences
+    for (size_t i = 0; i < m_imageAvailableSemaphores.size(); ++i) {
+        vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
+    }
+    for (size_t i = 0; i < m_renderFinishedSemaphores.size(); ++i) {
+        vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
+    }
+    for (size_t i = 0; i < m_inFlightFences.size(); ++i) {
+        vkDestroyFence(m_device, m_inFlightFences[i], nullptr);
+    }
+    if (m_settings.useCompute) {
+        for (size_t i = 0; i < m_compute.semaphores.size(); ++i) {
+            vkDestroySemaphore(m_device, m_compute.semaphores[i], nullptr);
+        }
+        for (size_t i = 0; i < m_compute.fences.size(); ++i) {
+            vkDestroyFence(m_device, m_compute.fences[i], nullptr);
+        }
+    }
+}
+
+void BaseProject::recreateComputeSynchronizationPrimitives()
+{
+    if (!m_settings.useCompute) {
+        return;
+    }
+    VkFenceCreateInfo fenceCreateInfo {};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    m_compute.fences.resize(m_swapChain.imageCount);
+    m_compute.semaphores.resize(m_swapChain.imageCount);
+    for (size_t i = 0; i < m_swapChain.imageCount; ++i) {
+        CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_compute.fences[i]))
+        std::string name = "ComputeFence[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_compute.fences[i],
+            VK_OBJECT_TYPE_FENCE,
+            name.c_str());
+
+        CHECK_RESULT(
+            vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_compute.semaphores[i]))
+        name = "ComputeSemaphore[" + std::to_string(i) + "]";
+        debug::setObjectName(m_device,
+            (uint64_t)m_compute.semaphores[i],
+            VK_OBJECT_TYPE_SEMAPHORE,
             name.c_str());
     }
 }
@@ -890,14 +948,23 @@ void BaseProject::handleWindowResize()
         glfwGetFramebufferSize(m_window, &currWidth, &currHeight);
         glfwWaitEvents();
     }
-    // Ensure all operations on the device have been finished before destroying
-    // resources
+    // Ensure all operations on the device have been finished before destroying resources
     vkDeviceWaitIdle(m_device);
     m_width = currWidth;
     m_height = currHeight;
 
-    // Recreate swap chain
+    // Save previous image count before recreating swapchain
+    size_t previousImageCount = m_swapChain.imageCount;
+
+    // Recreate swap chain (this updates m_swapChain.imageCount)
     setupSwapChain();
+
+    // Only destroy/recreate synchronization primitives if imageCount changed
+    if (previousImageCount != m_swapChain.imageCount) {
+        destroySynchronizationPrimitives();
+        createSynchronizationPrimitives();
+        recreateComputeSynchronizationPrimitives();
+    }
 
     // Recreate the frame buffers
     vkDestroyImageView(m_device, m_depthStencil.view, nullptr);

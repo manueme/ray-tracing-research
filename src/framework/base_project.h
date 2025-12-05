@@ -155,8 +155,6 @@ protected:
     std::vector<VkFence> m_inFlightFences;
     // Maps imageIndex to the frame index used for its acquisition semaphore
     std::vector<size_t> m_imageToFrameIndex;
-    // Maps frame index to the last imageIndex that used its acquisition semaphore
-    std::vector<size_t> m_frameToImageIndex;
     size_t m_currentFrame = 0;
 
     // Separated compute queue, commandPool, fence and buffer
@@ -221,6 +219,8 @@ protected:
     void createCommandPool();
     void createPipelineCache();
     void createSynchronizationPrimitives();
+    void destroySynchronizationPrimitives();
+    void recreateComputeSynchronizationPrimitives();
     void initSwapChain();
     void setupSwapChain();
     void createCommandBuffers();
@@ -237,9 +237,15 @@ protected:
 
     /** @brief Acquires the next swap chain image to render to. T o submit your command buffer, use
      * m_imageAvailableSemaphores as a wait semaphore after calling this function.
-     *  @returns The image index in the swapChain, you will need this index to run
-     * queuePresentSwapChain */
+     * Automatically handles resize. If acquisition fails after resize, returns UINT32_MAX to skip
+     * frame.
+     *  @returns The image index in the swapChain, or UINT32_MAX if frame should be skipped */
     uint32_t acquireNextImage();
+
+    /** @brief Get the frame index that was used for acquiring the given image index.
+     *  This is needed to get the correct acquisition semaphore for the submit.
+     *  @returns The frame index, or imageIndex as fallback if mapping is invalid */
+    size_t getAcquisitionFrameIndex(uint32_t imageIndex) const;
 
     /** @brief Presents the acquired swap chain image waiting for m_renderFinishedSemaphores, your
      * last command submitted must have m_renderFinishedSemaphores[t_imageIndex] as a signal
@@ -247,6 +253,7 @@ protected:
      *  @returns The result of the present operation */
     VkResult queuePresentSwapChain(uint32_t t_imageIndex);
 
+private:
     /** @brief Called when the mouse is moved */
     virtual void mouseMoved(double t_x, double t_y, bool& t_handled);
 

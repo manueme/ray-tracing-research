@@ -94,11 +94,13 @@ void MonteCarloRTApp::buildCommandBuffers()
 void MonteCarloRTApp::createDescriptorPool()
 {
     // Calculate the number of textures needed
-    uint32_t textureCount = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
-    
-    // Storage images: ray tracing set5ResultImage (2 bindings) + postprocess set3ResultImage (1 binding) = 3 total
+    uint32_t textureCount
+        = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
+
+    // Storage images: ray tracing set5ResultImage (2 bindings) + postprocess set3ResultImage (1
+    // binding) = 3 total
     uint32_t storageImageCount = 3;
-    
+
     std::vector<VkDescriptorPoolSize> poolSizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         // Scene description
@@ -381,10 +383,15 @@ void MonteCarloRTApp::render()
     }
     const auto imageIndex = BaseProject::acquireNextImage();
 
+    // Skip frame if acquisition failed
+    if (imageIndex == UINT32_MAX) {
+        return;
+    }
+
     updateUniformBuffers(imageIndex);
 
     // Get the frame index that was used for acquisition (needed for the acquisition semaphore)
-    size_t frameIndex = m_imageToFrameIndex[imageIndex];
+    size_t frameIndex = getAcquisitionFrameIndex(imageIndex);
 
     // Submit the draw command buffer
     VkSubmitInfo submitInfo {};
@@ -433,7 +440,8 @@ void MonteCarloRTApp::render()
             m_sceneUniformData.frame == 5000 ||
             m_sceneUniformData.frame == 10000 ||
             m_sceneUniformData.frame == 50000) {
-            saveScreenshot(std::string("./monte_carlo_interior_" + std::to_string(m_sceneUniformData.frame) + ".ppm").c_str());
+            saveScreenshot(std::string("./monte_carlo_interior_" +
+        std::to_string(m_sceneUniformData.frame) + ".ppm").c_str());
         }*/
 
         std::cout << '\r' << "| FPS: " << m_lastFps

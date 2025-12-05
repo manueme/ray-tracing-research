@@ -32,10 +32,15 @@ void HybridPipelineRT::render()
 
     const auto imageIndex = BaseProject::acquireNextImage();
 
+    // Skip frame if acquisition failed
+    if (imageIndex == UINT32_MAX) {
+        return;
+    }
+
     updateUniformBuffers(imageIndex);
 
     // Get the frame index that was used for acquisition (needed for the acquisition semaphore)
-    size_t frameIndex = m_imageToFrameIndex[imageIndex];
+    size_t frameIndex = getAcquisitionFrameIndex(imageIndex);
 
     // Submit the draw command buffer
     VkSubmitInfo submitInfo {};
@@ -198,18 +203,20 @@ void HybridPipelineRT::buildCommandBuffers()
 void HybridPipelineRT::createDescriptorPool()
 {
     // Calculate the number of textures needed
-    // Textures are used in TWO descriptor sets: raster (set1Materials) and ray tracing (set3Materials)
-    // Each set needs textureCount descriptors, so we need textureCount * 2 total
-    uint32_t textureCount = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
+    // Textures are used in TWO descriptor sets: raster (set1Materials) and ray tracing
+    // (set3Materials) Each set needs textureCount descriptors, so we need textureCount * 2 total
+    uint32_t textureCount
+        = m_scene->textures.empty() ? 1 : static_cast<uint32_t>(m_scene->textures.size());
     uint32_t totalTextureDescriptors = textureCount * 2; // One set for raster, one for ray tracing
-    
+
     std::vector<VkDescriptorPoolSize> poolSizes = {
         { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
         // Scene uniform buffer
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_swapChain.imageCount },
         // Vertex, Index and Material Indexes
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, m_swapChain.imageCount },
-        // Textures (needs to accommodate textures used in both raster and ray tracing descriptor sets)
+        // Textures (needs to accommodate textures used in both raster and ray tracing descriptor
+        // sets)
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, totalTextureDescriptors },
         // Material array
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
