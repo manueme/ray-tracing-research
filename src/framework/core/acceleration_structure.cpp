@@ -4,6 +4,7 @@
  */
 
 #include "acceleration_structure.h"
+#include <stdexcept>
 
 AccelerationStructure::AccelerationStructure() = default;
 
@@ -13,13 +14,16 @@ AccelerationStructure::AccelerationStructure(Device* t_device,
     m_device = t_device->logicalDevice;
     initFunctionPointers();
 
+    if (t_buildSizeInfo.accelerationStructureSize == 0) {
+        throw std::runtime_error("Cannot create acceleration structure with zero size");
+    }
+
     VkBufferCreateInfo bufferCreateInfo {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferCreateInfo.size = t_buildSizeInfo.accelerationStructureSize;
     bufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR
         | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    CHECK_RESULT(
-        vkCreateBuffer(t_device->logicalDevice, &bufferCreateInfo, nullptr, &m_buffer));
+    CHECK_RESULT(vkCreateBuffer(t_device->logicalDevice, &bufferCreateInfo, nullptr, &m_buffer));
     VkMemoryRequirements memoryRequirements {};
     vkGetBufferMemoryRequirements(t_device->logicalDevice, m_buffer, &memoryRequirements);
     VkMemoryAllocateFlagsInfo memoryAllocateFlagsInfo {};
@@ -56,16 +60,12 @@ AccelerationStructure::AccelerationStructure(Device* t_device,
 
 AccelerationStructure::~AccelerationStructure() = default;
 
-VkAccelerationStructureKHR AccelerationStructure::getHandle()
+VkAccelerationStructureKHR AccelerationStructure::getHandle() { return m_accelerationStructure; }
+
+uint64_t AccelerationStructure::getDeviceAddress() const { return m_deviceAddress; }
+
+void AccelerationStructure::destroy()
 {
-    return m_accelerationStructure;
-}
-
-uint64_t AccelerationStructure::getDeviceAddress() const {
-    return m_deviceAddress;
-}
-
-void AccelerationStructure::destroy() {
     vkFreeMemory(m_device, m_memory, nullptr);
     vkDestroyBuffer(m_device, m_buffer, nullptr);
     vkDestroyAccelerationStructureKHR(m_device, m_accelerationStructure, nullptr);

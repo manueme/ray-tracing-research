@@ -6,8 +6,9 @@
 #include "buffer.h"
 
 #include "device.h"
+#include <stdexcept>
 
-Buffer::Buffer() {};
+Buffer::Buffer() { };
 
 Buffer::~Buffer() = default;
 
@@ -15,6 +16,10 @@ void Buffer::create(Device* t_device, VkBufferUsageFlags t_usageFlags,
     VkMemoryPropertyFlags t_memoryPropertyFlags, VkDeviceSize t_size, void* t_data,
     void* t_createInfoNext, void* t_allocationInfoNext)
 {
+    if (t_size == 0) {
+        throw std::runtime_error("Buffer size cannot be zero");
+    }
+
     this->device = t_device->logicalDevice;
     initFunctionPointers();
 

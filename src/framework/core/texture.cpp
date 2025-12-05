@@ -5,8 +5,6 @@
 
 #include "texture.h"
 
-#include <array>
-
 Texture::Texture() { }
 
 Texture::~Texture() = default;
@@ -675,10 +673,18 @@ void Texture::loadFromFibitmap(FIBITMAP* t_fibitmap, VkFormat t_format, Device* 
     viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewCreateInfo.format = t_format;
-    viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R,
-        VK_COMPONENT_SWIZZLE_G,
-        VK_COMPONENT_SWIZZLE_B,
-        VK_COMPONENT_SWIZZLE_A };
+    // Swizzle components to convert BGRA to RGBA for shaders
+    if (t_format == VK_FORMAT_B8G8R8A8_UNORM || t_format == VK_FORMAT_B8G8R8A8_SRGB) {
+        viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_B,
+            VK_COMPONENT_SWIZZLE_G,
+            VK_COMPONENT_SWIZZLE_R,
+            VK_COMPONENT_SWIZZLE_A };
+    } else {
+        viewCreateInfo.components = { VK_COMPONENT_SWIZZLE_R,
+            VK_COMPONENT_SWIZZLE_G,
+            VK_COMPONENT_SWIZZLE_B,
+            VK_COMPONENT_SWIZZLE_A };
+    }
     viewCreateInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
     // Linear tiling usually won't support mip maps
     // Only set mip map count if optimal tiling is used

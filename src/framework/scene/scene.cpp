@@ -98,6 +98,11 @@ void Scene::draw(VkCommandBuffer t_commandBuffer, VkPipelineLayout t_pipelineLay
 bool Scene::loadFromFile(const std::string& t_modelPath, const SceneVertexLayout& t_layout,
     SceneCreateInfo* t_createInfo, Device* t_device, VkQueue t_copyQueue)
 {
+    // Destroy previous scene data before loading new model
+    if (m_device) {
+        destroy();
+    }
+
     this->m_device = t_device;
     this->m_vertexLayout = t_layout;
 
@@ -299,6 +304,9 @@ void Scene::loadCamera(const aiScene* t_scene)
 {
     if (t_scene->HasCameras()) {
         m_camera = Camera(*t_scene->mCameras[0]); // Only one camera supported
+    } else {
+        // Initialize camera with default values if model doesn't have one
+        m_camera = Camera();
     }
 }
 

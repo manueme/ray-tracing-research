@@ -5,15 +5,14 @@
 
 #include "ray_tracing_base_pipeline.h"
 #include "core/device.h"
-#include "shaders/shared_constants.h"
 #include "scene/scene.h"
+#include "shaders/shared_constants.h"
 #include "tools/tools.h"
-#include <array>
 #include <thread>
 #include <vector>
 
-RayTracingBasePipeline::RayTracingBasePipeline(
-    Device* t_vulkanDevice, uint32_t t_maxDepth, uint32_t t_sampleCount)
+RayTracingBasePipeline::RayTracingBasePipeline(Device* t_vulkanDevice, uint32_t t_maxDepth,
+    uint32_t t_sampleCount)
     : m_device(t_vulkanDevice->logicalDevice)
     , m_vulkanDevice(t_vulkanDevice)
 {
@@ -48,7 +47,8 @@ RayTracingBasePipeline::~RayTracingBasePipeline()
     }
 };
 
-void RayTracingBasePipeline::createPipeline(std::vector<VkPipelineShaderStageCreateInfo> t_shaderStages,
+void RayTracingBasePipeline::createPipeline(
+    std::vector<VkPipelineShaderStageCreateInfo> t_shaderStages,
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> t_shaderGroups)
 {
     VkRayTracingPipelineCreateInfoKHR rayPipelineInfo {};
@@ -70,8 +70,8 @@ void RayTracingBasePipeline::createPipeline(std::vector<VkPipelineShaderStageCre
     createShaderBindingTable();
 }
 
-VkDeviceSize RayTracingBasePipeline::copyRTShaderIdentifier(
-    uint8_t* t_data, const uint8_t* t_shaderHandleStorage, uint32_t t_groupIndex) const
+VkDeviceSize RayTracingBasePipeline::copyRTShaderIdentifier(uint8_t* t_data,
+    const uint8_t* t_shaderHandleStorage, uint32_t t_groupIndex) const
 {
     const uint32_t shaderGroupHandleSize = m_rayTracingPipelineProperties.shaderGroupHandleSize;
     memcpy(t_data,
@@ -80,8 +80,8 @@ VkDeviceSize RayTracingBasePipeline::copyRTShaderIdentifier(
     return shaderGroupHandleSize;
 }
 
-Scene* RayTracingBasePipeline::createRTScene(
-    VkQueue t_queue, const std::string& t_modelPath, SceneVertexLayout t_vertexLayout)
+Scene* RayTracingBasePipeline::createRTScene(VkQueue t_queue, const std::string& t_modelPath,
+    SceneVertexLayout t_vertexLayout)
 {
     // Models
     SceneCreateInfo modelCreateInfo(glm::vec3(1.0f), glm::vec3(1.0f), glm::vec3(0.0f));
@@ -117,8 +117,15 @@ Scene* RayTracingBasePipeline::createRTScene(
     std::vector<BlasCreateInfo> blases;
     for (auto i = 0; i < scene->meshes.size(); ++i) {
         const auto mesh = scene->meshes[i];
+        uint32_t primitiveCount = mesh.getIndexCount() / 3;
+
+        // Skip meshes with less than 1 triangle (3 indices)
+        if (primitiveCount == 0) {
+            continue;
+        }
+
         VkAccelerationStructureBuildRangeInfoKHR meshOffsetInfo {};
-        meshOffsetInfo.primitiveCount = mesh.getIndexCount() / 3;
+        meshOffsetInfo.primitiveCount = primitiveCount;
         meshOffsetInfo.primitiveOffset = mesh.getIndexOffset();
         meshOffsetInfo.firstVertex = mesh.getVertexBase();
 
@@ -128,7 +135,12 @@ Scene* RayTracingBasePipeline::createRTScene(
         blas.meshes = { meshOffsetInfo };
         blases.emplace_back(blas);
 
-        scene->createMeshInstance(i, i);
+        uint32_t blasIdx = static_cast<uint32_t>(blases.size() - 1);
+        scene->createMeshInstance(blasIdx, i);
+    }
+
+    if (blases.empty()) {
+        throw std::runtime_error("No valid meshes found for acceleration structure");
     }
     createBottomLevelAccelerationStructure(t_queue, blases);
 
@@ -165,8 +177,8 @@ Scene* RayTracingBasePipeline::createRTScene(
     return scene;
 }
 
-void RayTracingBasePipeline::createBottomLevelAccelerationStructure(
-    VkQueue t_queue, const std::vector<BlasCreateInfo>& t_blases)
+void RayTracingBasePipeline::createBottomLevelAccelerationStructure(VkQueue t_queue,
+    const std::vector<BlasCreateInfo>& t_blases)
 
 {
     m_bottomLevelAS.resize(t_blases.size());
@@ -197,12 +209,21 @@ void RayTracingBasePipeline::createBottomLevelAccelerationStructure(
             &buildInfos[idx],
             maxPrimCount.data(),
             &sizeInfo);
+
+        if (sizeInfo.accelerationStructureSize == 0) {
+            throw std::runtime_error("Cannot create BLAS with zero size");
+        }
+
         // Create acceleration structure object. Not yet bound to memory.
         m_bottomLevelAS[idx] = AccelerationStructure(m_vulkanDevice,
             VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
             sizeInfo);
         buildInfos[idx].dstAccelerationStructure = m_bottomLevelAS[idx].getHandle();
         maxScratch = glm::max(maxScratch, sizeInfo.buildScratchSize);
+    }
+
+    if (maxScratch == 0) {
+        throw std::runtime_error("Cannot create acceleration structure with zero scratch size");
     }
 
     Buffer scratchBuffer;
@@ -242,16 +263,23 @@ void RayTracingBasePipeline::createBottomLevelAccelerationStructure(
     scratchBuffer.destroy();
 }
 
-void RayTracingBasePipeline::createTopLevelAccelerationStructure(
-    VkQueue t_queue, TlasCreateInfo t_tlasCreateInfo)
+void RayTracingBasePipeline::createTopLevelAccelerationStructure(VkQueue t_queue,
+    TlasCreateInfo t_tlasCreateInfo)
 {
+    if (t_tlasCreateInfo.instances.empty()) {
+        throw std::runtime_error("Cannot create TLAS with zero instances");
+    }
+
     // Buffer for instance data
+    VkDeviceSize instancesBufferSize
+        = sizeof(VkAccelerationStructureInstanceKHR) * t_tlasCreateInfo.instances.size();
+
     Buffer instancesBuffer;
     instancesBuffer.create(m_vulkanDevice,
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
             | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        sizeof(VkAccelerationStructureInstanceKHR) * t_tlasCreateInfo.instances.size(),
+        instancesBufferSize,
         t_tlasCreateInfo.instances.data());
 
     VkDeviceOrHostAddressConstKHR instanceDataDeviceAddress {};
@@ -285,6 +313,14 @@ void RayTracingBasePipeline::createTopLevelAccelerationStructure(
         &buildInfo,
         &instanceCount,
         &sizeInfo);
+
+    if (sizeInfo.accelerationStructureSize == 0) {
+        throw std::runtime_error("Cannot create TLAS with zero size");
+    }
+
+    if (sizeInfo.buildScratchSize == 0) {
+        throw std::runtime_error("Cannot create TLAS scratch buffer with zero size");
+    }
 
     // Create TLAS
     if (t_tlasCreateInfo.update == false) {

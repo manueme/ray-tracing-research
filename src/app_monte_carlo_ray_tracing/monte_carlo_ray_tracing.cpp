@@ -264,6 +264,9 @@ void MonteCarloRTApp::createUniformBuffers()
     CHECK_RESULT(m_sceneBuffer.map());
     // Instances Information uniform
     bufferSize = sizeof(ShaderMeshInstance) * m_scene->getInstancesCount();
+    if (bufferSize == 0) {
+        throw std::runtime_error("Cannot create instances buffer with zero size");
+    }
     m_instancesBuffer.create(m_vulkanDevice,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -271,6 +274,9 @@ void MonteCarloRTApp::createUniformBuffers()
         m_scene->getInstancesShaderData().data());
     // global Material list uniform (its a storage buffer)
     bufferSize = sizeof(ShaderMaterial) * m_scene->getMaterialCount();
+    if (bufferSize == 0) {
+        throw std::runtime_error("Cannot create materials buffer with zero size");
+    }
     m_materialsBuffer.create(m_vulkanDevice,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -278,12 +284,16 @@ void MonteCarloRTApp::createUniformBuffers()
         m_scene->getMaterialsShaderData().data());
 
     // global Light list uniform (its a storage buffer)
-    bufferSize = sizeof(ShaderLight) * m_scene->getLightCount();
+    auto lightCount = m_scene->getLightCount();
+    bufferSize = sizeof(ShaderLight) * lightCount;
+    if (bufferSize == 0) {
+        bufferSize = sizeof(ShaderLight); // Create at least one element
+    }
     m_lightsBuffer.create(m_vulkanDevice,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         bufferSize,
-        m_scene->getLightsShaderData().data());
+        lightCount > 0 ? m_scene->getLightsShaderData().data() : nullptr);
 
     // Auto Exposure uniform, also set the default data
     bufferSize = sizeof(ExposureUniformData);
@@ -344,7 +354,7 @@ void MonteCarloRTApp::setupScene()
         VERTEX_COMPONENT_TANGENT,
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
-    m_scene = m_rayTracing->createRTScene(m_queue, "assets/pool/Pool.fbx", m_vertexLayout);
+    m_scene = m_rayTracing->createRTScene(m_queue, "assets/sponza/scene.gltf", m_vertexLayout);
     auto camera = m_scene->getCamera();
     camera->setMovementSpeed(100.0f);
     camera->setRotationSpeed(0.5f);
