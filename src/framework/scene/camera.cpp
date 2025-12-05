@@ -8,7 +8,7 @@
 Camera::Camera()
 {
     // some default values
-    setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+    setPosition(glm::vec3(0.0f, -1.5f, 0.0f)); // Start camera higher so it's not on the floor
     setMovementSpeed(500.0f);
     setRotationSpeed(0.5f);
     setPerspective(60.0f, 1.0f, 0.1f, 5000.0f);
@@ -25,7 +25,8 @@ Camera::Camera(const aiCamera& t_aiCamera)
     const auto aiCameraFront = t_aiCamera.mLookAt;
     const auto aiCameraUp = t_aiCamera.mUp;
     setPosition(cameraPos);
-    const auto front = glm::normalize(glm::vec3(aiCameraFront.x, -aiCameraFront.y, aiCameraFront.z));
+    const auto front
+        = glm::normalize(glm::vec3(aiCameraFront.x, -aiCameraFront.y, aiCameraFront.z));
     const auto up = glm::normalize(glm::vec3(aiCameraUp.x, aiCameraUp.y, aiCameraUp.z));
     matrices.orientation = glm::quat_cast(glm::lookAtRH(glm::vec3(0.0), front, up));
     matrices.view = glm::translate(glm::mat4_cast(matrices.orientation), -position);
@@ -46,22 +47,21 @@ void Camera::updateAspectRatio(float aspect)
     matrices.perspective = glm::perspective(glm::radians(fov), aspect, znear, zfar);
 }
 
-void Camera::setPosition(glm::vec3 t_position)
-{
-    this->position = t_position;
-}
+void Camera::setPosition(glm::vec3 t_position) { this->position = t_position; }
 
 void Camera::rotate(float t_yaw, float t_pitch)
 {
     glm::quat pitch = glm::quat(glm::vec3(glm::radians(-t_pitch), 0.0f, 0.0f));
     glm::quat yaw = glm::quat(glm::vec3(0.f, glm::radians(-t_yaw), 0.f));
-    matrices.orientation = pitch * matrices.orientation * yaw; // glm::yawPitchRoll(glm::radians(t_yaw), glm::radians(t_pitch), 0.0f);
+    matrices.orientation = pitch * matrices.orientation
+        * yaw; // glm::yawPitchRoll(glm::radians(t_yaw), glm::radians(t_pitch), 0.0f);
     matrices.view = glm::translate(glm::mat4_cast(matrices.orientation), -position);
 }
 
 void Camera::translate(glm::vec3 t_delta)
 {
     this->position += t_delta;
+    matrices.view = glm::translate(glm::mat4_cast(matrices.orientation), -position);
 }
 
 void Camera::setRotationSpeed(float t_rotationSpeed) { this->rotationSpeed = t_rotationSpeed; }
@@ -72,7 +72,8 @@ void Camera::update(float t_deltaTime)
 {
     if (moving()) {
         float moveSpeed = t_deltaTime * movementSpeed;
-        const glm::vec3 front = -glm::vec3(matrices.view[0][2], matrices.view[1][2], matrices.view[2][2]);
+        const glm::vec3 front
+            = -glm::vec3(matrices.view[0][2], matrices.view[1][2], matrices.view[2][2]);
 
         if (keys.up)
             position += front * moveSpeed;

@@ -354,9 +354,9 @@ void MonteCarloRTApp::setupScene()
         VERTEX_COMPONENT_TANGENT,
         VERTEX_COMPONENT_UV,
         VERTEX_COMPONENT_DUMMY_FLOAT });
-    m_scene = m_rayTracing->createRTScene(m_queue, "assets/sponza/scene.gltf", m_vertexLayout);
+    m_scene = m_rayTracing->createRTScene(m_queue, "assets/scene.gltf", m_vertexLayout);
     auto camera = m_scene->getCamera();
-    camera->setMovementSpeed(100.0f);
+    camera->setMovementSpeed(10.0f);
     camera->setRotationSpeed(0.5f);
     camera->setPerspective(60.0f,
         static_cast<float>(m_width) / static_cast<float>(m_height),

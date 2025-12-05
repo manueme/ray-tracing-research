@@ -12,10 +12,10 @@
 #include "../constants.h"
 
 // #define SAMPLE_PRIMARY
-// #define DEPTH_OF_FIELD
+#define DEPTH_OF_FIELD
 #define STORE_DEPTH_MAP
 #define SHOW_NANS
-#define CAMERA_APERTURE 0.90f
+#define CAMERA_APERTURE 0.10f
 
 // #define FLAT_SHADING
 
